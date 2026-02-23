@@ -42,7 +42,7 @@ function formatTs(ts: number): string {
 
 let nextId = 0;
 
-export default function CliPage() {
+export function CliPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const connected = !!getSelectedProtocol();
 

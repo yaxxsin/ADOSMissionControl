@@ -81,7 +81,7 @@ interface MsgRate {
   hz: number;
 }
 
-export default function MavlinkInspectorPage() {
+export function MavlinkInspectorPanel() {
   const selectedDroneId = useDroneManager((s) => s.selectedDroneId);
   const getSelectedDrone = useDroneManager((s) => s.getSelectedDrone);
 

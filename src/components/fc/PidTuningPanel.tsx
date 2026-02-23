@@ -64,7 +64,7 @@ function buildDefaults(): ParamValues {
   return out;
 }
 
-export default function PidPage() {
+export function PidTuningPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const [params, setParams] = useState<ParamValues>(buildDefaults);
   const [saving, setSaving] = useState(false);

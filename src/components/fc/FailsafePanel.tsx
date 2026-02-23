@@ -29,7 +29,7 @@ const DEFAULT_PARAMS: Params = {
   THR_FS_VALUE: { name: "THR_FS_VALUE", value: "950", dirty: false },
 };
 
-export default function FailsafePage() {
+export function FailsafePanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const [params, setParams] = useState<Params>(DEFAULT_PARAMS);
   const [saving, setSaving] = useState(false);

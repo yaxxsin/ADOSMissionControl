@@ -5,7 +5,7 @@ import {
   CalibrationWizard,
   type CalibrationStatus,
   type CalibrationStep,
-} from "@/components/config/CalibrationWizard";
+} from "./CalibrationWizard";
 import { useDroneManager } from "@/stores/drone-manager";
 import { Crosshair } from "lucide-react";
 
@@ -48,7 +48,7 @@ const AIRSPEED_STEPS: CalibrationStep[] = [
   { label: "Cover Pitot", description: "Cover the pitot tube opening to seal it from airflow" },
 ];
 
-export default function CalibrationPage() {
+export function CalibrationPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const connected = !!getSelectedProtocol();
 

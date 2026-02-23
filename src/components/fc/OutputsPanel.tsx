@@ -48,7 +48,7 @@ function defaultRow(): OutputRow {
   return { function: 0, min: 1000, max: 2000, trim: 1500, reversed: false };
 }
 
-export default function OutputsConfigPage() {
+export function OutputsPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const protocol = getSelectedProtocol();
 

@@ -65,7 +65,7 @@ function RcChannelBar({ index, value, min, max }: {
 
 // ── Main Page ────────────────────────────────────────────────
 
-export default function ReceiverConfigPage() {
+export function ReceiverPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const protocol = getSelectedProtocol();
 

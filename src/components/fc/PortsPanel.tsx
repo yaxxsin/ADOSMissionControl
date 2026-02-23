@@ -58,7 +58,7 @@ interface PortConfig {
   baud: string;
 }
 
-export default function PortsPage() {
+export function PortsPanel() {
   const [ports, setPorts] = useState<PortConfig[]>(
     Array.from({ length: NUM_PORTS }, () => ({ protocol: "-1", baud: "57" }))
   );

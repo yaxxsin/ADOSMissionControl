@@ -135,6 +135,20 @@ export const useDroneManager = create<DroneManagerState>((set, get) => ({
       return { drones: newMap };
     });
 
+    // Insert into fleet store so the drone appears in Fleet view
+    useFleetStore.getState().addDrone({
+      id,
+      name,
+      status: "online",
+      connectionState: "connected",
+      flightMode: "STABILIZE",
+      armState: "disarmed",
+      lastHeartbeat: Date.now(),
+      healthScore: 100,
+      firmwareVersion: vehicleInfo.firmwareVersionString,
+      frameType: vehicleInfo.vehicleClass,
+    });
+
     // Auto-select if this is the first drone
     if (get().drones.size === 1) {
       get().selectDrone(id);
@@ -147,6 +161,9 @@ export const useDroneManager = create<DroneManagerState>((set, get) => ({
       drone.unsubscribers.forEach((unsub) => unsub());
       drone.protocol.disconnect();
     }
+
+    // Remove from fleet store
+    useFleetStore.getState().removeDrone(id);
 
     set((state) => {
       const newMap = new Map(state.drones);

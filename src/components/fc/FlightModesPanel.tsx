@@ -55,7 +55,7 @@ const MODE_PWM_RANGES = [
 
 const MODE_SLOT_COUNT = 6;
 
-export default function ModesConfigPage() {
+export function FlightModesPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const protocol = getSelectedProtocol();
   const firmwareHandler = protocol?.getFirmwareHandler() ?? null;

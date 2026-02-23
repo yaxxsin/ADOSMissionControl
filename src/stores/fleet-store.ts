@@ -7,6 +7,8 @@ interface FleetStoreState {
   lastUpdate: number;
 
   setDrones: (drones: FleetDrone[]) => void;
+  addDrone: (drone: FleetDrone) => void;
+  removeDrone: (id: string) => void;
   updateDrone: (id: string, update: Partial<FleetDrone>) => void;
   addAlert: (alert: Alert) => void;
   acknowledgeAlert: (id: string) => void;
@@ -20,6 +22,19 @@ export const useFleetStore = create<FleetStoreState>((set) => ({
   lastUpdate: 0,
 
   setDrones: (drones) => set({ drones, lastUpdate: Date.now() }),
+
+  addDrone: (drone) =>
+    set((state) => {
+      // Idempotent: skip if already present
+      if (state.drones.some((d) => d.id === drone.id)) return state;
+      return { drones: [...state.drones, drone], lastUpdate: Date.now() };
+    }),
+
+  removeDrone: (id) =>
+    set((state) => ({
+      drones: state.drones.filter((d) => d.id !== id),
+      lastUpdate: Date.now(),
+    })),
 
   updateDrone: (id, update) =>
     set((state) => ({

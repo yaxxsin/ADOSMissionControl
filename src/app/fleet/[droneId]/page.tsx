@@ -1,8 +1,9 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useFleetStore } from "@/stores/fleet-store";
+import { useDroneManager } from "@/stores/drone-manager";
 import { Tabs } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { DroneStatusBadge } from "@/components/shared/drone-status-badge";
@@ -10,6 +11,7 @@ import { DroneOverviewTab } from "@/components/drone-detail/DroneOverviewTab";
 import { DroneArchitectureTab } from "@/components/drone-detail/DroneArchitectureTab";
 import { DroneTelemetryTab } from "@/components/drone-detail/DroneTelemetryTab";
 import { DroneFlightsTab } from "@/components/drone-detail/DroneFlightsTab";
+import { DroneConfigureTab } from "@/components/drone-detail/DroneConfigureTab";
 import { DroneSettingsTab } from "@/components/drone-detail/DroneSettingsTab";
 import { ArrowLeft } from "lucide-react";
 
@@ -18,6 +20,7 @@ const TABS = [
   { id: "architecture", label: "Architecture" },
   { id: "telemetry", label: "Telemetry" },
   { id: "flights", label: "Flights" },
+  { id: "configure", label: "Configure" },
   { id: "settings", label: "Settings" },
 ];
 
@@ -32,6 +35,15 @@ export default function DroneDetailPage({
   const [activeTab, setActiveTab] = useState("overview");
 
   const drone = drones.find((d) => d.id === droneId);
+  const managedDrones = useDroneManager((s) => s.drones);
+  const isConnected = managedDrones.has(droneId);
+
+  // Select this drone in drone-manager so getSelectedProtocol() returns the right protocol
+  useEffect(() => {
+    if (isConnected) {
+      useDroneManager.getState().selectDrone(droneId);
+    }
+  }, [droneId, isConnected]);
 
   if (!drone) {
     return (
@@ -80,6 +92,13 @@ export default function DroneDetailPage({
         {activeTab === "architecture" && <DroneArchitectureTab />}
         {activeTab === "telemetry" && <DroneTelemetryTab drone={drone} />}
         {activeTab === "flights" && <DroneFlightsTab droneId={droneId} />}
+        {activeTab === "configure" && (
+          <DroneConfigureTab
+            droneId={droneId}
+            droneName={drone.name}
+            isConnected={isConnected}
+          />
+        )}
         {activeTab === "settings" && <DroneSettingsTab drone={drone} />}
       </div>
     </div>

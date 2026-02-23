@@ -33,7 +33,7 @@ function cellVoltageBg(v: number): string {
   return "bg-status-error";
 }
 
-export default function PowerPage() {
+export function PowerPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const batteryBuffer = useTelemetryStore((s) => s.battery);
   const [params, setParams] = useState<PowerParams>(DEFAULT_PARAMS);

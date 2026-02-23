@@ -82,7 +82,7 @@ const PRESETS: Record<string, Partial<Record<string, { enabled: boolean; row: nu
 const GRID_COLS = 30;
 const GRID_ROWS = 16;
 
-export default function OsdEditorPage() {
+export function OsdEditorPanel() {
   const selectedDroneId = useDroneManager((s) => s.selectedDroneId);
   const getSelectedDrone = useDroneManager((s) => s.getSelectedDrone);
 
