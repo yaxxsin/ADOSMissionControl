@@ -250,6 +250,91 @@ export type ParameterCallback = (data: ParameterValue) => void;
 
 export type SerialDataCallback = (data: { device: number; data: Uint8Array }) => void;
 
+export type SysStatusCallback = (data: {
+  timestamp: number;
+  cpuLoad: number;
+  sensorsPresent: number;
+  sensorsEnabled: number;
+  sensorsHealthy: number;
+  voltageMv: number;
+  currentCa: number;
+  batteryRemaining: number;
+  dropRateComm: number;
+  errorsComm: number;
+}) => void;
+
+export type RadioCallback = (data: {
+  timestamp: number;
+  rssi: number;
+  remrssi: number;
+  txbuf: number;
+  noise: number;
+  remnoise: number;
+  rxerrors: number;
+  fixed: number;
+}) => void;
+
+export type MissionProgressCallback = (data: {
+  currentSeq: number;
+  reachedSeq?: number;
+}) => void;
+
+export type EkfCallback = (data: {
+  timestamp: number;
+  velocityVariance: number;
+  posHorizVariance: number;
+  posVertVariance: number;
+  compassVariance: number;
+  terrainAltVariance: number;
+  flags: number;
+}) => void;
+
+export type VibrationCallback = (data: {
+  timestamp: number;
+  vibrationX: number;
+  vibrationY: number;
+  vibrationZ: number;
+  clipping0: number;
+  clipping1: number;
+  clipping2: number;
+}) => void;
+
+export type ServoOutputCallback = (data: {
+  timestamp: number;
+  port: number;
+  servos: number[];
+}) => void;
+
+export type WindCallback = (data: {
+  timestamp: number;
+  direction: number;
+  speed: number;
+  speedZ: number;
+}) => void;
+
+export type TerrainCallback = (data: {
+  timestamp: number;
+  lat: number;
+  lon: number;
+  terrainHeight: number;
+  currentHeight: number;
+  spacing: number;
+  pending: number;
+  loaded: number;
+}) => void;
+
+export type MagCalProgressCallback = (data: {
+  compassId: number;
+  completionPct: number;
+  calStatus: number;
+}) => void;
+
+export type MagCalReportCallback = (data: {
+  compassId: number;
+  calStatus: number;
+  autosaved: number;
+}) => void;
+
 // ── Mission Items ───────────────────────────────────────────
 
 /** Wire-format mission item for upload/download (INT variant). */
@@ -330,6 +415,22 @@ export interface DroneProtocol {
   returnToLaunch(): Promise<CommandResult>;
   land(): Promise<CommandResult>;
   takeoff(altitude: number): Promise<CommandResult>;
+  killSwitch(): Promise<CommandResult>;
+  guidedGoto(lat: number, lon: number, alt: number): Promise<CommandResult>;
+  pauseMission(): Promise<CommandResult>;
+  resumeMission(): Promise<CommandResult>;
+  clearMission(): Promise<CommandResult>;
+  commitParamsToFlash(): Promise<CommandResult>;
+
+  // ── Field Operations ──────────────────────────────────────
+  setHome(useCurrent: boolean, lat?: number, lon?: number, alt?: number): Promise<CommandResult>;
+  changeSpeed(speedType: number, speed: number): Promise<CommandResult>;
+  setYaw(angle: number, speed: number, direction: number, relative: boolean): Promise<CommandResult>;
+  setGeoFenceEnabled(enabled: boolean): Promise<CommandResult>;
+  setServo(servoNumber: number, pwm: number): Promise<CommandResult>;
+  cameraTrigger(): Promise<CommandResult>;
+  setGimbalAngle(pitch: number, roll: number, yaw: number): Promise<CommandResult>;
+  doPreArmCheck(): Promise<CommandResult>;
 
   // ── Manual Control ──────────────────────────────────────
   /** Send MANUAL_CONTROL at up to 50 Hz. Fire-and-forget (no ACK). */
@@ -345,6 +446,7 @@ export interface DroneProtocol {
   getAllParameters(): Promise<ParameterValue[]>;
   getParameter(name: string): Promise<ParameterValue>;
   setParameter(name: string, value: number, type?: number): Promise<CommandResult>;
+  resetParametersToDefault(): Promise<CommandResult>;
 
   // ── Mission ─────────────────────────────────────────────
   uploadMission(items: MissionItem[]): Promise<CommandResult>;
@@ -375,6 +477,16 @@ export interface DroneProtocol {
   onHeartbeat(callback: HeartbeatCallback): () => void;
   onParameter(callback: ParameterCallback): () => void;
   onSerialData(callback: SerialDataCallback): () => void;
+  onSysStatus(callback: SysStatusCallback): () => void;
+  onRadio(callback: RadioCallback): () => void;
+  onMissionProgress(callback: MissionProgressCallback): () => void;
+  onEkf(callback: EkfCallback): () => void;
+  onVibration(callback: VibrationCallback): () => void;
+  onServoOutput(callback: ServoOutputCallback): () => void;
+  onWind(callback: WindCallback): () => void;
+  onTerrain(callback: TerrainCallback): () => void;
+  onMagCalProgress?(callback: MagCalProgressCallback): () => void;
+  onMagCalReport?(callback: MagCalReportCallback): () => void;
 
   // ── Serial Passthrough ──────────────────────────────────
   /** Send a string as SERIAL_CONTROL data to the FC shell. */

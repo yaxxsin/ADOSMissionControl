@@ -3,6 +3,8 @@
 import { Card } from "@/components/ui/card";
 import { DataValue } from "@/components/ui/data-value";
 import { BatteryBar } from "@/components/shared/battery-bar";
+import { DroneLogsPanel } from "@/components/drone-detail/DroneLogsPanel";
+import { SensorHealthBar } from "@/components/shared/SensorHealthBar";
 import { formatDate } from "@/lib/utils";
 import { useSettingsStore } from "@/stores/settings-store";
 import { getJurisdictionConfig } from "@/lib/jurisdiction";
@@ -47,6 +49,7 @@ export function DroneOverviewTab({ drone }: DroneOverviewTabProps) {
 
       <Card title="Health & Status">
         <div className="flex flex-col gap-3">
+          <SensorHealthBar />
           <DataValue label="Health Score" value={drone.healthScore} unit="%" />
           <div>
             <span className="text-[11px] text-text-secondary">Battery</span>
@@ -64,6 +67,11 @@ export function DroneOverviewTab({ drone }: DroneOverviewTabProps) {
             />
           </div>
         </div>
+      </Card>
+
+      {/* Flight Logs — full width */}
+      <Card title="Flight Logs" padding={false} className="md:col-span-2">
+        <DroneLogsPanel droneId={drone.id} />
       </Card>
     </div>
   );

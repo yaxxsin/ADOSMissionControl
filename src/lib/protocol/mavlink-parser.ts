@@ -33,6 +33,7 @@ export const CRC_EXTRA: ReadonlyMap<number, number> = new Map([
   [0, 50],    // HEARTBEAT
   [1, 124],   // SYS_STATUS
   [11, 89],   // SET_MODE
+  [20, 214],  // PARAM_REQUEST_READ
   [21, 159],  // PARAM_REQUEST_LIST
   [22, 220],  // PARAM_VALUE
   [23, 168],  // PARAM_SET
@@ -52,6 +53,18 @@ export const CRC_EXTRA: ReadonlyMap<number, number> = new Map([
   [147, 154], // BATTERY_STATUS
   [126, 220], // SERIAL_CONTROL
   [253, 83],  // STATUSTEXT
+  [42, 28],   // MISSION_CURRENT
+  [43, 132],  // MISSION_REQUEST_LIST
+  [45, 232],  // MISSION_CLEAR_ALL
+  [46, 11],   // MISSION_ITEM_REACHED
+  [109, 185], // RADIO_STATUS
+  [36, 222],  // SERVO_OUTPUT_RAW
+  [136, 1],   // TERRAIN_REPORT
+  [168, 1],   // WIND
+  [191, 92],  // MAG_CAL_PROGRESS
+  [192, 36],  // MAG_CAL_REPORT
+  [241, 90],  // VIBRATION
+  [335, 71],  // EKF_STATUS_REPORT
 ]);
 
 /**
@@ -62,6 +75,7 @@ const PAYLOAD_LENGTHS: ReadonlyMap<number, number> = new Map([
   [0, 9],     // HEARTBEAT
   [1, 31],    // SYS_STATUS
   [11, 6],    // SET_MODE
+  [20, 20],   // PARAM_REQUEST_READ
   [21, 2],    // PARAM_REQUEST_LIST
   [22, 25],   // PARAM_VALUE
   [23, 23],   // PARAM_SET
@@ -81,6 +95,18 @@ const PAYLOAD_LENGTHS: ReadonlyMap<number, number> = new Map([
   [126, 79],  // SERIAL_CONTROL
   [147, 36],  // BATTERY_STATUS
   [253, 54],  // STATUSTEXT (severity + 50 chars + 3 id bytes)
+  [42, 2],    // MISSION_CURRENT
+  [43, 2],    // MISSION_REQUEST_LIST
+  [45, 2],    // MISSION_CLEAR_ALL
+  [46, 2],    // MISSION_ITEM_REACHED
+  [109, 9],   // RADIO_STATUS
+  [36, 21],   // SERVO_OUTPUT_RAW
+  [136, 22],  // TERRAIN_REPORT
+  [168, 12],  // WIND
+  [191, 27],  // MAG_CAL_PROGRESS
+  [192, 44],  // MAG_CAL_REPORT (base, without extensions)
+  [241, 32],  // VIBRATION
+  [335, 22],  // EKF_STATUS_REPORT
 ]);
 
 // ── CRC-16/MCRF4XX ─────────────────────────────────────────
@@ -251,6 +277,9 @@ export class MAVLinkParser {
       const wireCrc = wireCrcLo | (wireCrcHi << 8);
 
       if (crc !== wireCrc) {
+        if (msgId === 77) {
+          console.debug(`[MAVLink] CRC mismatch for COMMAND_ACK: computed=${crc} wire=${wireCrc} payloadLen=${payloadLen}`)
+        }
         // CRC mismatch — skip this STX and try the next byte
         readPos++;
         continue;

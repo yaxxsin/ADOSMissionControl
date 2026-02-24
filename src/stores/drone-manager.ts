@@ -7,6 +7,9 @@ import type {
 import { useTelemetryStore } from "./telemetry-store";
 import { useDroneStore } from "./drone-store";
 import { useFleetStore } from "./fleet-store";
+import { useSettingsStore } from "./settings-store";
+import { useTrailStore } from "./trail-store";
+import { audioEngine } from "@/lib/audio-engine";
 import type { FlightMode } from "@/lib/types";
 
 export interface ManagedDrone {
@@ -66,6 +69,7 @@ function bridgeTelemetry(
     protocol.onPosition((data) => {
       telemetry.pushPosition(data);
       fleetStore.updateDrone(droneId, { position: data });
+      useTrailStore.getState().pushPoint(data.lat, data.lon);
     }),
 
     protocol.onBattery((data) => {
@@ -76,14 +80,59 @@ function bridgeTelemetry(
     protocol.onGps((data) => {
       telemetry.pushGps(data);
       fleetStore.updateDrone(droneId, { gps: data });
+
+      const settings = useSettingsStore.getState();
+      if (settings.audioEnabled && settings.alertGpsLost && data.fixType <= 1) {
+        audioEngine.play("gps_lost");
+      }
     }),
 
     protocol.onVfr((data) => telemetry.pushVfr(data)),
 
-    protocol.onRc((data) => telemetry.pushRc(data)),
+    protocol.onRc((data) => {
+      telemetry.pushRc(data);
+
+      const settings = useSettingsStore.getState();
+      if (settings.audioEnabled && settings.alertRcLost && data.rssi === 0) {
+        audioEngine.play("rc_lost");
+      }
+    }),
+
+    protocol.onSysStatus((data) => {
+      telemetry.pushSysStatus(data);
+
+      const settings = useSettingsStore.getState();
+      if (settings.audioEnabled && settings.alertLowBattery) {
+        if (data.batteryRemaining >= 0 && data.batteryRemaining < settings.batteryCriticalPct) {
+          audioEngine.play("low_battery");
+        }
+      }
+    }),
+
+    protocol.onRadio((data) => {
+      telemetry.pushRadio(data);
+    }),
+
+    protocol.onEkf((data) => telemetry.pushEkf(data)),
+    protocol.onVibration((data) => telemetry.pushVibration(data)),
+    protocol.onServoOutput((data) => telemetry.pushServoOutput(data)),
+    protocol.onWind((data) => telemetry.pushWind(data)),
+    protocol.onTerrain((data) => telemetry.pushTerrain(data)),
+
+    protocol.onMissionProgress((data) => {
+      if (data.reachedSeq !== undefined) {
+        const settings = useSettingsStore.getState();
+        if (settings.audioEnabled && settings.alertWaypoint) {
+          audioEngine.play("waypoint_reached");
+        }
+      }
+    }),
 
     protocol.onHeartbeat((data) => {
       const droneStore = useDroneStore.getState();
+
+      // Capture arm state before updating for audio edge detection
+      const wasArmed = droneStore.armState === "armed";
 
       // Map UnifiedFlightMode → FlightMode. Fall back to current if unknown.
       const mode = KNOWN_MODES.has(data.mode)
@@ -94,6 +143,15 @@ function bridgeTelemetry(
       droneStore.setArmState(data.armed ? "armed" : "disarmed");
       droneStore.setConnectionState(data.armed ? "armed" : "connected");
       droneStore.heartbeat();
+
+      // Audio triggers for arm/disarm transitions
+      const settings = useSettingsStore.getState();
+      if (settings.audioEnabled && settings.alertArmDisarm) {
+        if (data.armed && !wasArmed) audioEngine.play("arm");
+        if (!data.armed && wasArmed) audioEngine.play("disarm");
+      }
+
+      droneStore.setSystemStatus(data.systemStatus);
 
       if (data.vehicleInfo) {
         droneStore.setFirmwareInfo(

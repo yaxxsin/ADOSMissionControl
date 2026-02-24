@@ -301,6 +301,46 @@ export function encodeMissionItemInt(
  * @param baudrate - Baudrate (0 = no change)
  * @param data     - Payload bytes (max 70)
  */
+// ── PARAM_REQUEST_READ (ID 20) ──────────────────────────────
+
+/**
+ * Request a single parameter by index from the flight controller.
+ *
+ * @param targetSys  - Target system ID
+ * @param targetComp - Target component ID
+ * @param paramId    - Parameter name (empty string to use index)
+ * @param paramIndex - Parameter index (-1 to use name instead)
+ */
+export function encodeParamRequestRead(
+  targetSys: number,
+  targetComp: number,
+  paramId: string,
+  paramIndex: number,
+  sysId = 255,
+  compId = 190,
+): Uint8Array {
+  const payload = new Uint8Array(20);
+  const dv = new DataView(payload.buffer);
+
+  // param_index (int16) at offset 0
+  dv.setInt16(0, paramIndex, true);
+
+  // target_system at offset 2
+  payload[2] = targetSys;
+
+  // target_component at offset 3
+  payload[3] = targetComp;
+
+  // param_id (char[16]) at offset 4 — null-padded
+  const encoder = new TextEncoder();
+  const nameBytes = encoder.encode(paramId.slice(0, 16));
+  payload.set(nameBytes, 4);
+
+  return buildFrame(20, payload, sysId, compId);
+}
+
+// ── SERIAL_CONTROL (ID 126) ────────────────────────────────
+
 export function encodeSerialControl(
   device: number,
   flags: number,
@@ -319,4 +359,69 @@ export function encodeSerialControl(
   payload[8] = Math.min(data.length, 70); // count
   payload.set(data.subarray(0, 70), 9);   // data[70]
   return buildFrame(126, payload, sysId, compId);
+}
+
+// ── MISSION_REQUEST_LIST (ID 43) ─────────────────────────────
+
+/** Request the mission item list from the flight controller. */
+export function encodeMissionRequestList(
+  targetSys: number,
+  targetComp: number,
+  sysId = 255,
+  compId = 190,
+): Uint8Array {
+  const payload = new Uint8Array(2);
+  payload[0] = targetSys;
+  payload[1] = targetComp;
+  return buildFrame(43, payload, sysId, compId);
+}
+
+// ── MISSION_REQUEST_INT (ID 51) ──────────────────────────────
+
+/** Request a specific mission item by sequence number. */
+export function encodeMissionRequestInt(
+  targetSys: number,
+  targetComp: number,
+  seq: number,
+  sysId = 255,
+  compId = 190,
+): Uint8Array {
+  const payload = new Uint8Array(4);
+  const dv = new DataView(payload.buffer);
+  dv.setUint16(0, seq, true);
+  payload[2] = targetSys;
+  payload[3] = targetComp;
+  return buildFrame(51, payload, sysId, compId);
+}
+
+// ── MISSION_ACK (ID 47) ─────────────────────────────────────
+
+/** Send mission acknowledgement. */
+export function encodeMissionAck(
+  targetSys: number,
+  targetComp: number,
+  type: number,
+  sysId = 255,
+  compId = 190,
+): Uint8Array {
+  const payload = new Uint8Array(3);
+  payload[0] = targetSys;
+  payload[1] = targetComp;
+  payload[2] = type;
+  return buildFrame(47, payload, sysId, compId);
+}
+
+// ── MISSION_CLEAR_ALL (ID 45) ───────────────────────────────
+
+/** Clear all mission items on the flight controller. */
+export function encodeMissionClearAll(
+  targetSys: number,
+  targetComp: number,
+  sysId = 255,
+  compId = 190,
+): Uint8Array {
+  const payload = new Uint8Array(2);
+  payload[0] = targetSys;
+  payload[1] = targetComp;
+  return buildFrame(45, payload, sysId, compId);
 }

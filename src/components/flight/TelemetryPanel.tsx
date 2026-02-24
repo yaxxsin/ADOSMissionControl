@@ -13,6 +13,7 @@ export function TelemetryPanel() {
   const vfr = useTelemetryStore((s) => s.vfr.latest());
   const battery = useTelemetryStore((s) => s.battery.latest());
   const gps = useTelemetryStore((s) => s.gps.latest());
+  const radio = useTelemetryStore((s) => s.radio.latest());
   const flightMode = useDroneStore((s) => s.flightMode);
   const mission = useMissionStore((s) => s.activeMission);
 
@@ -86,6 +87,43 @@ export function TelemetryPanel() {
         value={hdop.toFixed(1)}
         warning={hdop > 2.0}
         critical={hdop > 5.0}
+      />
+
+      {/* Divider */}
+      <div className="border-t border-border-default my-1" />
+
+      {/* Radio Link */}
+      <div className="px-2 pt-1 pb-1">
+        <span className="text-[10px] uppercase tracking-wider text-text-tertiary font-semibold">
+          Radio
+        </span>
+      </div>
+      {(() => {
+        const rssiDbm = radio ? radio.rssi / 1.9 - 127 : null;
+        const remRssiDbm = radio ? radio.remrssi / 1.9 - 127 : null;
+        return (
+          <>
+            <TelemetryBlock
+              label="RSSI"
+              value={rssiDbm !== null ? Math.round(rssiDbm) : "--"}
+              unit="dBm"
+              warning={rssiDbm !== null ? rssiDbm > -70 && rssiDbm < -50 : false}
+              critical={rssiDbm !== null ? rssiDbm < -70 : false}
+            />
+            <TelemetryBlock
+              label="REM"
+              value={remRssiDbm !== null ? Math.round(remRssiDbm) : "--"}
+              unit="dBm"
+            />
+          </>
+        );
+      })()}
+      <TelemetryBlock
+        label="TXBUF"
+        value={radio?.txbuf ?? "--"}
+        unit="%"
+        warning={radio ? radio.txbuf < 50 : false}
+        critical={radio ? radio.txbuf < 20 : false}
       />
 
       {/* Divider */}

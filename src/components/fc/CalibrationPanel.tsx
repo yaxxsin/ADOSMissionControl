@@ -59,17 +59,30 @@ export function CalibrationPanel() {
   const [airspeed, setAirspeed] = useState<CalibrationState>(INITIAL_STATE);
 
   const statusUnsubRef = useRef<(() => void) | null>(null);
+  const magCalUnsubRef = useRef<(() => void) | null>(null);
+  const magCalReportUnsubRef = useRef<(() => void) | null>(null);
 
   // Subscribe to status text for calibration progress updates
   useEffect(() => {
     return () => {
       statusUnsubRef.current?.();
+      magCalUnsubRef.current?.();
+      magCalReportUnsubRef.current?.();
     };
   }, []);
 
+  const cleanupAllSubs = useCallback(() => {
+    statusUnsubRef.current?.();
+    statusUnsubRef.current = null;
+    magCalUnsubRef.current?.();
+    magCalUnsubRef.current = null;
+    magCalReportUnsubRef.current?.();
+    magCalReportUnsubRef.current = null;
+  }, []);
+
   const subscribeToStatus = useCallback(
-    (setter: React.Dispatch<React.SetStateAction<CalibrationState>>, stepCount: number) => {
-      statusUnsubRef.current?.();
+    (setter: React.Dispatch<React.SetStateAction<CalibrationState>>, stepCount: number, calType: string) => {
+      cleanupAllSubs();
       const protocol = getSelectedProtocol();
       if (!protocol) return;
 
@@ -84,8 +97,7 @@ export function CalibrationPanel() {
             progress: 100,
             message: text,
           });
-          statusUnsubRef.current?.();
-          statusUnsubRef.current = null;
+          cleanupAllSubs();
           return;
         }
 
@@ -95,8 +107,7 @@ export function CalibrationPanel() {
             status: "error",
             message: text,
           }));
-          statusUnsubRef.current?.();
-          statusUnsubRef.current = null;
+          cleanupAllSubs();
           return;
         }
 
@@ -123,14 +134,53 @@ export function CalibrationPanel() {
           return;
         }
 
-        // Any other status text during calibration
-        setter((prev) => ({
-          ...prev,
-          message: text,
-        }));
+        // Only show calibration-relevant status texts — ignore unrelated periodic messages
+        const isCalibrationRelevant =
+          lower.includes("cal") ||
+          lower.includes("calibrat") ||
+          lower.includes("accel") ||
+          lower.includes("gyro") ||
+          lower.includes("compass") ||
+          lower.includes("mag") ||
+          lower.includes("level") ||
+          lower.includes("airspeed") ||
+          lower.includes("baro") ||
+          lower.includes("place vehicle") ||
+          lower.includes("orientation");
+
+        if (isCalibrationRelevant) {
+          setter((prev) => ({ ...prev, message: text }));
+        }
       });
+
+      // For compass calibration, subscribe to MAG_CAL_PROGRESS/REPORT for real-time feedback
+      if (calType === "compass") {
+        if (protocol.onMagCalProgress) {
+          magCalUnsubRef.current = protocol.onMagCalProgress(({ completionPct }) => {
+            setter((prev) => ({
+              ...prev,
+              progress: completionPct,
+              message: `Compass calibration: ${completionPct}%`,
+            }));
+          });
+        }
+
+        if (protocol.onMagCalReport) {
+          magCalReportUnsubRef.current = protocol.onMagCalReport(({ calStatus }) => {
+            // calStatus: 0=NOT_STARTED, 1=WAITING, 2=RUNNING_STEP_ONE, 3=RUNNING_STEP_TWO,
+            //            4=SUCCESS, 5=FAILED, 6=BAD_ORIENTATION, 7=BAD_RADIUS
+            if (calStatus === 4) {
+              setter({ status: "success", currentStep: stepCount, progress: 100, message: "Compass calibration complete" });
+              cleanupAllSubs();
+            } else if (calStatus >= 5) {
+              setter((prev) => ({ ...prev, status: "error", message: `Compass calibration failed (status ${calStatus})` }));
+              cleanupAllSubs();
+            }
+          });
+        }
+      }
     },
-    [getSelectedProtocol],
+    [getSelectedProtocol, cleanupAllSubs],
   );
 
   const startCalibration = useCallback(
@@ -143,19 +193,29 @@ export function CalibrationPanel() {
       if (!protocol) return;
 
       setter({ status: "in_progress", currentStep: 0, progress: 0, message: "Starting calibration..." });
-      subscribeToStatus(setter, stepCount);
+      subscribeToStatus(setter, stepCount, type);
 
       try {
         const result = await protocol.startCalibration(type);
         if (!result.success) {
-          setter((prev) => ({
-            ...prev,
-            status: "error",
-            message: result.message || "Calibration command rejected",
-          }));
+          // Only show immediate error for definitive rejections
+          // 2=DENIED, 3=UNSUPPORTED, 4=FAILED, 6=CANCELLED
+          const definitiveFailure = [2, 3, 4, 6].includes(result.resultCode);
+          if (definitiveFailure) {
+            // Unsubscribe all listeners to prevent message overwrite by unrelated STATUSTEXTs
+            cleanupAllSubs();
+            setter((prev) => ({
+              ...prev,
+              status: "error",
+              message: result.message || "Calibration command rejected",
+            }));
+          }
+          // For timeout (-1) or TEMPORARILY_REJECTED (1) — leave as in_progress,
+          // STATUSTEXT listener will handle completion or failure
         }
         // On success the command was accepted — actual completion comes via STATUSTEXT
       } catch {
+        cleanupAllSubs();
         setter((prev) => ({
           ...prev,
           status: "error",
@@ -163,7 +223,7 @@ export function CalibrationPanel() {
         }));
       }
     },
-    [getSelectedProtocol, subscribeToStatus],
+    [getSelectedProtocol, subscribeToStatus, cleanupAllSubs],
   );
 
   return (

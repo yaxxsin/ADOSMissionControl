@@ -5,6 +5,7 @@ import { Settings, AlertTriangle, LogOut, CloudOff } from "lucide-react";
 import { CommandNav } from "./CommandNav";
 import { DemoProvider } from "./DemoProvider";
 import { CommandPalette } from "@/components/shared/command-palette";
+import { FailsafeAlertBanner } from "@/components/flight/FailsafeAlertBanner";
 import { useFleetStore } from "@/stores/fleet-store";
 import { useDroneStore } from "@/stores/drone-store";
 import { useVideoStore } from "@/stores/video-store";
@@ -157,6 +158,7 @@ export function CommandShell({ children }: { children: React.ReactNode }) {
       <main className="flex-1 flex flex-col overflow-hidden">
         <DemoProvider />
         <CommandPalette />
+        <FailsafeAlertBanner />
         {children}
       </main>
     </div>

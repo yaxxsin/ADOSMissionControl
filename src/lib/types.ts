@@ -93,6 +93,86 @@ export interface RcData {
   rssi: number;        // signal strength 0-255
 }
 
+// ── SYS_STATUS ─────────────────────────────────────────────
+export interface SysStatusData {
+  timestamp: number;
+  cpuLoad: number;            // 0-1000 (0.1% units)
+  sensorsPresent: number;     // raw bitmask
+  sensorsEnabled: number;
+  sensorsHealthy: number;
+  voltageMv: number;
+  currentCa: number;
+  batteryRemaining: number;
+  dropRateComm: number;
+  errorsComm: number;
+}
+
+// ── Radio Link ─────────────────────────────────────────────
+export interface RadioData {
+  timestamp: number;
+  rssi: number;
+  remrssi: number;
+  txbuf: number;
+  noise: number;
+  remnoise: number;
+  rxerrors: number;
+  fixed: number;
+}
+
+// ── EKF Status ──────────────────────────────────────────────
+
+export interface EkfData {
+  timestamp: number;
+  velocityVariance: number;
+  posHorizVariance: number;
+  posVertVariance: number;
+  compassVariance: number;
+  terrainAltVariance: number;
+  flags: number;
+}
+
+// ── Vibration ───────────────────────────────────────────────
+
+export interface VibrationData {
+  timestamp: number;
+  vibrationX: number;
+  vibrationY: number;
+  vibrationZ: number;
+  clipping0: number;
+  clipping1: number;
+  clipping2: number;
+}
+
+// ── Servo Output ────────────────────────────────────────────
+
+export interface ServoOutputData {
+  timestamp: number;
+  port: number;
+  servos: number[];  // up to 8 PWM values
+}
+
+// ── Wind ────────────────────────────────────────────────────
+
+export interface WindData {
+  timestamp: number;
+  direction: number;  // degrees
+  speed: number;      // m/s
+  speedZ: number;     // m/s
+}
+
+// ── Terrain ─────────────────────────────────────────────────
+
+export interface TerrainData {
+  timestamp: number;
+  lat: number;
+  lon: number;
+  terrainHeight: number;  // m AMSL
+  currentHeight: number;  // m above terrain
+  spacing: number;
+  pending: number;
+  loaded: number;
+}
+
 // ── Fleet ────────────────────────────────────────────────────
 
 export interface FleetDrone extends DroneInfo {
@@ -133,7 +213,7 @@ export interface Waypoint {
 
 /** MAVLink command types supported in mission waypoints. */
 export type WaypointCommand =
-  | "WAYPOINT" | "LOITER" | "LOITER_TIME" | "LOITER_TURNS"
+  | "WAYPOINT" | "SPLINE_WAYPOINT" | "LOITER" | "LOITER_TIME" | "LOITER_TURNS"
   | "TAKEOFF" | "LAND" | "RTL" | "ROI" | "DO_SET_SPEED"
   | "DO_SET_CAM_TRIGG" | "DO_DIGICAM" | "DO_JUMP" | "DELAY" | "CONDITION_YAW";
 

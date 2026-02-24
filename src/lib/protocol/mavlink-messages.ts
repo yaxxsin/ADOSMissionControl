@@ -509,3 +509,447 @@ export function decodeMissionRequestInt(dv: DataView): MissionRequestIntMsg {
     targetComponent: dv.getUint8(3),
   };
 }
+
+// ── RADIO_STATUS (ID 109) ──────────────────────────────────
+
+export interface RadioStatusMsg {
+  rxerrors: number;
+  fixed: number;
+  rssi: number;
+  remrssi: number;
+  txbuf: number;
+  noise: number;
+  remnoise: number;
+}
+
+/**
+ * Decode RADIO_STATUS (msg ID 109).
+ *
+ * | Offset | Type   | Field     |
+ * |--------|--------|-----------|
+ * | 0      | uint16 | rxerrors  |
+ * | 2      | uint16 | fixed     |
+ * | 4      | uint8  | rssi      |
+ * | 5      | uint8  | remrssi   |
+ * | 6      | uint8  | txbuf     |
+ * | 7      | uint8  | noise     |
+ * | 8      | uint8  | remnoise  |
+ */
+export function decodeRadioStatus(dv: DataView): RadioStatusMsg {
+  return {
+    rxerrors: dv.getUint16(0, true),
+    fixed: dv.getUint16(2, true),
+    rssi: dv.getUint8(4),
+    remrssi: dv.getUint8(5),
+    txbuf: dv.getUint8(6),
+    noise: dv.getUint8(7),
+    remnoise: dv.getUint8(8),
+  };
+}
+
+// ── MISSION_COUNT (ID 44) ──────────────────────────────────
+
+export interface MissionCountMsg {
+  count: number;
+  targetSystem: number;
+  targetComponent: number;
+}
+
+/**
+ * Decode MISSION_COUNT (msg ID 44).
+ *
+ * | Offset | Type   | Field           |
+ * |--------|--------|-----------------|
+ * | 0      | uint16 | count           |
+ * | 2      | uint8  | targetSystem    |
+ * | 3      | uint8  | targetComponent |
+ */
+export function decodeMissionCount(dv: DataView): MissionCountMsg {
+  return {
+    count: dv.getUint16(0, true),
+    targetSystem: dv.getUint8(2),
+    targetComponent: dv.getUint8(3),
+  };
+}
+
+// ── MISSION_ITEM_INT (ID 73) — Decode ─────────────────────
+
+export interface MissionItemIntMsg {
+  param1: number;
+  param2: number;
+  param3: number;
+  param4: number;
+  x: number;
+  y: number;
+  z: number;
+  seq: number;
+  command: number;
+  targetSystem: number;
+  targetComponent: number;
+  frame: number;
+  current: number;
+  autocontinue: number;
+}
+
+/**
+ * Decode MISSION_ITEM_INT (msg ID 73).
+ *
+ * | Offset | Type    | Field           |
+ * |--------|---------|-----------------|
+ * | 0      | float32 | param1          |
+ * | 4      | float32 | param2          |
+ * | 8      | float32 | param3          |
+ * | 12     | float32 | param4          |
+ * | 16     | int32   | x (lat * 1e7)   |
+ * | 20     | int32   | y (lon * 1e7)   |
+ * | 24     | float32 | z (alt)         |
+ * | 28     | uint16  | seq             |
+ * | 30     | uint16  | command         |
+ * | 32     | uint8   | targetSystem    |
+ * | 33     | uint8   | targetComponent |
+ * | 34     | uint8   | frame           |
+ * | 35     | uint8   | current         |
+ * | 36     | uint8   | autocontinue    |
+ */
+export function decodeMissionItemInt(dv: DataView): MissionItemIntMsg {
+  return {
+    param1: dv.getFloat32(0, true),
+    param2: dv.getFloat32(4, true),
+    param3: dv.getFloat32(8, true),
+    param4: dv.getFloat32(12, true),
+    x: dv.getInt32(16, true),
+    y: dv.getInt32(20, true),
+    z: dv.getFloat32(24, true),
+    seq: dv.getUint16(28, true),
+    command: dv.getUint16(30, true),
+    targetSystem: dv.getUint8(32),
+    targetComponent: dv.getUint8(33),
+    frame: dv.getUint8(34),
+    current: dv.getUint8(35),
+    autocontinue: dv.getUint8(36),
+  };
+}
+
+// ── MISSION_CURRENT (ID 42) ────────────────────────────────
+
+export interface MissionCurrentMsg {
+  seq: number;
+}
+
+/**
+ * Decode MISSION_CURRENT (msg ID 42).
+ *
+ * | Offset | Type   | Field |
+ * |--------|--------|-------|
+ * | 0      | uint16 | seq   |
+ */
+export function decodeMissionCurrent(dv: DataView): MissionCurrentMsg {
+  return {
+    seq: dv.getUint16(0, true),
+  };
+}
+
+// ── MISSION_ITEM_REACHED (ID 46) ───────────────────────────
+
+export interface MissionItemReachedMsg {
+  seq: number;
+}
+
+/**
+ * Decode MISSION_ITEM_REACHED (msg ID 46).
+ *
+ * | Offset | Type   | Field |
+ * |--------|--------|-------|
+ * | 0      | uint16 | seq   |
+ */
+export function decodeMissionItemReached(dv: DataView): MissionItemReachedMsg {
+  return {
+    seq: dv.getUint16(0, true),
+  };
+}
+
+// ── MAG_CAL_PROGRESS (ID 191) ───────────────────────────────
+
+export interface MagCalProgressMsg {
+  compassId: number;
+  calMask: number;
+  calStatus: number;
+  attempt: number;
+  completionPct: number;
+  completionMask: Uint8Array;
+  directionX: number;
+  directionY: number;
+  directionZ: number;
+}
+
+/**
+ * Decode MAG_CAL_PROGRESS (msg ID 191).
+ *
+ * | Offset | Type       | Field           |
+ * |--------|------------|-----------------|
+ * | 0      | float32    | directionX      |
+ * | 4      | float32    | directionY      |
+ * | 8      | float32    | directionZ      |
+ * | 12     | uint8      | compassId       |
+ * | 13     | uint8      | calMask         |
+ * | 14     | uint8      | calStatus       |
+ * | 15     | uint8      | attempt         |
+ * | 16     | uint8      | completionPct   |
+ * | 17     | uint8[10]  | completionMask  |
+ */
+export function decodeMagCalProgress(dv: DataView): MagCalProgressMsg {
+  const completionMask = new Uint8Array(10);
+  for (let i = 0; i < 10; i++) {
+    completionMask[i] = dv.getUint8(17 + i);
+  }
+  return {
+    directionX: dv.getFloat32(0, true),
+    directionY: dv.getFloat32(4, true),
+    directionZ: dv.getFloat32(8, true),
+    compassId: dv.getUint8(12),
+    calMask: dv.getUint8(13),
+    calStatus: dv.getUint8(14),
+    attempt: dv.getUint8(15),
+    completionPct: dv.getUint8(16),
+    completionMask,
+  };
+}
+
+// ── MAG_CAL_REPORT (ID 192) ────────────────────────────────
+
+export interface MagCalReportMsg {
+  compassId: number;
+  calMask: number;
+  calStatus: number;
+  autosaved: number;
+  fitness: number;
+  ofsX: number;
+  ofsY: number;
+  ofsZ: number;
+  diagX: number;
+  diagY: number;
+  diagZ: number;
+  offdiagX: number;
+  offdiagY: number;
+  offdiagZ: number;
+}
+
+/**
+ * Decode MAG_CAL_REPORT (msg ID 192).
+ *
+ * | Offset | Type    | Field       |
+ * |--------|---------|-------------|
+ * | 0      | float32 | fitness     |
+ * | 4      | float32 | ofsX        |
+ * | 8      | float32 | ofsY        |
+ * | 12     | float32 | ofsZ        |
+ * | 16     | float32 | diagX       |
+ * | 20     | float32 | diagY       |
+ * | 24     | float32 | diagZ       |
+ * | 28     | float32 | offdiagX    |
+ * | 32     | float32 | offdiagY    |
+ * | 36     | float32 | offdiagZ    |
+ * | 40     | uint8   | compassId   |
+ * | 41     | uint8   | calMask     |
+ * | 42     | uint8   | calStatus   |
+ * | 43     | uint8   | autosaved   |
+ */
+export function decodeMagCalReport(dv: DataView): MagCalReportMsg {
+  return {
+    fitness: dv.getFloat32(0, true),
+    ofsX: dv.getFloat32(4, true),
+    ofsY: dv.getFloat32(8, true),
+    ofsZ: dv.getFloat32(12, true),
+    diagX: dv.getFloat32(16, true),
+    diagY: dv.getFloat32(20, true),
+    diagZ: dv.getFloat32(24, true),
+    offdiagX: dv.getFloat32(28, true),
+    offdiagY: dv.getFloat32(32, true),
+    offdiagZ: dv.getFloat32(36, true),
+    compassId: dv.getUint8(40),
+    calMask: dv.getUint8(41),
+    calStatus: dv.getUint8(42),
+    autosaved: dv.getUint8(43),
+  };
+}
+
+// ── EKF_STATUS_REPORT (ID 335) ─────────────────────────────
+
+export interface EkfStatusReportMsg {
+  velocityVariance: number;
+  posHorizVariance: number;
+  posVertVariance: number;
+  compassVariance: number;
+  terrainAltVariance: number;
+  flags: number;
+}
+
+/**
+ * Decode EKF_STATUS_REPORT (msg ID 335).
+ *
+ * | Offset | Type    | Field                |
+ * |--------|---------|----------------------|
+ * | 0      | float32 | velocityVariance     |
+ * | 4      | float32 | posHorizVariance     |
+ * | 8      | float32 | posVertVariance      |
+ * | 12     | float32 | compassVariance      |
+ * | 16     | float32 | terrainAltVariance   |
+ * | 20     | uint16  | flags                |
+ */
+export function decodeEkfStatusReport(dv: DataView): EkfStatusReportMsg {
+  return {
+    velocityVariance: dv.getFloat32(0, true),
+    posHorizVariance: dv.getFloat32(4, true),
+    posVertVariance: dv.getFloat32(8, true),
+    compassVariance: dv.getFloat32(12, true),
+    terrainAltVariance: dv.getFloat32(16, true),
+    flags: dv.getUint16(20, true),
+  };
+}
+
+// ── VIBRATION (ID 241) ─────────────────────────────────────
+
+export interface VibrationMsg {
+  timeUsec: number;
+  vibrationX: number;
+  vibrationY: number;
+  vibrationZ: number;
+  clipping0: number;
+  clipping1: number;
+  clipping2: number;
+}
+
+/**
+ * Decode VIBRATION (msg ID 241).
+ *
+ * | Offset | Type    | Field        |
+ * |--------|---------|--------------|
+ * | 0      | uint64  | timeUsec     |
+ * | 8      | float32 | vibrationX   |
+ * | 12     | float32 | vibrationY   |
+ * | 16     | float32 | vibrationZ   |
+ * | 20     | uint32  | clipping0    |
+ * | 24     | uint32  | clipping1    |
+ * | 28     | uint32  | clipping2    |
+ */
+export function decodeVibration(dv: DataView): VibrationMsg {
+  const low = dv.getUint32(0, true);
+  const high = dv.getUint32(4, true);
+  return {
+    timeUsec: high * 0x100000000 + low,
+    vibrationX: dv.getFloat32(8, true),
+    vibrationY: dv.getFloat32(12, true),
+    vibrationZ: dv.getFloat32(16, true),
+    clipping0: dv.getUint32(20, true),
+    clipping1: dv.getUint32(24, true),
+    clipping2: dv.getUint32(28, true),
+  };
+}
+
+// ── SERVO_OUTPUT_RAW (ID 36) ───────────────────────────────
+
+export interface ServoOutputRawMsg {
+  timeUsec: number;
+  servo1: number;
+  servo2: number;
+  servo3: number;
+  servo4: number;
+  servo5: number;
+  servo6: number;
+  servo7: number;
+  servo8: number;
+  port: number;
+}
+
+/**
+ * Decode SERVO_OUTPUT_RAW (msg ID 36).
+ *
+ * | Offset | Type   | Field      |
+ * |--------|--------|------------|
+ * | 0      | uint32 | timeUsec   |
+ * | 4      | uint16 | servo1_raw |
+ * | 6      | uint16 | servo2_raw |
+ * | 8      | uint16 | servo3_raw |
+ * | 10     | uint16 | servo4_raw |
+ * | 12     | uint16 | servo5_raw |
+ * | 14     | uint16 | servo6_raw |
+ * | 16     | uint16 | servo7_raw |
+ * | 18     | uint16 | servo8_raw |
+ * | 20     | uint8  | port       |
+ */
+export function decodeServoOutputRaw(dv: DataView): ServoOutputRawMsg {
+  return {
+    timeUsec: dv.getUint32(0, true),
+    servo1: dv.getUint16(4, true),
+    servo2: dv.getUint16(6, true),
+    servo3: dv.getUint16(8, true),
+    servo4: dv.getUint16(10, true),
+    servo5: dv.getUint16(12, true),
+    servo6: dv.getUint16(14, true),
+    servo7: dv.getUint16(16, true),
+    servo8: dv.getUint16(18, true),
+    port: dv.getUint8(20),
+  };
+}
+
+// ── WIND (ID 168) ──────────────────────────────────────────
+
+export interface WindMsg {
+  direction: number;
+  speed: number;
+  speedZ: number;
+}
+
+/**
+ * Decode WIND (msg ID 168).
+ *
+ * | Offset | Type    | Field     |
+ * |--------|---------|-----------|
+ * | 0      | float32 | direction |
+ * | 4      | float32 | speed     |
+ * | 8      | float32 | speedZ    |
+ */
+export function decodeWind(dv: DataView): WindMsg {
+  return {
+    direction: dv.getFloat32(0, true),
+    speed: dv.getFloat32(4, true),
+    speedZ: dv.getFloat32(8, true),
+  };
+}
+
+// ── TERRAIN_REPORT (ID 136) ────────────────────────────────
+
+export interface TerrainReportMsg {
+  lat: number;
+  lon: number;
+  spacing: number;
+  terrainHeight: number;
+  currentHeight: number;
+  pending: number;
+  loaded: number;
+}
+
+/**
+ * Decode TERRAIN_REPORT (msg ID 136).
+ *
+ * | Offset | Type    | Field          |
+ * |--------|---------|----------------|
+ * | 0      | int32   | lat (degE7)    |
+ * | 4      | int32   | lon (degE7)    |
+ * | 8      | float32 | terrainHeight  |
+ * | 12     | float32 | currentHeight  |
+ * | 16     | uint16  | spacing        |
+ * | 18     | uint16  | pending        |
+ * | 20     | uint16  | loaded         |
+ */
+export function decodeTerrainReport(dv: DataView): TerrainReportMsg {
+  return {
+    lat: dv.getInt32(0, true),
+    lon: dv.getInt32(4, true),
+    terrainHeight: dv.getFloat32(8, true),
+    currentHeight: dv.getFloat32(12, true),
+    spacing: dv.getUint16(16, true),
+    pending: dv.getUint16(18, true),
+    loaded: dv.getUint16(20, true),
+  };
+}

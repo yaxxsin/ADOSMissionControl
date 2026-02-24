@@ -16,19 +16,29 @@ import type {
   AttitudeCallback, PositionCallback, BatteryCallback, GpsCallback,
   VfrCallback, RcCallback, StatusTextCallback, HeartbeatCallback,
   ParameterCallback, SerialDataCallback,
+  SysStatusCallback, RadioCallback, MissionProgressCallback,
+  EkfCallback, VibrationCallback, ServoOutputCallback,
+  WindCallback, TerrainCallback,
+  MagCalProgressCallback, MagCalReportCallback,
 } from './types'
 import { MAVLinkParser, type MAVLinkFrame } from './mavlink-parser'
 import {
   encodeHeartbeat, encodeManualControl,
-  encodeSetMode, encodeParamRequestList, encodeParamSet,
+  encodeSetMode, encodeParamRequestList, encodeParamRequestRead, encodeParamSet,
   encodeMissionCount, encodeMissionItemInt, encodeSerialControl,
+  encodeMissionRequestList, encodeMissionRequestInt, encodeMissionAck, encodeMissionClearAll,
 } from './mavlink-encoder'
 import {
   decodeHeartbeat, decodeAttitude, decodeGlobalPositionInt,
   decodeBatteryStatus, decodeGpsRawInt, decodeVfrHud,
   decodeRcChannels, decodeCommandAck, decodeParamValue,
   decodeStatustext, decodeMissionAck, decodeMissionRequestInt,
-  decodeSerialControl,
+  decodeSerialControl, decodeSysStatus, decodeRadioStatus,
+  decodeMissionCount, decodeMissionItemInt as decodeMissionItemIntMsg,
+  decodeMissionCurrent, decodeMissionItemReached,
+  decodeEkfStatusReport, decodeVibration, decodeServoOutputRaw,
+  decodeWind, decodeTerrainReport,
+  decodeMagCalProgress, decodeMagCalReport,
 } from './mavlink-messages'
 import { CommandQueue } from './command-queue'
 import { createFirmwareHandler } from './firmware-ardupilot'
@@ -63,6 +73,16 @@ export class MAVLinkAdapter implements DroneProtocol {
   private heartbeatCallbacks: HeartbeatCallback[] = []
   private parameterCallbacks: ParameterCallback[] = []
   private serialDataCallbacks: SerialDataCallback[] = []
+  private sysStatusCallbacks: SysStatusCallback[] = []
+  private radioCallbacks: RadioCallback[] = []
+  private missionProgressCallbacks: MissionProgressCallback[] = []
+  private ekfCallbacks: EkfCallback[] = []
+  private vibrationCallbacks: VibrationCallback[] = []
+  private servoOutputCallbacks: ServoOutputCallback[] = []
+  private windCallbacks: WindCallback[] = []
+  private terrainCallbacks: TerrainCallback[] = []
+  private magCalProgressCallbacks: MagCalProgressCallback[] = []
+  private magCalReportCallbacks: MagCalReportCallback[] = []
 
   // Parameter download state
   private parameterDownload: {
@@ -70,13 +90,25 @@ export class MAVLinkAdapter implements DroneProtocol {
     total: number
     resolve: (params: ParameterValue[]) => void
     reject: (err: Error) => void
-    timer: ReturnType<typeof setTimeout>
+    hardTimer: ReturnType<typeof setTimeout>
+    inactivityTimer: ReturnType<typeof setTimeout> | null
+    retryCount: number
+    resetInactivityTimer: () => void
   } | null = null
 
   // Mission upload state
   private missionUpload: {
     items: MissionItem[]
     resolve: (result: CommandResult) => void
+    reject: (err: Error) => void
+    timer: ReturnType<typeof setTimeout>
+  } | null = null
+
+  // Mission download state
+  private missionDownload: {
+    items: Map<number, MissionItem>
+    total: number
+    resolve: (items: MissionItem[]) => void
     reject: (err: Error) => void
     timer: ReturnType<typeof setTimeout>
   } | null = null
@@ -170,18 +202,31 @@ export class MAVLinkAdapter implements DroneProtocol {
   private handleFrame(frame: MAVLinkFrame): void {
     switch (frame.msgId) {
       case 0:   this.handleHeartbeat(frame); break
+      case 1:   this.handleSysStatus(frame); break
       case 30:  this.handleAttitude(frame); break
       case 33:  this.handleGlobalPosition(frame); break
+      case 42:  this.handleMissionCurrent(frame); break
+      case 44:  this.handleMissionCountResponse(frame); break
+      case 46:  this.handleMissionItemReached(frame); break
+      case 73:  this.handleMissionItemIntResponse(frame); break
       case 147: this.handleBattery(frame); break
       case 24:  this.handleGpsRaw(frame); break
       case 74:  this.handleVfrHud(frame); break
       case 65:  this.handleRcChannels(frame); break
       case 77:  this.handleCommandAck(frame); break
       case 22:  this.handleParamValue(frame); break
+      case 109: this.handleRadioStatus(frame); break
       case 253: this.handleStatusText(frame); break
       case 47:  this.handleMissionAck(frame); break
       case 51:  this.handleMissionRequest(frame); break
       case 126: this.handleSerialControl(frame); break
+      case 191: this.handleMagCalProgress(frame); break
+      case 192: this.handleMagCalReport(frame); break
+      case 36:  this.handleServoOutput(frame); break
+      case 136: this.handleTerrainReport(frame); break
+      case 168: this.handleWind(frame); break
+      case 241: this.handleVibration(frame); break
+      case 335: this.handleEkfStatus(frame); break
     }
   }
 
@@ -298,6 +343,7 @@ export class MAVLinkAdapter implements DroneProtocol {
 
   private handleCommandAck(frame: MAVLinkFrame): void {
     const ack = decodeCommandAck(frame.payload)
+    console.debug(`[MAVLink] COMMAND_ACK: cmd=${ack.command} result=${ack.result}`)
     this.commandQueue.handleAck(ack.command, ack.result)
   }
 
@@ -319,13 +365,14 @@ export class MAVLinkAdapter implements DroneProtocol {
       this.parameterDownload.total = pv.paramCount
       this.parameterDownload.params.set(pv.paramIndex, param)
 
+      // Check if complete
       if (this.parameterDownload.params.size >= pv.paramCount) {
-        clearTimeout(this.parameterDownload.timer)
-        const params = Array.from(this.parameterDownload.params.values())
-          .sort((a, b) => a.index - b.index)
-        this.parameterDownload.resolve(params)
-        this.parameterDownload = null
+        this.finishParamDownload()
+        return
       }
+
+      // Reset inactivity timer on each new param
+      this.parameterDownload.resetInactivityTimer()
     }
   }
 
@@ -366,6 +413,195 @@ export class MAVLinkAdapter implements DroneProtocol {
     const sc = decodeSerialControl(frame.payload)
     for (const cb of this.serialDataCallbacks) {
       cb({ device: sc.device, data: sc.data })
+    }
+  }
+
+  private handleSysStatus(frame: MAVLinkFrame): void {
+    const data = decodeSysStatus(frame.payload)
+    for (const cb of this.sysStatusCallbacks) {
+      cb({
+        timestamp: Date.now(),
+        cpuLoad: data.load,
+        sensorsPresent: data.onboardControlSensorsPresent,
+        sensorsEnabled: data.onboardControlSensorsEnabled,
+        sensorsHealthy: data.onboardControlSensorsHealth,
+        voltageMv: data.voltageBattery,
+        currentCa: data.currentBattery,
+        batteryRemaining: data.batteryRemaining,
+        dropRateComm: data.dropRateComm,
+        errorsComm: data.errorsComm,
+      })
+    }
+  }
+
+  private handleRadioStatus(frame: MAVLinkFrame): void {
+    const data = decodeRadioStatus(frame.payload)
+    for (const cb of this.radioCallbacks) {
+      cb({
+        timestamp: Date.now(),
+        rssi: data.rssi,
+        remrssi: data.remrssi,
+        txbuf: data.txbuf,
+        noise: data.noise,
+        remnoise: data.remnoise,
+        rxerrors: data.rxerrors,
+        fixed: data.fixed,
+      })
+    }
+  }
+
+  private handleMissionCurrent(frame: MAVLinkFrame): void {
+    const data = decodeMissionCurrent(frame.payload)
+    for (const cb of this.missionProgressCallbacks) {
+      cb({ currentSeq: data.seq })
+    }
+  }
+
+  private handleMissionItemReached(frame: MAVLinkFrame): void {
+    const data = decodeMissionItemReached(frame.payload)
+    for (const cb of this.missionProgressCallbacks) {
+      cb({ currentSeq: data.seq, reachedSeq: data.seq })
+    }
+  }
+
+  private handleMissionCountResponse(frame: MAVLinkFrame): void {
+    if (!this.missionDownload) return
+    const data = decodeMissionCount(frame.payload)
+    this.missionDownload.total = data.count
+    if (data.count === 0) {
+      clearTimeout(this.missionDownload.timer)
+      this.missionDownload.resolve([])
+      this.missionDownload = null
+      return
+    }
+    // Request first item
+    this.transport?.send(encodeMissionRequestInt(
+      this.targetSysId, this.targetCompId, 0,
+      this.sysId, this.compId,
+    ))
+  }
+
+  private handleMissionItemIntResponse(frame: MAVLinkFrame): void {
+    if (!this.missionDownload) return
+    const data = decodeMissionItemIntMsg(frame.payload)
+    const item: MissionItem = {
+      seq: data.seq,
+      frame: data.frame,
+      command: data.command,
+      current: data.current,
+      autocontinue: data.autocontinue,
+      param1: data.param1,
+      param2: data.param2,
+      param3: data.param3,
+      param4: data.param4,
+      x: data.x,
+      y: data.y,
+      z: data.z,
+    }
+    this.missionDownload.items.set(data.seq, item)
+
+    if (this.missionDownload.items.size >= this.missionDownload.total) {
+      // All items received
+      clearTimeout(this.missionDownload.timer)
+      const items = Array.from(this.missionDownload.items.values()).sort((a, b) => a.seq - b.seq)
+      // Send ACK
+      this.transport?.send(encodeMissionAck(
+        this.targetSysId, this.targetCompId, 0,
+        this.sysId, this.compId,
+      ))
+      this.missionDownload.resolve(items)
+      this.missionDownload = null
+    } else {
+      // Request next item
+      const nextSeq = data.seq + 1
+      this.transport?.send(encodeMissionRequestInt(
+        this.targetSysId, this.targetCompId, nextSeq,
+        this.sysId, this.compId,
+      ))
+    }
+  }
+
+  private handleEkfStatus(frame: MAVLinkFrame): void {
+    const data = decodeEkfStatusReport(frame.payload)
+    for (const cb of this.ekfCallbacks) {
+      cb({
+        timestamp: Date.now(),
+        velocityVariance: data.velocityVariance,
+        posHorizVariance: data.posHorizVariance,
+        posVertVariance: data.posVertVariance,
+        compassVariance: data.compassVariance,
+        terrainAltVariance: data.terrainAltVariance,
+        flags: data.flags,
+      })
+    }
+  }
+
+  private handleVibration(frame: MAVLinkFrame): void {
+    const data = decodeVibration(frame.payload)
+    for (const cb of this.vibrationCallbacks) {
+      cb({
+        timestamp: Date.now(),
+        vibrationX: data.vibrationX,
+        vibrationY: data.vibrationY,
+        vibrationZ: data.vibrationZ,
+        clipping0: data.clipping0,
+        clipping1: data.clipping1,
+        clipping2: data.clipping2,
+      })
+    }
+  }
+
+  private handleServoOutput(frame: MAVLinkFrame): void {
+    const data = decodeServoOutputRaw(frame.payload)
+    for (const cb of this.servoOutputCallbacks) {
+      cb({
+        timestamp: Date.now(),
+        port: data.port,
+        servos: [data.servo1, data.servo2, data.servo3, data.servo4,
+                 data.servo5, data.servo6, data.servo7, data.servo8],
+      })
+    }
+  }
+
+  private handleWind(frame: MAVLinkFrame): void {
+    const data = decodeWind(frame.payload)
+    for (const cb of this.windCallbacks) {
+      cb({
+        timestamp: Date.now(),
+        direction: data.direction,
+        speed: data.speed,
+        speedZ: data.speedZ,
+      })
+    }
+  }
+
+  private handleTerrainReport(frame: MAVLinkFrame): void {
+    const data = decodeTerrainReport(frame.payload)
+    for (const cb of this.terrainCallbacks) {
+      cb({
+        timestamp: Date.now(),
+        lat: data.lat / 1e7,
+        lon: data.lon / 1e7,
+        terrainHeight: data.terrainHeight,
+        currentHeight: data.currentHeight,
+        spacing: data.spacing,
+        pending: data.pending,
+        loaded: data.loaded,
+      })
+    }
+  }
+
+  private handleMagCalProgress(frame: MAVLinkFrame): void {
+    const data = decodeMagCalProgress(frame.payload)
+    for (const cb of this.magCalProgressCallbacks) {
+      cb({ compassId: data.compassId, completionPct: data.completionPct, calStatus: data.calStatus })
+    }
+  }
+
+  private handleMagCalReport(frame: MAVLinkFrame): void {
+    const data = decodeMagCalReport(frame.payload)
+    for (const cb of this.magCalReportCallbacks) {
+      cb({ compassId: data.compassId, calStatus: data.calStatus, autosaved: data.autosaved })
     }
   }
 
@@ -414,28 +650,95 @@ export class MAVLinkAdapter implements DroneProtocol {
 
   // ── Parameters ─────────────────────────────────────────
 
+  private finishParamDownload(): void {
+    if (!this.parameterDownload) return
+    const dl = this.parameterDownload
+    clearTimeout(dl.hardTimer)
+    if (dl.inactivityTimer) clearTimeout(dl.inactivityTimer)
+    const params = Array.from(dl.params.values()).sort((a, b) => a.index - b.index)
+    dl.resolve(params)
+    this.parameterDownload = null
+  }
+
+  private retryMissingParams(): void {
+    if (!this.parameterDownload || !this.transport?.isConnected) return
+    const dl = this.parameterDownload
+
+    if (dl.total <= 0) {
+      // Don't know total yet — just restart inactivity timer
+      dl.resetInactivityTimer()
+      return
+    }
+
+    // Find missing indices
+    const missing: number[] = []
+    for (let i = 0; i < dl.total; i++) {
+      if (!dl.params.has(i)) missing.push(i)
+    }
+
+    if (missing.length === 0) {
+      this.finishParamDownload()
+      return
+    }
+
+    dl.retryCount++
+    if (dl.retryCount > 3) {
+      // Max retries reached — resolve with what we have
+      this.finishParamDownload()
+      return
+    }
+
+    // Request up to 50 missing params per retry round
+    const batch = missing.slice(0, 50)
+    for (const idx of batch) {
+      this.transport!.send(
+        encodeParamRequestRead(
+          this.targetSysId, this.targetCompId,
+          '', idx,
+          this.sysId, this.compId,
+        )
+      )
+    }
+
+    // Reset inactivity timer to wait for responses
+    dl.resetInactivityTimer()
+  }
+
   async getAllParameters(): Promise<ParameterValue[]> {
     if (!this.transport?.isConnected) throw new Error('Not connected')
 
-    return new Promise<ParameterValue[]>((resolve, reject) => {
-      const timer = setTimeout(() => {
+    return new Promise<ParameterValue[]>((resolve) => {
+      // Hard ceiling: 120 seconds — resolve with whatever we have
+      const hardTimer = setTimeout(() => {
         if (this.parameterDownload) {
-          // Resolve with what we have so far
-          const params = Array.from(this.parameterDownload.params.values())
-            .sort((a, b) => a.index - b.index)
-          this.parameterDownload = null
-          resolve(params)
-        } else {
-          reject(new Error('Parameter download timed out'))
+          this.finishParamDownload()
         }
-      }, 30000) // 30 second timeout for all params
+      }, 120000)
+
+      const createInactivityTimer = (): ReturnType<typeof setTimeout> => {
+        return setTimeout(() => {
+          this.retryMissingParams()
+        }, 5000)
+      }
+
+      const resetInactivityTimer = () => {
+        if (this.parameterDownload?.inactivityTimer) {
+          clearTimeout(this.parameterDownload.inactivityTimer)
+        }
+        if (this.parameterDownload) {
+          this.parameterDownload.inactivityTimer = createInactivityTimer()
+        }
+      }
 
       this.parameterDownload = {
         params: new Map(),
         total: 0,
         resolve,
-        reject,
-        timer,
+        reject: () => resolve([]), // Never reject — always resolve
+        hardTimer,
+        inactivityTimer: createInactivityTimer(),
+        retryCount: 0,
+        resetInactivityTimer,
       }
 
       this.transport!.send(encodeParamRequestList(this.targetSysId, this.targetCompId, this.sysId, this.compId))
@@ -491,8 +794,31 @@ export class MAVLinkAdapter implements DroneProtocol {
   }
 
   async downloadMission(): Promise<MissionItem[]> {
-    // TODO: Implement mission download protocol (MISSION_REQUEST_LIST → MISSION_COUNT → MISSION_REQUEST_INT loop)
-    throw new Error('Mission download not yet implemented')
+    if (!this.transport?.isConnected) throw new Error('Not connected')
+
+    return new Promise<MissionItem[]>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (this.missionDownload) {
+          // Resolve with whatever we have
+          const items = Array.from(this.missionDownload.items.values()).sort((a, b) => a.seq - b.seq)
+          this.missionDownload = null
+          resolve(items)
+        }
+      }, 15000)
+
+      this.missionDownload = {
+        items: new Map(),
+        total: 0,
+        resolve,
+        reject,
+        timer,
+      }
+
+      this.transport!.send(encodeMissionRequestList(
+        this.targetSysId, this.targetCompId,
+        this.sysId, this.compId,
+      ))
+    })
   }
 
   async setCurrentMissionItem(seq: number): Promise<CommandResult> {
@@ -502,16 +828,21 @@ export class MAVLinkAdapter implements DroneProtocol {
   // ── Calibration ────────────────────────────────────────
 
   async startCalibration(type: 'accel' | 'gyro' | 'compass' | 'level' | 'airspeed'): Promise<CommandResult> {
+    if (type === 'compass') {
+      // ArduPilot uses MAV_CMD_DO_START_MAG_CAL (42424), not PREFLIGHT_CALIBRATION
+      // param1=0 (all compasses), param2=0 (no auto-retry), param3=1 (autosave)
+      return this.sendCommandLong(42424, [0, 0, 1, 0, 0, 0, 0], 30000)
+    }
+
     // MAV_CMD_PREFLIGHT_CALIBRATION = 241
     const params: [number, number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0, 0]
     switch (type) {
-      case 'gyro':     params[0] = 1; break
-      case 'compass':  params[1] = 1; break
-      case 'accel':    params[4] = 1; break
-      case 'level':    params[4] = 2; break
-      case 'airspeed': params[4] = 4; break
+      case 'gyro':     params[0] = 1; break                // param1=1: gyro cal
+      case 'accel':    params[4] = 1; break                // param5=1: accel cal
+      case 'level':    params[4] = 2; break                // param5=2: level cal
+      case 'airspeed': params[2] = 1; break                // param3=1: baro + airspeed cal
     }
-    return this.sendCommandLong(241, params)
+    return this.sendCommandLong(241, params, 30000)        // 30s timeout for calibration
   }
 
   // ── Motor Test ─────────────────────────────────────────
@@ -523,11 +854,122 @@ export class MAVLinkAdapter implements DroneProtocol {
   // ── Reboot ─────────────────────────────────────────────
 
   async rebootToBootloader(): Promise<CommandResult> {
-    return this.sendCommandLong(246, [3, 0, 0, 0, 0, 0, 0]) // MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN, param1=3=bootloader
+    if (!this.transport?.isConnected) {
+      return { success: false, resultCode: -1, message: 'Not connected' }
+    }
+    // Fire-and-forget: FC reboots before it can ACK
+    this.commandQueue.sendCommandNoAck(
+      246, [3, 0, 0, 0, 0, 0, 0],
+      (data) => this.transport!.send(data),
+      this.targetSysId, this.targetCompId,
+      this.sysId, this.compId,
+    )
+    return { success: true, resultCode: 0, message: 'Bootloader reboot command sent' }
   }
 
   async reboot(): Promise<CommandResult> {
-    return this.sendCommandLong(246, [1, 0, 0, 0, 0, 0, 0]) // param1=1=normal reboot
+    if (!this.transport?.isConnected) {
+      return { success: false, resultCode: -1, message: 'Not connected' }
+    }
+    // Fire-and-forget: FC reboots before it can ACK
+    this.commandQueue.sendCommandNoAck(
+      246, [1, 0, 0, 0, 0, 0, 0],
+      (data) => this.transport!.send(data),
+      this.targetSysId, this.targetCompId,
+      this.sysId, this.compId,
+    )
+    return { success: true, resultCode: 0, message: 'Reboot command sent' }
+  }
+
+  async resetParametersToDefault(): Promise<CommandResult> {
+    if (!this.transport?.isConnected) {
+      return { success: false, resultCode: -1, message: 'Not connected' }
+    }
+    // Fire-and-forget: ArduPilot may not ACK MAV_CMD_PREFLIGHT_STORAGE reliably
+    // param1=2 = reset user-configurable params to firmware defaults
+    // param2=-1 = don't touch mission storage
+    this.commandQueue.sendCommandNoAck(
+      245, [2, -1, 0, 0, 0, 0, 0],
+      (data) => this.transport!.send(data),
+      this.targetSysId, this.targetCompId,
+      this.sysId, this.compId,
+    )
+    return { success: true, resultCode: 0, message: 'Reset command sent' }
+  }
+
+  async killSwitch(): Promise<CommandResult> {
+    return this.sendCommandLong(185, [1, 0, 0, 0, 0, 0, 0]) // MAV_CMD_DO_FLIGHTTERMINATION
+  }
+
+  async guidedGoto(lat: number, lon: number, alt: number): Promise<CommandResult> {
+    return this.sendCommandLong(192, [-1, 1, 0, 0, lat, lon, alt]) // MAV_CMD_DO_REPOSITION
+  }
+
+  async pauseMission(): Promise<CommandResult> {
+    return this.setFlightMode('LOITER')
+  }
+
+  async resumeMission(): Promise<CommandResult> {
+    return this.setFlightMode('AUTO')
+  }
+
+  async clearMission(): Promise<CommandResult> {
+    if (!this.transport?.isConnected) return { success: false, resultCode: -1, message: 'Not connected' }
+
+    return new Promise<CommandResult>((resolve) => {
+      const timer = setTimeout(() => {
+        resolve({ success: false, resultCode: -1, message: 'Mission clear timed out' })
+        this.missionUpload = null
+      }, 5000)
+
+      this.missionUpload = {
+        items: [],
+        resolve,
+        reject: () => resolve({ success: false, resultCode: -1, message: 'Mission clear failed' }),
+        timer,
+      }
+
+      this.transport!.send(encodeMissionClearAll(
+        this.targetSysId, this.targetCompId,
+        this.sysId, this.compId,
+      ))
+    })
+  }
+
+  async commitParamsToFlash(): Promise<CommandResult> {
+    return this.sendCommandLong(245, [1, 0, 0, 0, 0, 0, 0]) // MAV_CMD_PREFLIGHT_STORAGE param1=1
+  }
+
+  async setHome(useCurrent: boolean, lat = 0, lon = 0, alt = 0): Promise<CommandResult> {
+    return this.sendCommandLong(179, [useCurrent ? 0 : 1, 0, 0, 0, lat, lon, alt])
+  }
+
+  async changeSpeed(speedType: number, speed: number): Promise<CommandResult> {
+    return this.sendCommandLong(178, [speedType, speed, -1, 0, 0, 0, 0])
+  }
+
+  async setYaw(angle: number, speed: number, direction: number, relative: boolean): Promise<CommandResult> {
+    return this.sendCommandLong(115, [angle, speed, direction, relative ? 1 : 0, 0, 0, 0])
+  }
+
+  async setGeoFenceEnabled(enabled: boolean): Promise<CommandResult> {
+    return this.sendCommandLong(207, [enabled ? 1 : 0, 0, 0, 0, 0, 0, 0])
+  }
+
+  async setServo(servoNumber: number, pwm: number): Promise<CommandResult> {
+    return this.sendCommandLong(183, [servoNumber, pwm, 0, 0, 0, 0, 0])
+  }
+
+  async cameraTrigger(): Promise<CommandResult> {
+    return this.sendCommandLong(203, [0, 0, 0, 0, 1, 0, 0])
+  }
+
+  async setGimbalAngle(pitch: number, roll: number, yaw: number): Promise<CommandResult> {
+    return this.sendCommandLong(205, [pitch * 100, roll * 100, yaw * 100, 0, 0, 0, 0])
+  }
+
+  async doPreArmCheck(): Promise<CommandResult> {
+    return this.sendCommandLong(401, [0, 0, 0, 0, 0, 0, 0])
   }
 
   // ── Serial Passthrough ───────────────────────────────
@@ -582,6 +1024,46 @@ export class MAVLinkAdapter implements DroneProtocol {
     this.serialDataCallbacks.push(cb)
     return () => { this.serialDataCallbacks = this.serialDataCallbacks.filter(c => c !== cb) }
   }
+  onSysStatus(cb: SysStatusCallback): () => void {
+    this.sysStatusCallbacks.push(cb)
+    return () => { this.sysStatusCallbacks = this.sysStatusCallbacks.filter(c => c !== cb) }
+  }
+  onRadio(cb: RadioCallback): () => void {
+    this.radioCallbacks.push(cb)
+    return () => { this.radioCallbacks = this.radioCallbacks.filter(c => c !== cb) }
+  }
+  onMissionProgress(cb: MissionProgressCallback): () => void {
+    this.missionProgressCallbacks.push(cb)
+    return () => { this.missionProgressCallbacks = this.missionProgressCallbacks.filter(c => c !== cb) }
+  }
+  onEkf(cb: EkfCallback): () => void {
+    this.ekfCallbacks.push(cb)
+    return () => { this.ekfCallbacks = this.ekfCallbacks.filter(c => c !== cb) }
+  }
+  onVibration(cb: VibrationCallback): () => void {
+    this.vibrationCallbacks.push(cb)
+    return () => { this.vibrationCallbacks = this.vibrationCallbacks.filter(c => c !== cb) }
+  }
+  onServoOutput(cb: ServoOutputCallback): () => void {
+    this.servoOutputCallbacks.push(cb)
+    return () => { this.servoOutputCallbacks = this.servoOutputCallbacks.filter(c => c !== cb) }
+  }
+  onWind(cb: WindCallback): () => void {
+    this.windCallbacks.push(cb)
+    return () => { this.windCallbacks = this.windCallbacks.filter(c => c !== cb) }
+  }
+  onTerrain(cb: TerrainCallback): () => void {
+    this.terrainCallbacks.push(cb)
+    return () => { this.terrainCallbacks = this.terrainCallbacks.filter(c => c !== cb) }
+  }
+  onMagCalProgress(cb: MagCalProgressCallback): () => void {
+    this.magCalProgressCallbacks.push(cb)
+    return () => { this.magCalProgressCallbacks = this.magCalProgressCallbacks.filter(c => c !== cb) }
+  }
+  onMagCalReport(cb: MagCalReportCallback): () => void {
+    this.magCalReportCallbacks.push(cb)
+    return () => { this.magCalReportCallbacks = this.magCalReportCallbacks.filter(c => c !== cb) }
+  }
 
   // ── Info ────────────────────────────────────────────────
 
@@ -600,7 +1082,7 @@ export class MAVLinkAdapter implements DroneProtocol {
 
   // ── Helpers ────────────────────────────────────────────
 
-  private sendCommandLong(command: number, params: [number, number, number, number, number, number, number]): Promise<CommandResult> {
+  private sendCommandLong(command: number, params: [number, number, number, number, number, number, number], timeoutMs?: number): Promise<CommandResult> {
     if (!this.transport?.isConnected) {
       return Promise.resolve({ success: false, resultCode: -1, message: 'Not connected' })
     }
@@ -609,6 +1091,7 @@ export class MAVLinkAdapter implements DroneProtocol {
       (data) => this.transport!.send(data),
       this.targetSysId, this.targetCompId,
       this.sysId, this.compId,
+      timeoutMs,
     )
   }
 }

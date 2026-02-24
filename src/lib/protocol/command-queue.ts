@@ -31,6 +31,10 @@ interface PendingCommand {
   command: number;
   resolve: (result: CommandResult) => void;
   timer: ReturnType<typeof setTimeout>;
+  retryCount: number;
+  frame: Uint8Array;
+  sendFn: (data: Uint8Array) => void;
+  timeoutMs: number;
 }
 
 export class CommandQueue {
@@ -60,8 +64,11 @@ export class CommandQueue {
     targetSys: number,
     targetComp: number,
     sysId: number,
-    compId: number
+    compId: number,
+    timeoutMs?: number,
   ): Promise<CommandResult> {
+    const effectiveTimeout = timeoutMs ?? this.timeout;
+
     // If there's already a pending command with the same ID, reject the old one
     const existing = this.pending.get(command);
     if (existing) {
@@ -74,6 +81,17 @@ export class CommandQueue {
       this.pending.delete(command);
     }
 
+    // Encode the frame once — reused for retries
+    const frame = encodeCommandLong(
+      targetSys,
+      targetComp,
+      command,
+      params[0], params[1], params[2], params[3],
+      params[4], params[5], params[6],
+      sysId,
+      compId
+    );
+
     return new Promise<CommandResult>((resolve) => {
       // Set up timeout
       const timer = setTimeout(() => {
@@ -81,23 +99,17 @@ export class CommandQueue {
         resolve({
           success: false,
           resultCode: -1,
-          message: `Command ${command} timed out after ${this.timeout}ms`,
+          message: `Command ${command} timed out after ${effectiveTimeout}ms`,
         });
-      }, this.timeout);
+      }, effectiveTimeout);
 
       // Track the pending command
-      this.pending.set(command, { command, resolve, timer });
+      this.pending.set(command, {
+        command, resolve, timer, retryCount: 0,
+        frame, sendFn, timeoutMs: effectiveTimeout,
+      });
 
-      // Encode and send
-      const frame = encodeCommandLong(
-        targetSys,
-        targetComp,
-        command,
-        params[0], params[1], params[2], params[3],
-        params[4], params[5], params[6],
-        sysId,
-        compId
-      );
+      // Send
       sendFn(frame);
     });
   }
@@ -113,6 +125,43 @@ export class CommandQueue {
     const entry = this.pending.get(command);
     if (!entry) return;
 
+    // IN_PROGRESS: reset timeout, keep waiting for final ACK
+    if (result === MAV_RESULT.IN_PROGRESS) {
+      clearTimeout(entry.timer);
+      entry.timer = setTimeout(() => {
+        this.pending.delete(command);
+        entry.resolve({
+          success: false,
+          resultCode: -1,
+          message: `Command ${command} timed out after IN_PROGRESS`,
+        });
+      }, entry.timeoutMs);
+      return;
+    }
+
+    // TEMPORARILY_REJECTED: auto-retry up to 3 times with 1s delay
+    if (result === MAV_RESULT.TEMPORARILY_REJECTED && entry.retryCount < 3) {
+      clearTimeout(entry.timer);
+      entry.retryCount++;
+      setTimeout(() => {
+        // Entry may have been cleared during the delay
+        if (!this.pending.has(command)) return;
+        // Reset timeout
+        entry.timer = setTimeout(() => {
+          this.pending.delete(command);
+          entry.resolve({
+            success: false,
+            resultCode: MAV_RESULT.TEMPORARILY_REJECTED,
+            message: `Command ${command} temporarily rejected after ${entry.retryCount} retries`,
+          });
+        }, entry.timeoutMs);
+        // Resend
+        entry.sendFn(entry.frame);
+      }, 1000);
+      return;
+    }
+
+    // Final result — resolve
     clearTimeout(entry.timer);
     this.pending.delete(command);
 
@@ -134,6 +183,28 @@ export class CommandQueue {
       });
     }
     this.pending.clear();
+  }
+
+  /**
+   * Send a COMMAND_LONG without waiting for ACK.
+   * Used for commands where the FC may not respond (reset, reboot).
+   */
+  sendCommandNoAck(
+    command: number,
+    params: [number, number, number, number, number, number, number],
+    sendFn: (data: Uint8Array) => void,
+    targetSys: number,
+    targetComp: number,
+    sysId: number,
+    compId: number,
+  ): void {
+    const frame = encodeCommandLong(
+      targetSys, targetComp, command,
+      params[0], params[1], params[2], params[3],
+      params[4], params[5], params[6],
+      sysId, compId,
+    );
+    sendFn(frame);
   }
 
   get pendingCount(): number {

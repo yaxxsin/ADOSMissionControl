@@ -9,7 +9,6 @@ import {
   History,
   BarChart3,
   HeartPulse,
-  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,7 +18,6 @@ const tabs = [
   { icon: Route, label: "Plan", href: "/plan" },
 { icon: History, label: "History", href: "/history" },
   { icon: BarChart3, label: "Analytics", href: "/analytics" },
-  { icon: FileText, label: "Logs", href: "/logs" },
   { icon: HeartPulse, label: "Wizard", href: "/wizard" },
 ] as const;
 

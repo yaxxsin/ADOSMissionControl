@@ -26,10 +26,12 @@ export function WelcomeModal() {
   const setJurisdiction = useSettingsStore((s) => s.setJurisdiction);
   const setUnits = useSettingsStore((s) => s.setUnits);
   const setDemoMode = useSettingsStore((s) => s.setDemoMode);
+  const setAudioEnabled = useSettingsStore((s) => s.setAudioEnabled);
 
   const [jurisdiction, setLocalJurisdiction] = useState<Jurisdiction>("dgca");
   const [units, setLocalUnits] = useState<UnitSystem>("metric");
   const [demoMode, setLocalDemoMode] = useState(true);
+  const [audioEnabled, setLocalAudioEnabled] = useState(false);
 
   // Auto-set units when jurisdiction changes
   useEffect(() => {
@@ -43,6 +45,7 @@ export function WelcomeModal() {
     setJurisdiction(jurisdiction);
     setUnits(units);
     setDemoMode(demoMode);
+    setAudioEnabled(audioEnabled);
     setOnboarded(true);
   };
 
@@ -120,6 +123,31 @@ export function WelcomeModal() {
               <span
                 className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
                   demoMode ? "translate-x-[18px]" : "translate-x-[3px]"
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Audio toggle */}
+          <div className="flex items-center justify-between pt-2 border-t border-border-default">
+            <div>
+              <span className="text-sm text-text-primary">Enable Audio Alerts</span>
+              <p className="text-[10px] text-text-tertiary mt-0.5">
+                Plays sound alerts for battery, GPS, failsafe events
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={audioEnabled}
+              onClick={() => setLocalAudioEnabled(!audioEnabled)}
+              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                audioEnabled ? "bg-accent-primary" : "bg-bg-tertiary"
+              }`}
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
+                  audioEnabled ? "translate-x-[18px]" : "translate-x-[3px]"
                 }`}
               />
             </button>
