@@ -48,7 +48,10 @@ export function WebSocketPanel({
       const droneId = randomId();
       const droneName = `${vehicleInfo.firmwareVersionString} (${vehicleInfo.vehicleClass})`;
 
-      addDrone(droneId, droneName, adapter, transport, vehicleInfo);
+      addDrone(droneId, droneName, adapter, transport, vehicleInfo, {
+        type: "websocket",
+        url: trimmed,
+      });
       onConnected?.(droneName, "websocket", trimmed);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Connection failed");

@@ -19,6 +19,7 @@ export class WebSerialTransport implements Transport {
   private reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
   private writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
   private _connected = false;
+  private _disconnecting = false;
   private listeners: Map<
     keyof TransportEventMap,
     Set<(data: never) => void>
@@ -122,7 +123,7 @@ export class WebSerialTransport implements Transport {
         this.emit("error", err instanceof Error ? err : new Error(String(err)));
       }
     } finally {
-      if (this._connected) {
+      if (this._connected && !this._disconnecting) {
         this._connected = false;
         this.emit("close", undefined as never);
       }
@@ -140,10 +141,12 @@ export class WebSerialTransport implements Transport {
     });
   }
 
-  /** Disconnect and release the serial port. */
+  /** Disconnect and release the serial port. Idempotent — safe to call multiple times. */
   async disconnect(): Promise<void> {
+    if (this._disconnecting) return;
     if (!this._connected && !this.port) return;
 
+    this._disconnecting = true;
     this._connected = false;
 
     try {
@@ -162,6 +165,7 @@ export class WebSerialTransport implements Transport {
         this.port = null;
       }
     } finally {
+      this._disconnecting = false;
       this.emit("close", undefined as never);
     }
   }

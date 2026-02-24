@@ -1,0 +1,187 @@
+/**
+ * @module reconnect-manager
+ * @description Pure-class reconnect state machine with exponential backoff.
+ * Handles serial (VID/PID match via getPorts) and WebSocket reconnection.
+ * @license GPL-3.0-only
+ */
+
+import type { ConnectionMeta } from "@/stores/drone-manager";
+import { WebSerialTransport } from "@/lib/protocol/transport-webserial";
+import { WebSocketTransport } from "@/lib/protocol/transport-websocket";
+import { MAVLinkAdapter } from "@/lib/protocol/mavlink-adapter";
+import { serialPortManager } from "@/lib/serial-port-manager";
+import { randomId } from "@/lib/utils";
+
+export type ReconnectState = "idle" | "waiting" | "attempting" | "connected" | "failed";
+
+export interface ReconnectEntry {
+  droneId: string;
+  droneName: string;
+  meta: ConnectionMeta;
+  state: ReconnectState;
+  attempt: number;
+  maxAttempts: number;
+}
+
+type StateChangeListener = (entry: ReconnectEntry) => void;
+type AddDroneCallback = (
+  id: string,
+  name: string,
+  protocol: MAVLinkAdapter,
+  transport: WebSerialTransport | WebSocketTransport,
+  vehicleInfo: import("@/lib/protocol/types").VehicleInfo,
+  meta: ConnectionMeta,
+) => void;
+
+const BACKOFF_DELAYS = [500, 1000, 2000, 4000, 5000];
+const MAX_ATTEMPTS = 10;
+
+export class ReconnectManager {
+  private entries = new Map<string, ReconnectEntry>();
+  private timers = new Map<string, ReturnType<typeof setTimeout>>();
+  private listeners = new Set<StateChangeListener>();
+  private addDroneCallback: AddDroneCallback;
+
+  constructor(addDrone: AddDroneCallback) {
+    this.addDroneCallback = addDrone;
+  }
+
+  /** Start reconnect cycle for a disconnected drone. */
+  startReconnect(droneId: string, droneName: string, meta: ConnectionMeta): void {
+    // Cancel existing reconnect for same drone
+    this.cancelReconnect(droneId);
+
+    const entry: ReconnectEntry = {
+      droneId,
+      droneName,
+      meta,
+      state: "waiting",
+      attempt: 0,
+      maxAttempts: MAX_ATTEMPTS,
+    };
+    this.entries.set(droneId, entry);
+    this.notify(entry);
+    this.scheduleAttempt(droneId);
+  }
+
+  /** Cancel an in-progress reconnect. */
+  cancelReconnect(droneId: string): void {
+    const timer = this.timers.get(droneId);
+    if (timer) clearTimeout(timer);
+    this.timers.delete(droneId);
+    this.entries.delete(droneId);
+  }
+
+  /** Cancel all reconnects. */
+  cancelAll(): void {
+    for (const [id] of this.entries) {
+      this.cancelReconnect(id);
+    }
+  }
+
+  /** Subscribe to state changes. Returns unsubscribe. */
+  onStateChange(listener: StateChangeListener): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  /** Check if any reconnect is active. */
+  isReconnecting(): boolean {
+    for (const entry of this.entries.values()) {
+      if (entry.state === "waiting" || entry.state === "attempting") return true;
+    }
+    return false;
+  }
+
+  private notify(entry: ReconnectEntry): void {
+    for (const listener of this.listeners) {
+      listener(entry);
+    }
+  }
+
+  private scheduleAttempt(droneId: string): void {
+    const entry = this.entries.get(droneId);
+    if (!entry) return;
+
+    const delayIdx = Math.min(entry.attempt, BACKOFF_DELAYS.length - 1);
+    const delay = BACKOFF_DELAYS[delayIdx];
+
+    const timer = setTimeout(() => {
+      this.attempt(droneId);
+    }, delay);
+    this.timers.set(droneId, timer);
+  }
+
+  private async attempt(droneId: string): Promise<void> {
+    const entry = this.entries.get(droneId);
+    if (!entry) return;
+
+    entry.attempt++;
+    entry.state = "attempting";
+    this.notify(entry);
+
+    try {
+      if (entry.meta.type === "serial") {
+        await this.attemptSerial(entry);
+      } else if (entry.meta.type === "websocket") {
+        await this.attemptWebSocket(entry);
+      }
+
+      // Success
+      entry.state = "connected";
+      this.notify(entry);
+      this.timers.delete(droneId);
+      this.entries.delete(droneId);
+    } catch {
+      // Failed
+      if (entry.attempt >= entry.maxAttempts) {
+        entry.state = "failed";
+        this.notify(entry);
+        this.timers.delete(droneId);
+        this.entries.delete(droneId);
+      } else {
+        entry.state = "waiting";
+        this.notify(entry);
+        this.scheduleAttempt(droneId);
+      }
+    }
+  }
+
+  private async attemptSerial(entry: ReconnectEntry): Promise<void> {
+    const ports = await serialPortManager.getKnownPorts();
+    if (ports.length === 0) throw new Error("No serial ports");
+
+    // Try to match by VID/PID if available
+    let matchedPort = ports[0].port;
+    if (entry.meta.portVendorId !== undefined && entry.meta.portProductId !== undefined) {
+      const match = ports.find(
+        (p) => p.vendorId === entry.meta.portVendorId && p.productId === entry.meta.portProductId,
+      );
+      if (match) matchedPort = match.port;
+    }
+
+    const transport = new WebSerialTransport();
+    await transport.connectToPort(matchedPort, entry.meta.baudRate || 115200);
+
+    const adapter = new MAVLinkAdapter();
+    const vehicleInfo = await adapter.connect(transport);
+    const newId = randomId();
+    const name = `${vehicleInfo.firmwareVersionString} (${vehicleInfo.vehicleClass})`;
+
+    this.addDroneCallback(newId, name, adapter, transport, vehicleInfo, entry.meta);
+  }
+
+  private async attemptWebSocket(entry: ReconnectEntry): Promise<void> {
+    if (!entry.meta.url) throw new Error("No URL for WebSocket reconnect");
+
+    const transport = new WebSocketTransport();
+    await transport.connect(entry.meta.url);
+
+    const adapter = new MAVLinkAdapter();
+    const vehicleInfo = await adapter.connect(transport);
+    const newId = randomId();
+    const name = `${vehicleInfo.firmwareVersionString} (${vehicleInfo.vehicleClass})`;
+
+    this.addDroneCallback(newId, name, adapter, transport, vehicleInfo, entry.meta);
+  }
+}

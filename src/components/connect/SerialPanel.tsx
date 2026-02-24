@@ -106,7 +106,13 @@ export function SerialPanel({
       const droneId = randomId();
       const droneName = `${vehicleInfo.firmwareVersionString} (${vehicleInfo.vehicleClass})`;
 
-      addDrone(droneId, droneName, adapter, transport, vehicleInfo);
+      const portInfo = portIdx >= 0 && portIdx < knownPorts.length ? knownPorts[portIdx] : undefined;
+      addDrone(droneId, droneName, adapter, transport, vehicleInfo, {
+        type: "serial",
+        baudRate: baud,
+        portVendorId: portInfo?.vendorId,
+        portProductId: portInfo?.productId,
+      });
       onConnected?.(droneName, "serial", baud);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Connection failed");

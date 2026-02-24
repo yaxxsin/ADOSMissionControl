@@ -12,6 +12,14 @@ import { useTrailStore } from "./trail-store";
 import { audioEngine } from "@/lib/audio-engine";
 import type { FlightMode } from "@/lib/types";
 
+export interface ConnectionMeta {
+  type: "serial" | "websocket";
+  baudRate?: number;
+  url?: string;
+  portVendorId?: number;
+  portProductId?: number;
+}
+
 export interface ManagedDrone {
   id: string;
   name: string;
@@ -20,7 +28,14 @@ export interface ManagedDrone {
   vehicleInfo: VehicleInfo;
   unsubscribers: (() => void)[];
   connectedAt: number;
+  connectionMeta?: ConnectionMeta;
+  /** Why the drone was disconnected. `null` while connected. */
+  _disconnectReason: "intentional" | "unexpected" | null;
 }
+
+/** Listeners for unexpected disconnect events (used by auto-reconnect). */
+type DisconnectListener = (droneId: string, droneName: string, meta: ConnectionMeta | undefined) => void;
+const unexpectedDisconnectListeners = new Set<DisconnectListener>();
 
 interface DroneManagerState {
   drones: Map<string, ManagedDrone>;
@@ -32,8 +47,11 @@ interface DroneManagerState {
     protocol: DroneProtocol,
     transport: Transport,
     vehicleInfo: VehicleInfo,
+    connectionMeta?: ConnectionMeta,
   ) => void;
   removeDrone: (id: string) => void;
+  /** Intentional disconnect — marks drone as intentional, then removes. */
+  disconnectDrone: (id: string) => void;
   selectDrone: (id: string | null) => void;
   getSelectedProtocol: () => DroneProtocol | null;
   getSelectedDrone: () => ManagedDrone | null;
@@ -175,8 +193,9 @@ export const useDroneManager = create<DroneManagerState>((set, get) => ({
   drones: new Map(),
   selectedDroneId: null,
 
-  addDrone: (id, name, protocol, transport, vehicleInfo) => {
+  addDrone: (id, name, protocol, transport, vehicleInfo, connectionMeta) => {
     const unsubscribers = bridgeTelemetry(id, protocol);
+
     const drone: ManagedDrone = {
       id,
       name,
@@ -185,7 +204,24 @@ export const useDroneManager = create<DroneManagerState>((set, get) => ({
       vehicleInfo,
       unsubscribers,
       connectedAt: Date.now(),
+      connectionMeta,
+      _disconnectReason: null,
     };
+
+    // Listen for transport close to detect unexpected disconnects
+    const closeHandler = () => {
+      const current = get().drones.get(id);
+      if (!current || current._disconnectReason === "intentional") return;
+      // Mark as unexpected and trigger listeners
+      current._disconnectReason = "unexpected";
+      for (const listener of unexpectedDisconnectListeners) {
+        listener(id, name, connectionMeta);
+      }
+      // Clean up the drone from the store
+      get().removeDrone(id);
+    };
+    transport.on("close", closeHandler as (data: void) => void);
+    unsubscribers.push(() => transport.off("close", closeHandler as (data: void) => void));
 
     set((state) => {
       const newMap = new Map(state.drones);
@@ -217,7 +253,9 @@ export const useDroneManager = create<DroneManagerState>((set, get) => ({
     const drone = get().drones.get(id);
     if (drone) {
       drone.unsubscribers.forEach((unsub) => unsub());
-      drone.protocol.disconnect();
+      if (drone.protocol.isConnected) {
+        drone.protocol.disconnect();
+      }
     }
 
     // Remove from fleet store
@@ -237,6 +275,14 @@ export const useDroneManager = create<DroneManagerState>((set, get) => ({
       useDroneStore.getState().setConnectionState("disconnected");
       useTelemetryStore.getState().clear();
     }
+  },
+
+  disconnectDrone: (id) => {
+    const drone = get().drones.get(id);
+    if (drone) {
+      drone._disconnectReason = "intentional";
+    }
+    get().removeDrone(id);
   },
 
   selectDrone: (id) => {
@@ -262,11 +308,20 @@ export const useDroneManager = create<DroneManagerState>((set, get) => ({
   clear: () => {
     const { drones } = get();
     drones.forEach((drone) => {
+      drone._disconnectReason = "intentional";
       drone.unsubscribers.forEach((unsub) => unsub());
-      drone.protocol.disconnect();
+      if (drone.protocol.isConnected) {
+        drone.protocol.disconnect();
+      }
     });
     set({ drones: new Map(), selectedDroneId: null });
     useDroneStore.getState().setConnectionState("disconnected");
     useTelemetryStore.getState().clear();
   },
 }));
+
+/** Subscribe to unexpected disconnect events. Returns unsubscribe function. */
+export function onUnexpectedDisconnect(listener: DisconnectListener): () => void {
+  unexpectedDisconnectListeners.add(listener);
+  return () => unexpectedDisconnectListeners.delete(listener);
+}

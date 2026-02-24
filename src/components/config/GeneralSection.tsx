@@ -11,13 +11,16 @@ export function GeneralSection() {
   const jurisdiction = useSettingsStore((s) => s.jurisdiction);
   const units = useSettingsStore((s) => s.units);
   const demoMode = useSettingsStore((s) => s.demoMode);
+  const autoReconnect = useSettingsStore((s) => s.autoReconnect);
+  const autoConnectOnLoad = useSettingsStore((s) => s.autoConnectOnLoad);
   const setJurisdiction = useSettingsStore((s) => s.setJurisdiction);
   const setUnits = useSettingsStore((s) => s.setUnits);
   const setDemoMode = useSettingsStore((s) => s.setDemoMode);
+  const setAutoReconnect = useSettingsStore((s) => s.setAutoReconnect);
+  const setAutoConnectOnLoad = useSettingsStore((s) => s.setAutoConnectOnLoad);
 
   const [language, setLanguage] = useState("en");
   const [timezone, setTimezone] = useState("IST");
-  const [autoConnect, setAutoConnect] = useState(true);
   const [telemetryRate, setTelemetryRate] = useState("10");
 
   const handleJurisdictionChange = (value: string) => {
@@ -76,8 +79,14 @@ export function GeneralSection() {
 
           <Toggle
             label="Auto-connect on startup"
-            checked={autoConnect}
-            onChange={setAutoConnect}
+            checked={autoConnectOnLoad}
+            onChange={setAutoConnectOnLoad}
+          />
+
+          <Toggle
+            label="Auto-reconnect on disconnect"
+            checked={autoReconnect}
+            onChange={setAutoReconnect}
           />
 
           <Select

@@ -16,6 +16,7 @@ export class WebSocketTransport implements Transport {
 
   private ws: WebSocket | null = null;
   private _connected = false;
+  private _disconnecting = false;
   private listeners: Map<
     keyof TransportEventMap,
     Set<(data: never) => void>
@@ -70,7 +71,7 @@ export class WebSocketTransport implements Transport {
         const wasConnected = this._connected;
         this._connected = false;
         this.ws = null;
-        if (wasConnected) {
+        if (wasConnected && !this._disconnecting) {
           this.emit("close", undefined as never);
         }
       };
@@ -85,10 +86,12 @@ export class WebSocketTransport implements Transport {
     this.ws.send(data.buffer);
   }
 
-  /** Close the WebSocket connection. */
+  /** Close the WebSocket connection. Idempotent — safe to call multiple times. */
   async disconnect(): Promise<void> {
+    if (this._disconnecting) return;
     if (!this.ws) return;
 
+    this._disconnecting = true;
     this._connected = false;
     this.ws.onopen = null;
     this.ws.onmessage = null;
@@ -102,6 +105,7 @@ export class WebSocketTransport implements Transport {
       this.ws.close();
     }
     this.ws = null;
+    this._disconnecting = false;
     this.emit("close", undefined as never);
   }
 

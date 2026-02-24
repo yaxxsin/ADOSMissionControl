@@ -67,6 +67,10 @@ interface SettingsStoreState {
   batteryCriticalPct: number;
   /** Alert popup duration in seconds ("3" | "5" | "10" | "never"). */
   alertPopupDuration: string;
+  /** Auto-reconnect when transport disconnects unexpectedly. */
+  autoReconnect: boolean;
+  /** Auto-connect to last device on page load. */
+  autoConnectOnLoad: boolean;
 
   setMapTileSource: (source: MapTileSource) => void;
   setUnits: (units: UnitSystem) => void;
@@ -84,6 +88,8 @@ interface SettingsStoreState {
   setBatteryWarningPct: (pct: number) => void;
   setBatteryCriticalPct: (pct: number) => void;
   setAlertPopupDuration: (duration: string) => void;
+  setAutoReconnect: (enabled: boolean) => void;
+  setAutoConnectOnLoad: (enabled: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsStoreState>()(
@@ -111,6 +117,8 @@ export const useSettingsStore = create<SettingsStoreState>()(
       batteryWarningPct: 30,
       batteryCriticalPct: 20,
       alertPopupDuration: "5",
+      autoReconnect: true,
+      autoConnectOnLoad: true,
 
       setMapTileSource: (mapTileSource) => set({ mapTileSource }),
       setUnits: (units) => set({ units }),
@@ -134,11 +142,13 @@ export const useSettingsStore = create<SettingsStoreState>()(
       setBatteryWarningPct: (batteryWarningPct) => set({ batteryWarningPct }),
       setBatteryCriticalPct: (batteryCriticalPct) => set({ batteryCriticalPct }),
       setAlertPopupDuration: (alertPopupDuration) => set({ alertPopupDuration }),
+      setAutoReconnect: (autoReconnect) => set({ autoReconnect }),
+      setAutoConnectOnLoad: (autoConnectOnLoad) => set({ autoConnectOnLoad }),
     }),
     {
       name: "altcmd:settings",
       storage: createJSONStorage(indexedDBStorage.storage),
-      version: 7,
+      version: 8,
       migrate: (persisted, version) => {
         const state = persisted as Record<string, unknown>;
         if (version < 2) {
@@ -167,6 +177,11 @@ export const useSettingsStore = create<SettingsStoreState>()(
           state.batteryWarningPct = 30;
           state.batteryCriticalPct = 20;
           state.alertPopupDuration = "5";
+        }
+        if (version < 8) {
+          // v8: auto-reconnect + auto-connect on load
+          state.autoReconnect = true;
+          state.autoConnectOnLoad = true;
         }
         return state as unknown as SettingsStoreState;
       },

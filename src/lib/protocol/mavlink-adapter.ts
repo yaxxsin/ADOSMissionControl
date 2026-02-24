@@ -58,6 +58,7 @@ export class MAVLinkAdapter implements DroneProtocol {
   private compId = 190      // GCS component ID (MAV_COMP_ID_MISSIONPLANNER)
 
   private _connected = false
+  private _disconnected = false
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null
   private dataHandler: ((data: Uint8Array) => void) | null = null
   private closeHandler: (() => void) | null = null
@@ -119,6 +120,7 @@ export class MAVLinkAdapter implements DroneProtocol {
 
   async connect(transport: Transport): Promise<VehicleInfo> {
     this.transport = transport
+    this._disconnected = false
 
     // Subscribe to transport data → feed to parser
     this.dataHandler = (data: Uint8Array) => this.parser.feed(data)
@@ -183,6 +185,8 @@ export class MAVLinkAdapter implements DroneProtocol {
   }
 
   private handleDisconnect(): void {
+    if (this._disconnected) return
+    this._disconnected = true
     this._connected = false
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval)

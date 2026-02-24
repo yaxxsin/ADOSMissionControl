@@ -20,6 +20,7 @@ interface CalibrationWizardProps {
   progress?: number;
   statusMessage?: string;
   onStart: () => void;
+  onCancel?: () => void;
   className?: string;
 }
 
@@ -39,6 +40,7 @@ export function CalibrationWizard({
   progress,
   statusMessage,
   onStart,
+  onCancel,
   className,
 }: CalibrationWizardProps) {
   const badge = statusBadge[status];
@@ -119,15 +121,22 @@ export function CalibrationWizard({
         </p>
       )}
 
-      <Button
-        variant={status === "in_progress" ? "secondary" : "primary"}
-        size="sm"
-        disabled={status === "in_progress"}
-        loading={status === "in_progress"}
-        onClick={onStart}
-      >
-        {status === "success" ? "Re-calibrate" : status === "error" ? "Retry" : "Start"}
-      </Button>
+      <div className="flex gap-2">
+        {status === "in_progress" && onCancel ? (
+          <>
+            <Button variant="secondary" size="sm" loading>
+              Calibrating…
+            </Button>
+            <Button variant="danger" size="sm" onClick={onCancel}>
+              Cancel
+            </Button>
+          </>
+        ) : (
+          <Button variant="primary" size="sm" onClick={onStart}>
+            {status === "success" ? "Re-calibrate" : status === "error" ? "Retry" : "Start"}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

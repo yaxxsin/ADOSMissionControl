@@ -50,7 +50,10 @@ export function RecentConnections() {
         const vehicleInfo = await adapter.connect(transport);
         const droneId = randomId();
         const droneName = `${vehicleInfo.firmwareVersionString} (${vehicleInfo.vehicleClass})`;
-        addDrone(droneId, droneName, adapter, transport, vehicleInfo);
+        addDrone(droneId, droneName, adapter, transport, vehicleInfo, {
+          type: "websocket",
+          url: conn.url,
+        });
         void saveRecentConnection({ ...conn, name: droneName, date: Date.now() });
       } else if (conn.type === "serial") {
         const ports = await serialPortManager.getKnownPorts();
@@ -64,7 +67,12 @@ export function RecentConnections() {
         const vehicleInfo = await adapter.connect(transport);
         const droneId = randomId();
         const droneName = `${vehicleInfo.firmwareVersionString} (${vehicleInfo.vehicleClass})`;
-        addDrone(droneId, droneName, adapter, transport, vehicleInfo);
+        addDrone(droneId, droneName, adapter, transport, vehicleInfo, {
+          type: "serial",
+          baudRate: conn.baudRate,
+          portVendorId: ports[0].vendorId,
+          portProductId: ports[0].productId,
+        });
         void saveRecentConnection({ ...conn, name: droneName, date: Date.now() });
       }
     } catch (err) {

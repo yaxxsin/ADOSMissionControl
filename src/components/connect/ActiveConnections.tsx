@@ -102,7 +102,7 @@ export function ActiveConnections() {
   const drones = useDroneManager((s) => s.drones);
   const selectedDroneId = useDroneManager((s) => s.selectedDroneId);
   const selectDrone = useDroneManager((s) => s.selectDrone);
-  const removeDrone = useDroneManager((s) => s.removeDrone);
+  const disconnectDrone = useDroneManager((s) => s.disconnectDrone);
 
   const droneList = Array.from(drones.values());
 
@@ -117,11 +117,10 @@ export function ActiveConnections() {
   async function handleDisconnect(drone: ManagedDrone) {
     try {
       await drone.protocol.disconnect();
-      await drone.transport.disconnect();
     } catch {
       /* cleanup regardless */
     }
-    removeDrone(drone.id);
+    disconnectDrone(drone.id);
   }
 
   return (
