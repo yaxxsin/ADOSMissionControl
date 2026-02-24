@@ -19,7 +19,7 @@ const tabs = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
   { icon: Plane, label: "Fly", href: "/fly/alpha-1" },
   { icon: Route, label: "Plan", href: "/plan" },
-  { icon: History, label: "History", href: "/history" },
+{ icon: History, label: "History", href: "/history" },
   { icon: BarChart3, label: "Analytics", href: "/analytics" },
   { icon: FileText, label: "Logs", href: "/logs" },
   { icon: HeartPulse, label: "Wizard", href: "/wizard" },

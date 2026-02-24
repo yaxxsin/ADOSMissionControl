@@ -84,9 +84,9 @@ The mock flight engine generates realistic telemetry for demo and development. F
 ```
 src/
   app/            # Next.js App Router — pages and layouts
-  stores/         # Zustand store slices (telemetry, drones, missions, etc.)
+  stores/         # Zustand store slices (telemetry, drones, missions)
   mock/           # Mock flight engine and simulated drone data
-  lib/            # Shared utilities (ring buffer, formatters, constants)
+  lib/            # Shared utilities (ring buffer, formatters, protocol layer)
   components/     # React UI components
 public/           # Static assets (favicon, map tiles)
 ```
