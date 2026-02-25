@@ -17,6 +17,7 @@
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@fontsource/space-grotesk": "^5.2.10",
     "@xyflow/react": "^12.6.0",
+    "cesium": "^1.138.0",
     "convex": "^1.32.0",
     "idb-keyval": "^6.2.2",
     "leaflet": "^1.9.4",
@@ -26,6 +27,7 @@
     "react-dom": "19.2.3",
     "react-leaflet": "^5.0.0",
     "recharts": "^2.15.3",
+    "resium": "^1.19.4",
     "zustand": "^5.0.5"
   },
   "devDependencies": {

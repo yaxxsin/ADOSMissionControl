@@ -270,6 +270,7 @@ export type ViewId =
   | "dashboard"
   | "fly"
   | "plan"
+  | "simulate"
   | "history"
   | "analytics"
   | "config"

@@ -30,7 +30,6 @@ interface PlannerStoreState {
   defaultAcceptRadius: number;
   /** Default altitude reference frame. */
   defaultFrame: AltitudeFrame;
-
   setActiveTool: (tool: PlannerTool) => void;
   togglePanel: () => void;
   toggleAltProfile: () => void;
