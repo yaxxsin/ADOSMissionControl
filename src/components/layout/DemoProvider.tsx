@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useFleetStore } from "@/stores/fleet-store";
+import { useDroneManager } from "@/stores/drone-manager";
 
 export function DemoProvider() {
   const demoMode = useSettingsStore((s) => s.demoMode);
@@ -20,6 +21,7 @@ export function DemoProvider() {
     return () => {
       mounted = false;
       engine?.stop();
+      useDroneManager.getState().clear();
       useFleetStore.getState().setDrones([]);
       useFleetStore.getState().clearAlerts();
     };

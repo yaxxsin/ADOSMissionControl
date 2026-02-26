@@ -20,6 +20,10 @@ import type {
   EkfCallback, VibrationCallback, ServoOutputCallback,
   WindCallback, TerrainCallback,
   MagCalProgressCallback, MagCalReportCallback,
+  AccelCalPosCallback, AccelCalPosition,
+  HomePositionCallback, AutopilotVersionCallback,
+  PowerStatusCallback, DistanceSensorCallback, FenceStatusCallback,
+  NavControllerCallback, ScaledImuCallback, LinkStateCallback,
 } from './types'
 import { MAVLinkParser, type MAVLinkFrame } from './mavlink-parser'
 import {
@@ -27,7 +31,7 @@ import {
   encodeSetMode, encodeParamRequestList, encodeParamRequestRead, encodeParamSet,
   encodeMissionCount, encodeMissionItemInt, encodeSerialControl,
   encodeMissionRequestList, encodeMissionRequestInt, encodeMissionAck, encodeMissionClearAll,
-  encodeRequestDataStream,
+  encodeRequestDataStream, encodeCommandInt,
 } from './mavlink-encoder'
 import {
   decodeHeartbeat, decodeAttitude, decodeGlobalPositionInt,
@@ -40,6 +44,10 @@ import {
   decodeEkfStatusReport, decodeVibration, decodeServoOutputRaw,
   decodeWind, decodeTerrainReport,
   decodeMagCalProgress, decodeMagCalReport,
+  decodeCommandLong,
+  decodeHomePosition, decodeAutopilotVersion,
+  decodePowerStatus, decodeDistanceSensor, decodeFenceStatus,
+  decodeNavControllerOutput, decodeScaledImu,
 } from './mavlink-messages'
 import { CommandQueue } from './command-queue'
 import { createFirmwareHandler } from './firmware-ardupilot'
@@ -86,6 +94,22 @@ export class MAVLinkAdapter implements DroneProtocol {
   private terrainCallbacks: TerrainCallback[] = []
   private magCalProgressCallbacks: MagCalProgressCallback[] = []
   private magCalReportCallbacks: MagCalReportCallback[] = []
+  private accelCalPosCallbacks: AccelCalPosCallback[] = []
+  private homePositionCallbacks: HomePositionCallback[] = []
+  private autopilotVersionCallbacks: AutopilotVersionCallback[] = []
+  private powerStatusCallbacks: PowerStatusCallback[] = []
+  private distanceSensorCallbacks: DistanceSensorCallback[] = []
+  private fenceStatusCallbacks: FenceStatusCallback[] = []
+  private navControllerCallbacks: NavControllerCallback[] = []
+  private scaledImuCallbacks: ScaledImuCallback[] = []
+  private linkLostCallbacks: LinkStateCallback[] = []
+  private linkRestoredCallbacks: LinkStateCallback[] = []
+
+  // Heartbeat timeout / link-loss detection (T1-1)
+  private lastVehicleHeartbeat = 0
+  private linkLostCheckInterval: ReturnType<typeof setInterval> | null = null
+  private linkIsLost = false
+  private static readonly HEARTBEAT_TIMEOUT_MS = 5000
 
   // Parameter download state
   private parameterDownload: {
@@ -184,6 +208,18 @@ export class MAVLinkAdapter implements DroneProtocol {
       this.requestDataStreams()
     }, 10000)
 
+    // Initialize heartbeat tracking and start link-loss detection (T1-1)
+    this.lastVehicleHeartbeat = Date.now()
+    this.linkIsLost = false
+    this.linkLostCheckInterval = setInterval(() => {
+      this.checkLinkState()
+    }, 1000)
+
+    // Request HOME_POSITION and AUTOPILOT_VERSION once on connect (T1-2, T1-3)
+    // MAV_CMD_REQUEST_MESSAGE (512): param1 = message ID
+    this.sendCommandLong(512, [242, 0, 0, 0, 0, 0, 0]).catch(() => {}) // HOME_POSITION
+    this.sendCommandLong(512, [148, 0, 0, 0, 0, 0, 0]).catch(() => {}) // AUTOPILOT_VERSION
+
     return vehicleInfo
   }
 
@@ -205,6 +241,10 @@ export class MAVLinkAdapter implements DroneProtocol {
     if (this.streamRequestInterval) {
       clearInterval(this.streamRequestInterval)
       this.streamRequestInterval = null
+    }
+    if (this.linkLostCheckInterval) {
+      clearInterval(this.linkLostCheckInterval)
+      this.linkLostCheckInterval = null
     }
     this.commandQueue.clear()
     this.parser.reset()
@@ -265,6 +305,7 @@ export class MAVLinkAdapter implements DroneProtocol {
       case 24:  this.handleGpsRaw(frame); break
       case 74:  this.handleVfrHud(frame); break
       case 65:  this.handleRcChannels(frame); break
+      case 76:  this.handleIncomingCommandLong(frame); break
       case 77:  this.handleCommandAck(frame); break
       case 22:  this.handleParamValue(frame); break
       case 109: this.handleRadioStatus(frame); break
@@ -279,6 +320,13 @@ export class MAVLinkAdapter implements DroneProtocol {
       case 168: this.handleWind(frame); break
       case 241: this.handleVibration(frame); break
       case 335: this.handleEkfStatus(frame); break
+      case 242: this.handleHomePosition(frame); break
+      case 148: this.handleAutopilotVersion(frame); break
+      case 125: this.handlePowerStatus(frame); break
+      case 132: this.handleDistanceSensor(frame); break
+      case 162: this.handleFenceStatus(frame); break
+      case 62:  this.handleNavControllerOutput(frame); break
+      case 26:  this.handleScaledImu(frame); break
     }
   }
 
@@ -287,6 +335,9 @@ export class MAVLinkAdapter implements DroneProtocol {
   private handleHeartbeat(frame: MAVLinkFrame): void {
     const hb = decodeHeartbeat(frame.payload)
     if (hb.type === 6) return // Ignore GCS heartbeats
+
+    // Track vehicle heartbeat for link-loss detection (T1-1)
+    this.lastVehicleHeartbeat = Date.now()
 
     const armed = (hb.baseMode & 0x80) !== 0 // MAV_MODE_FLAG_SAFETY_ARMED
     const mode = this.firmwareHandler?.decodeFlightMode(hb.customMode) ?? 'UNKNOWN'
@@ -298,6 +349,18 @@ export class MAVLinkAdapter implements DroneProtocol {
         systemStatus: hb.systemStatus,
         vehicleInfo: this.vehicleInfo!,
       })
+    }
+  }
+
+  /** Check if vehicle heartbeats have stopped (link-loss detection, T1-1). */
+  private checkLinkState(): void {
+    const elapsed = Date.now() - this.lastVehicleHeartbeat
+    if (elapsed > MAVLinkAdapter.HEARTBEAT_TIMEOUT_MS && !this.linkIsLost) {
+      this.linkIsLost = true
+      for (const cb of this.linkLostCallbacks) cb()
+    } else if (elapsed <= MAVLinkAdapter.HEARTBEAT_TIMEOUT_MS && this.linkIsLost) {
+      this.linkIsLost = false
+      for (const cb of this.linkRestoredCallbacks) cb()
     }
   }
 
@@ -646,14 +709,162 @@ export class MAVLinkAdapter implements DroneProtocol {
   private handleMagCalProgress(frame: MAVLinkFrame): void {
     const data = decodeMagCalProgress(frame.payload)
     for (const cb of this.magCalProgressCallbacks) {
-      cb({ compassId: data.compassId, completionPct: data.completionPct, calStatus: data.calStatus })
+      cb({
+        compassId: data.compassId,
+        completionPct: data.completionPct,
+        calStatus: data.calStatus,
+        completionMask: Array.from(data.completionMask),
+        directionX: data.directionX,
+        directionY: data.directionY,
+        directionZ: data.directionZ,
+      })
     }
   }
 
   private handleMagCalReport(frame: MAVLinkFrame): void {
     const data = decodeMagCalReport(frame.payload)
     for (const cb of this.magCalReportCallbacks) {
-      cb({ compassId: data.compassId, calStatus: data.calStatus, autosaved: data.autosaved })
+      cb({
+        compassId: data.compassId,
+        calStatus: data.calStatus,
+        autosaved: data.autosaved,
+        ofsX: data.ofsX,
+        ofsY: data.ofsY,
+        ofsZ: data.ofsZ,
+        fitness: data.fitness,
+        diagX: data.diagX,
+        diagY: data.diagY,
+        diagZ: data.diagZ,
+        offdiagX: data.offdiagX,
+        offdiagY: data.offdiagY,
+        offdiagZ: data.offdiagZ,
+        orientationConfidence: data.orientationConfidence,
+        oldOrientation: data.oldOrientation,
+        newOrientation: data.newOrientation,
+        scaleFactor: data.scaleFactor,
+      })
+    }
+  }
+
+  private handleHomePosition(frame: MAVLinkFrame): void {
+    const data = decodeHomePosition(frame.payload)
+    for (const cb of this.homePositionCallbacks) {
+      cb({
+        timestamp: Date.now(),
+        lat: data.lat / 1e7,
+        lon: data.lon / 1e7,
+        alt: data.alt / 1000, // mm → m
+      })
+    }
+  }
+
+  private handleAutopilotVersion(frame: MAVLinkFrame): void {
+    const data = decodeAutopilotVersion(frame.payload)
+
+    // Update firmware version string from flight software version
+    if (this.vehicleInfo) {
+      const major = (data.flightSwVersion >> 24) & 0xff
+      const minor = (data.flightSwVersion >> 16) & 0xff
+      const patch = (data.flightSwVersion >> 8) & 0xff
+      this.vehicleInfo = {
+        ...this.vehicleInfo,
+        firmwareVersionString: `${major}.${minor}.${patch}`,
+      }
+    }
+
+    for (const cb of this.autopilotVersionCallbacks) {
+      cb({
+        capabilities: data.capabilities,
+        flightSwVersion: data.flightSwVersion,
+        middlewareSwVersion: data.middlewareSwVersion,
+        osSwVersion: data.osSwVersion,
+        boardVersion: data.boardVersion,
+        uid: data.uid,
+      })
+    }
+  }
+
+  private handlePowerStatus(frame: MAVLinkFrame): void {
+    const data = decodePowerStatus(frame.payload)
+    for (const cb of this.powerStatusCallbacks) {
+      cb({
+        timestamp: Date.now(),
+        vcc: data.vcc,     // mV
+        vservo: data.vservo, // mV
+        flags: data.flags,
+      })
+    }
+  }
+
+  private handleDistanceSensor(frame: MAVLinkFrame): void {
+    const data = decodeDistanceSensor(frame.payload)
+    for (const cb of this.distanceSensorCallbacks) {
+      cb({
+        timestamp: Date.now(),
+        currentDistance: data.currentDistance, // cm
+        minDistance: data.minDistance,
+        maxDistance: data.maxDistance,
+        orientation: data.orientation,
+        id: data.id,
+        covariance: data.covariance,
+      })
+    }
+  }
+
+  private handleFenceStatus(frame: MAVLinkFrame): void {
+    const data = decodeFenceStatus(frame.payload)
+    for (const cb of this.fenceStatusCallbacks) {
+      cb({
+        timestamp: Date.now(),
+        breachStatus: data.breachStatus,
+        breachCount: data.breachCount,
+        breachType: data.breachType,
+      })
+    }
+  }
+
+  private handleNavControllerOutput(frame: MAVLinkFrame): void {
+    const data = decodeNavControllerOutput(frame.payload)
+    for (const cb of this.navControllerCallbacks) {
+      cb({
+        timestamp: Date.now(),
+        navBearing: data.navBearing,
+        targetBearing: data.targetBearing,
+        wpDist: data.wpDist,
+        altError: data.altError,
+        xtrackError: data.xtrackError,
+      })
+    }
+  }
+
+  private handleScaledImu(frame: MAVLinkFrame): void {
+    const data = decodeScaledImu(frame.payload)
+    for (const cb of this.scaledImuCallbacks) {
+      cb({
+        timestamp: Date.now(),
+        xacc: data.xacc,
+        yacc: data.yacc,
+        zacc: data.zacc,
+        xgyro: data.xgyro,
+        ygyro: data.ygyro,
+        zgyro: data.zgyro,
+        xmag: data.xmag,
+        ymag: data.ymag,
+        zmag: data.zmag,
+      })
+    }
+  }
+
+  private handleIncomingCommandLong(frame: MAVLinkFrame): void {
+    const data = decodeCommandLong(frame.payload)
+    // MAV_CMD_ACCELCAL_VEHICLE_POS = 42429 — FC requests GCS to confirm vehicle position
+    if (data.command === 42429) {
+      const position = Math.round(data.param1) as AccelCalPosition
+      if (position >= 1 && position <= 6) {
+        for (const cb of this.accelCalPosCallbacks) {
+          cb({ position })
+        }
+      }
     }
   }
 
@@ -672,10 +883,8 @@ export class MAVLinkAdapter implements DroneProtocol {
       return { success: false, resultCode: -1, message: 'No firmware handler' }
     }
     const { baseMode, customMode } = this.firmwareHandler.encodeFlightMode(mode)
-    const frame = encodeSetMode(this.targetSysId, baseMode, customMode, this.sysId, this.compId)
-    this.transport?.send(frame)
-    // SET_MODE doesn't get a COMMAND_ACK — confirm via next HEARTBEAT
-    return { success: true, resultCode: 0, message: 'Mode change sent' }
+    // MAV_CMD_DO_SET_MODE (176) via COMMAND_LONG — gets a COMMAND_ACK unlike SET_MODE (msg 11)
+    return this.sendCommandLong(176, [baseMode, customMode, 0, 0, 0, 0, 0])
   }
 
   async returnToLaunch(): Promise<CommandResult> {
@@ -797,9 +1006,32 @@ export class MAVLinkAdapter implements DroneProtocol {
     })
   }
 
-  async getParameter(_name: string): Promise<ParameterValue> {
-    // TODO: Implement PARAM_REQUEST_READ for single parameter fetch
-    throw new Error('getParameter not yet implemented — use getAllParameters')
+  async getParameter(name: string): Promise<ParameterValue> {
+    if (!this.transport?.isConnected) {
+      return Promise.reject(new Error('Not connected'))
+    }
+
+    return new Promise<ParameterValue>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        unsub()
+        reject(new Error(`getParameter timed out: ${name}`))
+      }, 3000)
+
+      const unsub = this.onParameter((param) => {
+        if (param.name === name) {
+          clearTimeout(timer)
+          unsub()
+          resolve(param)
+        }
+      })
+
+      // PARAM_REQUEST_READ: paramIndex=-1 means use name instead of index
+      this.transport!.send(encodeParamRequestRead(
+        this.targetSysId, this.targetCompId,
+        name, -1,
+        this.sysId, this.compId,
+      ))
+    })
   }
 
   async setParameter(name: string, value: number, type = 9): Promise<CommandResult> {
@@ -897,6 +1129,25 @@ export class MAVLinkAdapter implements DroneProtocol {
     return this.sendCommandLong(241, params, 30000)        // 30s timeout for calibration
   }
 
+  confirmAccelCalPos(position: number): void {
+    if (!this.transport?.isConnected) return
+    // Fire-and-forget: send COMMAND_LONG(42429) back to FC with position in param1
+    this.commandQueue.sendCommandNoAck(
+      42429, [position, 0, 0, 0, 0, 0, 0],
+      (data) => this.transport!.send(data),
+      this.targetSysId, this.targetCompId,
+      this.sysId, this.compId,
+    )
+  }
+
+  async acceptCompassCal(compassMask = 0): Promise<CommandResult> {
+    return this.sendCommandLong(42425, [compassMask, 0, 0, 0, 0, 0, 0]) // DO_ACCEPT_MAG_CAL
+  }
+
+  async cancelCompassCal(compassMask = 0): Promise<CommandResult> {
+    return this.sendCommandLong(42426, [compassMask, 0, 0, 0, 0, 0, 0]) // DO_CANCEL_MAG_CAL
+  }
+
   // ── Motor Test ─────────────────────────────────────────
 
   async motorTest(motor: number, throttle: number, duration: number): Promise<CommandResult> {
@@ -954,15 +1205,34 @@ export class MAVLinkAdapter implements DroneProtocol {
   }
 
   async guidedGoto(lat: number, lon: number, alt: number): Promise<CommandResult> {
-    return this.sendCommandLong(192, [-1, 1, 0, 0, lat, lon, alt]) // MAV_CMD_DO_REPOSITION
+    // Use COMMAND_INT for lat/lon precision (int32*1e7 vs float32 ~1m loss)
+    if (!this.transport?.isConnected) {
+      return { success: false, resultCode: -1, message: 'Not connected' }
+    }
+    const frame = encodeCommandInt(
+      this.targetSysId, this.targetCompId,
+      6, // MAV_FRAME_GLOBAL_RELATIVE_ALT_INT
+      192, // MAV_CMD_DO_REPOSITION
+      0, 0,
+      -1, 1, 0, 0,
+      Math.round(lat * 1e7),
+      Math.round(lon * 1e7),
+      alt,
+      this.sysId, this.compId,
+    )
+    this.transport.send(frame)
+    // COMMAND_INT doesn't get ACK in older firmwares, return optimistic
+    return { success: true, resultCode: 0, message: 'Goto sent' }
   }
 
   async pauseMission(): Promise<CommandResult> {
-    return this.setFlightMode('LOITER')
+    // MAV_CMD_DO_PAUSE_CONTINUE (193): param1=0 → pause
+    return this.sendCommandLong(193, [0, 0, 0, 0, 0, 0, 0])
   }
 
   async resumeMission(): Promise<CommandResult> {
-    return this.setFlightMode('AUTO')
+    // MAV_CMD_DO_PAUSE_CONTINUE (193): param1=1 → continue
+    return this.sendCommandLong(193, [1, 0, 0, 0, 0, 0, 0])
   }
 
   async clearMission(): Promise<CommandResult> {
@@ -993,7 +1263,8 @@ export class MAVLinkAdapter implements DroneProtocol {
   }
 
   async setHome(useCurrent: boolean, lat = 0, lon = 0, alt = 0): Promise<CommandResult> {
-    return this.sendCommandLong(179, [useCurrent ? 0 : 1, 0, 0, 0, lat, lon, alt])
+    // MAV_CMD_DO_SET_HOME (179): param1=1 → use current position, param1=0 → use specified
+    return this.sendCommandLong(179, [useCurrent ? 1 : 0, 0, 0, 0, lat, lon, alt])
   }
 
   async changeSpeed(speedType: number, speed: number): Promise<CommandResult> {
@@ -1115,6 +1386,58 @@ export class MAVLinkAdapter implements DroneProtocol {
   onMagCalReport(cb: MagCalReportCallback): () => void {
     this.magCalReportCallbacks.push(cb)
     return () => { this.magCalReportCallbacks = this.magCalReportCallbacks.filter(c => c !== cb) }
+  }
+  onAccelCalPos(cb: AccelCalPosCallback): () => void {
+    this.accelCalPosCallbacks.push(cb)
+    return () => { this.accelCalPosCallbacks = this.accelCalPosCallbacks.filter(c => c !== cb) }
+  }
+  onHomePosition(cb: HomePositionCallback): () => void {
+    this.homePositionCallbacks.push(cb)
+    return () => { this.homePositionCallbacks = this.homePositionCallbacks.filter(c => c !== cb) }
+  }
+  onAutopilotVersion(cb: AutopilotVersionCallback): () => void {
+    this.autopilotVersionCallbacks.push(cb)
+    return () => { this.autopilotVersionCallbacks = this.autopilotVersionCallbacks.filter(c => c !== cb) }
+  }
+  onPowerStatus(cb: PowerStatusCallback): () => void {
+    this.powerStatusCallbacks.push(cb)
+    return () => { this.powerStatusCallbacks = this.powerStatusCallbacks.filter(c => c !== cb) }
+  }
+  onDistanceSensor(cb: DistanceSensorCallback): () => void {
+    this.distanceSensorCallbacks.push(cb)
+    return () => { this.distanceSensorCallbacks = this.distanceSensorCallbacks.filter(c => c !== cb) }
+  }
+  onFenceStatus(cb: FenceStatusCallback): () => void {
+    this.fenceStatusCallbacks.push(cb)
+    return () => { this.fenceStatusCallbacks = this.fenceStatusCallbacks.filter(c => c !== cb) }
+  }
+  onNavController(cb: NavControllerCallback): () => void {
+    this.navControllerCallbacks.push(cb)
+    return () => { this.navControllerCallbacks = this.navControllerCallbacks.filter(c => c !== cb) }
+  }
+  onScaledImu(cb: ScaledImuCallback): () => void {
+    this.scaledImuCallbacks.push(cb)
+    return () => { this.scaledImuCallbacks = this.scaledImuCallbacks.filter(c => c !== cb) }
+  }
+  onLinkLost(cb: LinkStateCallback): () => void {
+    this.linkLostCallbacks.push(cb)
+    return () => { this.linkLostCallbacks = this.linkLostCallbacks.filter(c => c !== cb) }
+  }
+  onLinkRestored(cb: LinkStateCallback): () => void {
+    this.linkRestoredCallbacks.push(cb)
+    return () => { this.linkRestoredCallbacks = this.linkRestoredCallbacks.filter(c => c !== cb) }
+  }
+
+  // ── Message Rate Control (T1-4) ────────────────────────
+
+  async requestMessage(msgId: number): Promise<CommandResult> {
+    // MAV_CMD_REQUEST_MESSAGE (512): param1 = message ID
+    return this.sendCommandLong(512, [msgId, 0, 0, 0, 0, 0, 0])
+  }
+
+  async setMessageInterval(msgId: number, intervalUs: number): Promise<CommandResult> {
+    // MAV_CMD_SET_MESSAGE_INTERVAL (511): param1 = message ID, param2 = interval in µs (-1 to disable)
+    return this.sendCommandLong(511, [msgId, intervalUs, 0, 0, 0, 0, 0])
   }
 
   // ── Info ────────────────────────────────────────────────

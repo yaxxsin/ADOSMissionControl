@@ -17,7 +17,10 @@ export type FlightMode =
   | "QSTABILIZE" | "QHOVER" | "QLOITER" | "QLAND" | "QRTL" | "QAUTOTUNE" | "QACRO"
   | "AVOID_ADSB" | "THERMAL"
   // ArduCopter modes
-  | "POSHOLD" | "BRAKE" | "SMART_RTL" | "DRIFT" | "SPORT" | "FLIP" | "THROW";
+  | "POSHOLD" | "BRAKE" | "SMART_RTL" | "DRIFT" | "SPORT" | "FLIP" | "THROW"
+  | "FLOWHOLD" | "FOLLOW" | "ZIGZAG" | "SYSTEMID" | "HELI_AUTOROTATE" | "AUTO_RTL"
+  // ArduPlane extras
+  | "TAKEOFF" | "LOITER_TO_QLAND";
 export type ArmState = "disarmed" | "armed";
 
 export interface DroneInfo {
@@ -268,7 +271,6 @@ export interface InputState {
 
 export type ViewId =
   | "dashboard"
-  | "fly"
   | "plan"
   | "simulate"
   | "history"
@@ -312,4 +314,44 @@ export interface AnalyticsData {
   flightsPerDay: { date: string; count: number }[];
   utilizationByDrone: { droneId: string; droneName: string; hours: number }[];
   batteryDegradation: { date: string; avgCapacity: number }[];
+}
+
+// ── Plan Library ────────────────────────────────────────────
+
+export interface SavedPlan {
+  id: string;
+  name: string;
+  folderId: string | null;
+  waypoints: Waypoint[];
+  metadata: PlanMetadata;
+  createdAt: number;
+  updatedAt: number;
+  syncStatus: "local" | "synced" | "syncing" | "conflict";
+  cloudId?: string;
+}
+
+export interface PlanMetadata {
+  droneId?: string;
+  suiteType?: SuiteType;
+  geofence?: { enabled: boolean; type: string; maxAlt: number; action: string };
+  totalDistance?: number;
+  estimatedTime?: number;
+}
+
+export interface PlanFolder {
+  id: string;
+  name: string;
+  parentId: string | null;
+  createdAt: number;
+  order: number;
+}
+
+export interface SimHistoryEntry {
+  id: string;
+  planId: string;
+  planName: string;
+  timestamp: number;
+  duration: number;
+  waypointCount: number;
+  completedFully: boolean;
 }

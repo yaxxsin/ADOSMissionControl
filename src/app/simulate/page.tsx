@@ -14,6 +14,7 @@ import { useMissionStore } from "@/stores/mission-store";
 import { usePlannerStore } from "@/stores/planner-store";
 import { useSimulationStore } from "@/stores/simulation-store";
 import { useSimulationKeyboard } from "@/hooks/use-simulation-keyboard";
+import { SimulateLeftPanel } from "@/components/simulation/SimulateLeftPanel";
 
 const SimulationViewer = dynamic(
   () =>
@@ -40,6 +41,9 @@ export default function SimulatePage() {
 
   return (
     <div className="flex-1 flex h-full overflow-hidden">
+      {/* Left panel */}
+      <SimulateLeftPanel />
+
       {/* 3D Viewer */}
       <SimulationViewer waypoints={waypoints} defaultSpeed={defaultSpeed} />
 

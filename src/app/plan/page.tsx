@@ -17,8 +17,7 @@ import { MapToolbar } from "@/components/planner/MapToolbar";
 import { MapContextMenu } from "@/components/planner/MapContextMenu";
 import { MissionStatsBar } from "@/components/planner/MissionStatsBar";
 import { MissionActions } from "@/components/planner/MissionActions";
-import { SaveMissionDialog } from "@/components/planner/SaveMissionDialog";
-import { LoadMissionDialog } from "@/components/planner/LoadMissionDialog";
+import { FlightPlanLibrary } from "@/components/library/FlightPlanLibrary";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { usePlanner } from "./use-planner";
@@ -47,12 +46,28 @@ export default function MissionPlannerPage() {
     expandedWaypointId: p.expandedWaypointId,
     setExpandedWaypoint: p.setExpandedWaypoint,
     handleSave: p.handleSave,
+    handleSaveAs: p.handleSaveAs,
+    handleNewPlan: p.handleNewPlan,
+    handleFocusSearch: p.handleFocusSearch,
   });
+
+  // Resolve active plan name for the right panel header
+  const activePlanName = p.activePlanId
+    ? p.missionName || "Untitled Plan"
+    : null;
 
   return (
     <>
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         <div className="flex-1 flex overflow-hidden">
+          {/* LEFT PANEL — Flight Plan Library */}
+          <FlightPlanLibrary
+            context="plan"
+            onPlanLoaded={p.handlePlanLoaded}
+            onSave={p.handleSave}
+            onPlanRenamed={p.handlePlanRenamed}
+          />
+
           {/* Map area */}
           <div className="flex-1 relative min-w-0">
             <PlannerMap
@@ -94,7 +109,14 @@ export default function MissionPlannerPage() {
           {!p.panelCollapsed && (
             <div className="w-[320px] shrink-0 flex flex-col border-l border-border-default bg-bg-secondary">
               <div className="flex items-center justify-between px-3 py-2 border-b border-border-default">
-                <h2 className="text-sm font-display font-semibold text-text-primary">Mission Planner</h2>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {p.isDirty && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-status-warning shrink-0" title="Unsaved changes" />
+                  )}
+                  <h2 className="text-sm font-display font-semibold text-text-primary truncate">
+                    {activePlanName || "Mission Planner"}
+                  </h2>
+                </div>
                 <button
                   onClick={p.togglePanel}
                   className="text-text-tertiary hover:text-text-primary cursor-pointer"
@@ -180,10 +202,13 @@ export default function MissionPlannerPage() {
                 hasWaypoints={p.waypoints.length > 0}
                 hasDrone={!!p.selectedDroneId}
                 uploadState={p.uploadState}
+                isDirty={p.isDirty}
+                onSave={p.handleSave}
                 onUpload={p.handleUpload}
-                onSave={() => p.setShowSaveDialog(true)}
-                onLoad={() => p.setShowLoadDialog(true)}
                 onDownloadFromDrone={p.downloadMission}
+                onExportWaypoints={p.handleExportWaypoints}
+                onExportPlan={p.handleExportPlan}
+                onSaveAs={p.handleSaveAs}
                 onReverseWaypoints={p.handleReverseWaypoints}
                 onDiscard={p.handleClearAll}
               />
@@ -212,23 +237,6 @@ export default function MissionPlannerPage() {
           )}
         </div>
       </div>
-
-      {/* Modals rendered OUTSIDE the overflow-hidden container */}
-      <SaveMissionDialog
-        open={p.showSaveDialog}
-        onClose={() => p.setShowSaveDialog(false)}
-        missionName={p.missionName}
-        onSaveNative={p.handleSaveNative}
-        onSaveWaypoints={p.handleSaveWaypoints}
-        onSaveQGCPlan={p.handleSaveQGCPlan}
-      />
-
-      <LoadMissionDialog
-        open={p.showLoadDialog}
-        onClose={() => p.setShowLoadDialog(false)}
-        onImportFile={p.handleImportFile}
-        onLoadRecent={p.handleLoadRecent}
-      />
 
       <ConfirmDialog
         open={p.showClearConfirm}

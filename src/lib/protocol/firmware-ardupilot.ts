@@ -67,6 +67,8 @@ const ARDUPLANE_MODES: ReadonlyArray<[number, UnifiedFlightMode]> = [
   [22, 'QAUTOTUNE'],
   [23, 'QACRO'],
   [24, 'THERMAL'],
+  [13, 'TAKEOFF'],
+  [25, 'LOITER_TO_QLAND'],
 ]
 
 /** ArduCopter custom_mode → UnifiedFlightMode mapping */
@@ -89,6 +91,12 @@ const ARDUCOPTER_MODES: ReadonlyArray<[number, UnifiedFlightMode]> = [
   [18, 'THROW'],
   [19, 'AVOID_ADSB'],
   [21, 'SMART_RTL'],
+  [22, 'FLOWHOLD'],
+  [23, 'FOLLOW'],
+  [24, 'ZIGZAG'],
+  [25, 'SYSTEMID'],
+  [26, 'HELI_AUTOROTATE'],
+  [27, 'AUTO_RTL'],
 ]
 
 // ---------------------------------------------------------------------------

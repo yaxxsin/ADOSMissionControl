@@ -4,7 +4,7 @@ import { useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useDroneManager } from "@/stores/drone-manager";
-import { SlidersHorizontal, Save, RotateCcw, BarChart3 } from "lucide-react";
+import { SlidersHorizontal, Save, RotateCcw, BarChart3, HardDrive } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PidParam {
@@ -69,6 +69,7 @@ export function PidTuningPanel() {
   const [params, setParams] = useState<ParamValues>(buildDefaults);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [showCommitButton, setShowCommitButton] = useState(false);
 
   const connected = !!getSelectedProtocol();
   const hasDirty = Object.values(params).some((p) => p.dirty);
@@ -114,8 +115,16 @@ export function PidTuningPanel() {
         // write failed
       }
     }
+    setShowCommitButton(true);
     setSaving(false);
   }, [getSelectedProtocol, params]);
+
+  const commitToFlash = useCallback(async () => {
+    const protocol = getSelectedProtocol();
+    if (!protocol) return;
+    await protocol.commitParamsToFlash();
+    setShowCommitButton(false);
+  }, [getSelectedProtocol]);
 
   const revertParams = useCallback(() => {
     setParams((prev) => {
@@ -233,6 +242,16 @@ export function PidTuningPanel() {
           >
             Revert
           </Button>
+          {showCommitButton && (
+            <Button
+              variant="secondary"
+              size="lg"
+              icon={<HardDrive size={14} />}
+              onClick={commitToFlash}
+            >
+              Write to Flash
+            </Button>
+          )}
           {!connected && (
             <span className="text-[10px] text-text-tertiary">Connect a drone to save parameters</span>
           )}

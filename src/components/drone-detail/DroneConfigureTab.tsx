@@ -3,13 +3,11 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { FcDisconnectedPlaceholder } from "@/components/fc/FcDisconnectedPlaceholder";
-import { ParametersPanel } from "@/components/fc/ParametersPanel";
 import { OutputsPanel } from "@/components/fc/OutputsPanel";
 import { ReceiverPanel } from "@/components/fc/ReceiverPanel";
 import { FlightModesPanel } from "@/components/fc/FlightModesPanel";
 import { FailsafePanel } from "@/components/fc/FailsafePanel";
 import { PowerPanel } from "@/components/fc/PowerPanel";
-import { CalibrationPanel } from "@/components/fc/CalibrationPanel";
 import { CliPanel } from "@/components/fc/CliPanel";
 import { PidTuningPanel } from "@/components/fc/PidTuningPanel";
 import { PortsPanel } from "@/components/fc/PortsPanel";
@@ -18,13 +16,11 @@ import { OsdEditorPanel } from "@/components/fc/OsdEditorPanel";
 import { FirmwarePanel } from "@/components/fc/FirmwarePanel";
 import type { ReactNode } from "react";
 import {
-  ListTree,
   Cpu,
   Radio,
   SlidersHorizontal,
   ShieldAlert,
   Battery,
-  Compass,
   Terminal,
   Activity,
   Cable,
@@ -40,13 +36,11 @@ interface FcNavItem {
 }
 
 const FC_NAV_ITEMS: FcNavItem[] = [
-  { id: "parameters", label: "Parameters", icon: <ListTree size={14} /> },
   { id: "outputs", label: "Outputs", icon: <Cpu size={14} /> },
   { id: "receiver", label: "Receiver", icon: <Radio size={14} /> },
   { id: "modes", label: "Flight Modes", icon: <SlidersHorizontal size={14} /> },
   { id: "failsafe", label: "Failsafe", icon: <ShieldAlert size={14} /> },
   { id: "power", label: "Power", icon: <Battery size={14} /> },
-  { id: "calibration", label: "Calibration", icon: <Compass size={14} /> },
   { id: "cli", label: "CLI", icon: <Terminal size={14} /> },
   { id: "pid", label: "PID Tuning", icon: <Activity size={14} /> },
   { id: "ports", label: "Ports", icon: <Cable size={14} /> },
@@ -62,7 +56,7 @@ interface DroneConfigureTabProps {
 }
 
 export function DroneConfigureTab({ droneId, droneName, isConnected }: DroneConfigureTabProps) {
-  const [activePanel, setActivePanel] = useState("parameters");
+  const [activePanel, setActivePanel] = useState("outputs");
 
   return (
     <div className="flex-1 flex min-h-0 overflow-hidden">
@@ -96,18 +90,16 @@ export function DroneConfigureTab({ droneId, droneName, isConnected }: DroneConf
       </nav>
 
       {/* Content */}
-      <div className="flex-1 min-w-0 overflow-hidden">
+      <div className="flex-1 min-w-0 overflow-y-auto">
         {!isConnected ? (
           <FcDisconnectedPlaceholder droneName={droneName} />
         ) : (
           <>
-            {activePanel === "parameters" && <ParametersPanel />}
             {activePanel === "outputs" && <OutputsPanel />}
             {activePanel === "receiver" && <ReceiverPanel />}
             {activePanel === "modes" && <FlightModesPanel />}
             {activePanel === "failsafe" && <FailsafePanel />}
             {activePanel === "power" && <PowerPanel />}
-            {activePanel === "calibration" && <CalibrationPanel />}
             {activePanel === "cli" && <CliPanel />}
             {activePanel === "pid" && <PidTuningPanel />}
             {activePanel === "ports" && <PortsPanel />}

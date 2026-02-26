@@ -22,6 +22,10 @@ const Marker = dynamic(
   () => import("react-leaflet").then((m) => m.Marker),
   { ssr: false }
 );
+const GcsMarker = dynamic(
+  () => import("@/components/map/GcsMarker").then((m) => ({ default: m.GcsMarker })),
+  { ssr: false }
+);
 
 const DARK_TILES = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
 const ATTRIBUTION =
@@ -128,6 +132,8 @@ export function RouteReplayMap({ path: providedPath }: RouteReplayMapProps) {
 
           {/* Current position marker */}
           <Marker position={currentPos} icon={droneIcon} />
+
+          <GcsMarker />
         </MapContainer>
       </div>
 

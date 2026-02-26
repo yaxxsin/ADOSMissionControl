@@ -18,10 +18,12 @@ import { ConnectDialog } from "@/components/connect/ConnectDialog";
 import { WelcomeModal } from "@/components/onboarding/WelcomeModal";
 import { formatSyncTime } from "@/lib/sync";
 import { useAutoReconnect } from "@/hooks/use-auto-reconnect";
+import { useGcsLocation } from "@/hooks/use-gcs-location";
 import Link from "next/link";
 
 export function CommandShell({ children }: { children: React.ReactNode }) {
   useAutoReconnect();
+  useGcsLocation();
   const demo = useSettingsStore((s) => s.demoMode);
   const alertCount = useFleetStore((s) => s.alerts.filter((a) => !a.acknowledged).length);
   const mavConnected = useDroneManager((s) => s.selectedDroneId !== null);

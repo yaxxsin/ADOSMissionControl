@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  Plane,
   Route,
   Play,
   History,
@@ -15,7 +14,6 @@ import { cn } from "@/lib/utils";
 
 const tabs = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
-  { icon: Plane, label: "Fly", href: "/fly/alpha-1" },
   { icon: Route, label: "Plan", href: "/plan" },
   { icon: Play, label: "Simulate", href: "/simulate" },
 { icon: History, label: "History", href: "/history" },

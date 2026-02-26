@@ -20,6 +20,9 @@ interface UseKeyboardShortcutsParams {
   expandedWaypointId: string | null;
   setExpandedWaypoint: (id: string | null) => void;
   handleSave: () => void;
+  handleSaveAs?: () => void;
+  handleNewPlan?: () => void;
+  handleFocusSearch?: () => void;
 }
 
 const TOOL_MAP: Record<string, PlannerTool> = {
@@ -42,6 +45,9 @@ export function useKeyboardShortcuts({
   expandedWaypointId,
   setExpandedWaypoint,
   handleSave,
+  handleSaveAs,
+  handleNewPlan,
+  handleFocusSearch,
 }: UseKeyboardShortcutsParams): void {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -87,10 +93,31 @@ export function useKeyboardShortcuts({
         return;
       }
 
+      // Save As (Cmd+Shift+S)
+      if (isMeta && e.key === "s" && e.shiftKey) {
+        e.preventDefault();
+        handleSaveAs?.();
+        return;
+      }
+
       // Save (Cmd+S)
-      if (isMeta && e.key === "s") {
+      if (isMeta && e.key === "s" && !e.shiftKey) {
         e.preventDefault();
         handleSave();
+        return;
+      }
+
+      // New plan (Cmd+N)
+      if (isMeta && e.key === "n") {
+        e.preventDefault();
+        handleNewPlan?.();
+        return;
+      }
+
+      // Focus search (Cmd+O)
+      if (isMeta && e.key === "o") {
+        e.preventDefault();
+        handleFocusSearch?.();
         return;
       }
 
@@ -117,5 +144,8 @@ export function useKeyboardShortcuts({
     expandedWaypointId,
     setExpandedWaypoint,
     handleSave,
+    handleSaveAs,
+    handleNewPlan,
+    handleFocusSearch,
   ]);
 }

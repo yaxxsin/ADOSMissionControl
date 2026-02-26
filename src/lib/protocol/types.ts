@@ -82,6 +82,7 @@ export type UnifiedFlightMode =
   | "QRTL"
   | "QAUTOTUNE"
   | "QACRO"
+  | "LOITER_TO_QLAND"
   // ArduCopter specific
   | "DRIFT"
   | "SPORT"
@@ -89,6 +90,12 @@ export type UnifiedFlightMode =
   | "THROW"
   | "BRAKE"
   | "SMART_RTL"
+  | "FLOWHOLD"
+  | "FOLLOW"
+  | "ZIGZAG"
+  | "SYSTEMID"
+  | "HELI_AUTOROTATE"
+  | "AUTO_RTL"
   // PX4
   | "OFFBOARD"
   | "RATTITUDE"
@@ -327,13 +334,100 @@ export type MagCalProgressCallback = (data: {
   compassId: number;
   completionPct: number;
   calStatus: number;
+  completionMask: number[];
+  directionX: number;
+  directionY: number;
+  directionZ: number;
 }) => void;
 
 export type MagCalReportCallback = (data: {
   compassId: number;
   calStatus: number;
   autosaved: number;
+  ofsX: number;
+  ofsY: number;
+  ofsZ: number;
+  fitness: number;
+  diagX: number;
+  diagY: number;
+  diagZ: number;
+  offdiagX: number;
+  offdiagY: number;
+  offdiagZ: number;
+  orientationConfidence: number;
+  oldOrientation: number;
+  newOrientation: number;
+  scaleFactor: number;
 }) => void;
+
+/** Accel cal position enum (matches ACCELCAL_VEHICLE_POS). */
+export type AccelCalPosition = 1 | 2 | 3 | 4 | 5 | 6;
+
+export type AccelCalPosCallback = (data: { position: AccelCalPosition }) => void;
+
+export type HomePositionCallback = (data: {
+  timestamp: number;
+  lat: number;
+  lon: number;
+  alt: number;
+}) => void;
+
+export type AutopilotVersionCallback = (data: {
+  capabilities: number;
+  flightSwVersion: number;
+  middlewareSwVersion: number;
+  osSwVersion: number;
+  boardVersion: number;
+  uid: number;
+}) => void;
+
+export type PowerStatusCallback = (data: {
+  timestamp: number;
+  vcc: number;
+  vservo: number;
+  flags: number;
+}) => void;
+
+export type DistanceSensorCallback = (data: {
+  timestamp: number;
+  currentDistance: number;
+  minDistance: number;
+  maxDistance: number;
+  orientation: number;
+  id: number;
+  covariance: number;
+}) => void;
+
+export type FenceStatusCallback = (data: {
+  timestamp: number;
+  breachStatus: number;
+  breachCount: number;
+  breachType: number;
+}) => void;
+
+export type NavControllerCallback = (data: {
+  timestamp: number;
+  navBearing: number;
+  targetBearing: number;
+  wpDist: number;
+  altError: number;
+  xtrackError: number;
+}) => void;
+
+export type ScaledImuCallback = (data: {
+  timestamp: number;
+  xacc: number;
+  yacc: number;
+  zacc: number;
+  xgyro: number;
+  ygyro: number;
+  zgyro: number;
+  xmag: number;
+  ymag: number;
+  zmag: number;
+}) => void;
+
+export type LinkStateCallback = () => void;
 
 // ── Mission Items ───────────────────────────────────────────
 
@@ -457,6 +551,12 @@ export interface DroneProtocol {
   startCalibration(
     type: "accel" | "gyro" | "compass" | "level" | "airspeed",
   ): Promise<CommandResult>;
+  /** Send COMMAND_LONG(42429) to confirm accel cal position (fire-and-forget). */
+  confirmAccelCalPos?(position: number): void;
+  /** Send DO_ACCEPT_MAG_CAL (42425). compassMask=0 means all. */
+  acceptCompassCal?(compassMask?: number): Promise<CommandResult>;
+  /** Send DO_CANCEL_MAG_CAL (42426). compassMask=0 means all. */
+  cancelCompassCal?(compassMask?: number): Promise<CommandResult>;
 
   // ── Motor Test ──────────────────────────────────────────
   motorTest(motor: number, throttle: number, duration: number): Promise<CommandResult>;
@@ -487,10 +587,26 @@ export interface DroneProtocol {
   onTerrain(callback: TerrainCallback): () => void;
   onMagCalProgress?(callback: MagCalProgressCallback): () => void;
   onMagCalReport?(callback: MagCalReportCallback): () => void;
+  onAccelCalPos?(callback: AccelCalPosCallback): () => void;
+  onHomePosition?(callback: HomePositionCallback): () => void;
+  onAutopilotVersion?(callback: AutopilotVersionCallback): () => void;
+  onPowerStatus?(callback: PowerStatusCallback): () => void;
+  onDistanceSensor?(callback: DistanceSensorCallback): () => void;
+  onFenceStatus?(callback: FenceStatusCallback): () => void;
+  onNavController?(callback: NavControllerCallback): () => void;
+  onScaledImu?(callback: ScaledImuCallback): () => void;
+  onLinkLost?(callback: LinkStateCallback): () => void;
+  onLinkRestored?(callback: LinkStateCallback): () => void;
 
   // ── Serial Passthrough ──────────────────────────────────
   /** Send a string as SERIAL_CONTROL data to the FC shell. */
   sendSerialData(text: string): void;
+
+  // ── Message Rate Control ────────────────────────────────
+  /** Request a single message by ID (MAV_CMD_REQUEST_MESSAGE = 512). */
+  requestMessage?(msgId: number): Promise<CommandResult>;
+  /** Set streaming interval for a message (MAV_CMD_SET_MESSAGE_INTERVAL = 511). */
+  setMessageInterval?(msgId: number, intervalUs: number): Promise<CommandResult>;
 
   // ── Info ─────────────────────────────────────────────────
   getVehicleInfo(): VehicleInfo | null;

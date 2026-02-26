@@ -48,6 +48,7 @@ export const CRC_EXTRA: ReadonlyMap<number, number> = new Map([
   [69, 243],  // MANUAL_CONTROL
   [73, 38],   // MISSION_ITEM_INT
   [74, 20],   // VFR_HUD
+  [75, 158],  // COMMAND_INT
   [76, 152],  // COMMAND_LONG
   [77, 143],  // COMMAND_ACK
   [147, 154], // BATTERY_STATUS
@@ -66,6 +67,14 @@ export const CRC_EXTRA: ReadonlyMap<number, number> = new Map([
   [241, 90],  // VIBRATION
   [335, 71],  // EKF_STATUS_REPORT
   [66, 148],  // REQUEST_DATA_STREAM
+  [242, 104], // HOME_POSITION
+  [148, 178], // AUTOPILOT_VERSION
+  [125, 203], // POWER_STATUS
+  [132, 85],  // DISTANCE_SENSOR
+  [162, 189], // FENCE_STATUS
+  [62, 183],  // NAV_CONTROLLER_OUTPUT
+  [26, 170],  // SCALED_IMU
+  [124, 87],  // GPS2_RAW
 ]);
 
 /**
@@ -91,6 +100,7 @@ const PAYLOAD_LENGTHS: ReadonlyMap<number, number> = new Map([
   [69, 11],   // MANUAL_CONTROL
   [73, 37],   // MISSION_ITEM_INT
   [74, 20],   // VFR_HUD
+  [75, 35],   // COMMAND_INT
   [76, 33],   // COMMAND_LONG
   [77, 3],    // COMMAND_ACK
   [126, 79],  // SERIAL_CONTROL
@@ -105,10 +115,18 @@ const PAYLOAD_LENGTHS: ReadonlyMap<number, number> = new Map([
   [136, 22],  // TERRAIN_REPORT
   [168, 12],  // WIND
   [191, 27],  // MAG_CAL_PROGRESS
-  [192, 44],  // MAG_CAL_REPORT (base, without extensions)
+  [192, 54],  // MAG_CAL_REPORT (with orientation/scale extensions)
   [241, 32],  // VIBRATION
   [335, 22],  // EKF_STATUS_REPORT
   [66, 6],    // REQUEST_DATA_STREAM
+  [242, 52],  // HOME_POSITION (base, without time_usec extension)
+  [148, 60],  // AUTOPILOT_VERSION (base, without uid2 extension)
+  [125, 6],   // POWER_STATUS
+  [132, 14],  // DISTANCE_SENSOR (base)
+  [162, 8],   // FENCE_STATUS
+  [62, 26],   // NAV_CONTROLLER_OUTPUT
+  [26, 22],   // SCALED_IMU
+  [124, 35],  // GPS2_RAW
 ]);
 
 // ── CRC-16/MCRF4XX ─────────────────────────────────────────

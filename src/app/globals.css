@@ -99,6 +99,12 @@ body {
   color: var(--alt-text-primary);
 }
 
+/* GCS marker pulse — GPU-composited (transform+opacity on compositor thread) */
+@keyframes gcs-pulse {
+  0%, 100% { transform: scale(0.6); opacity: 0.6; }
+  50% { transform: scale(1); opacity: 0.2; }
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,

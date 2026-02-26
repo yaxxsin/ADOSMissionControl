@@ -7,6 +7,7 @@
 
 import { useEffect } from "react";
 import { useSimulationStore } from "@/stores/simulation-store";
+import { usePlanLibraryStore } from "@/stores/plan-library-store";
 
 const SPEED_OPTIONS = [0.25, 0.5, 1, 2, 4];
 
@@ -61,6 +62,33 @@ export function useSimulationKeyboard(active: boolean) {
           e.preventDefault();
           store.seek(store.totalDuration);
           break;
+        case "t":
+          store.setCameraMode("topdown");
+          break;
+        case "f":
+          store.setCameraMode("follow");
+          break;
+        case "o":
+          store.setCameraMode("orbit");
+          break;
+        case "x":
+          store.setCameraMode("free");
+          break;
+        case "l": {
+          usePlanLibraryStore.getState().toggleLibrary();
+          break;
+        }
+        default: {
+          // Number keys 1-9: seek to proportional position in the flight
+          const num = parseInt(e.key);
+          if (num >= 1 && num <= 9) {
+            const { totalDuration } = store;
+            if (totalDuration > 0) {
+              store.seek((num / 10) * totalDuration);
+            }
+          }
+          break;
+        }
       }
     }
 

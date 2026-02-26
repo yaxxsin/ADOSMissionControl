@@ -10,8 +10,10 @@ import { useSimulationStore, type CameraMode } from "@/stores/simulation-store";
 import { cn } from "@/lib/utils";
 
 const MODES: { id: CameraMode; label: string; title: string }[] = [
-  { id: "topdown", label: "T", title: "Top-down view (default)" },
-  { id: "follow", label: "F", title: "Follow drone" },
+  { id: "topdown", label: "T", title: "Top-down view (T)" },
+  { id: "follow", label: "F", title: "Follow drone (F)" },
+  { id: "orbit", label: "O", title: "Orbit view (O)" },
+  { id: "free", label: "X", title: "Free camera (X)" },
 ];
 
 export function CameraModeSelector() {

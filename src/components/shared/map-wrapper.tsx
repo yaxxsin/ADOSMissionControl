@@ -11,6 +11,10 @@ const TileLayer = dynamic(
   () => import("react-leaflet").then((m) => m.TileLayer),
   { ssr: false }
 );
+const GcsMarker = dynamic(
+  () => import("@/components/map/GcsMarker").then((m) => ({ default: m.GcsMarker })),
+  { ssr: false }
+);
 
 interface MapWrapperProps {
   center?: [number, number];
@@ -30,16 +34,19 @@ export function MapWrapper({
   children,
 }: MapWrapperProps) {
   return (
-    <MapContainer
-      center={center}
-      zoom={zoom}
-      className={`isolate ${className}`}
-      zoomControl={false}
-      attributionControl={false}
-      style={{ background: "#0a0a0a" }}
-    >
-      <TileLayer url={DARK_TILES} attribution={ATTRIBUTION} />
-      {children}
-    </MapContainer>
+    <div className="isolate w-full h-full">
+      <MapContainer
+        center={center}
+        zoom={zoom}
+        className={className}
+        zoomControl={false}
+        attributionControl={false}
+        style={{ background: "#0a0a0a" }}
+      >
+        <TileLayer url={DARK_TILES} attribution={ATTRIBUTION} />
+        {children}
+        <GcsMarker />
+      </MapContainer>
+    </div>
   );
 }

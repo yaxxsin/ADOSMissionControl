@@ -1,13 +1,13 @@
 /**
  * @module MissionActions
  * @description Action bar at the bottom of the planner right panel.
- * Upload to drone (primary), save/load buttons (open modals), and overflow menu
- * (download from drone, reverse waypoints, discard changes).
+ * Upload to drone (primary) and overflow menu with export, save-as,
+ * reverse waypoints, and discard changes.
  * @license GPL-3.0-only
  */
 "use client";
 
-import { Upload, Save, FolderOpen, MoreHorizontal, Download, ArrowDownUp, Trash2 } from "lucide-react";
+import { Upload, Save, MoreHorizontal, Download, FileDown, FileOutput, Copy, ArrowDownUp, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 
@@ -15,10 +15,13 @@ interface MissionActionsProps {
   hasWaypoints: boolean;
   hasDrone: boolean;
   uploadState: "idle" | "uploading" | "uploaded" | "error";
-  onUpload: () => void;
+  isDirty: boolean;
   onSave: () => void;
-  onLoad: () => void;
+  onUpload: () => void;
   onDownloadFromDrone: () => void;
+  onExportWaypoints: () => void;
+  onExportPlan: () => void;
+  onSaveAs: () => void;
   onReverseWaypoints: () => void;
   onDiscard: () => void;
 }
@@ -27,60 +30,59 @@ export function MissionActions({
   hasWaypoints,
   hasDrone,
   uploadState,
-  onUpload,
+  isDirty,
   onSave,
-  onLoad,
+  onUpload,
   onDownloadFromDrone,
+  onExportWaypoints,
+  onExportPlan,
+  onSaveAs,
   onReverseWaypoints,
   onDiscard,
 }: MissionActionsProps) {
   const overflowItems = [
     { id: "download-drone", label: "Download from Drone", icon: <Download size={12} /> },
     { id: "div1", label: "", divider: true },
-    { id: "reverse", label: "Reverse Waypoints", icon: <ArrowDownUp size={12} /> },
+    { id: "export-waypoints", label: "Export .waypoints", icon: <FileDown size={12} /> },
+    { id: "export-plan", label: "Export .plan (QGC)", icon: <FileOutput size={12} /> },
+    { id: "save-as", label: "Save As New Plan", icon: <Copy size={12} /> },
     { id: "div2", label: "", divider: true },
+    { id: "reverse", label: "Reverse Waypoints", icon: <ArrowDownUp size={12} /> },
+    { id: "div3", label: "", divider: true },
     { id: "discard", label: "Discard Changes", icon: <Trash2 size={12} />, danger: true },
   ];
 
   const handleOverflow = (id: string) => {
     if (id === "download-drone") onDownloadFromDrone();
+    else if (id === "export-waypoints") onExportWaypoints();
+    else if (id === "export-plan") onExportPlan();
+    else if (id === "save-as") onSaveAs();
     else if (id === "reverse") onReverseWaypoints();
     else if (id === "discard") onDiscard();
   };
 
   return (
     <div className="border-t border-border-default p-3 flex flex-col gap-2">
-      <Button
-        variant="primary"
-        size="lg"
-        className="w-full"
-        icon={<Upload size={14} />}
-        disabled={!hasWaypoints || !hasDrone}
-        loading={uploadState === "uploading"}
-        onClick={onUpload}
-      >
-        Upload to Drone
-      </Button>
-
       <div className="flex gap-2">
         <Button
           variant="secondary"
-          size="md"
-          className="flex-1"
-          icon={<Save size={12} />}
-          disabled={!hasWaypoints}
+          size="lg"
+          icon={<Save size={14} />}
+          disabled={!isDirty}
           onClick={onSave}
         >
           Save
         </Button>
         <Button
-          variant="secondary"
-          size="md"
+          variant="primary"
+          size="lg"
           className="flex-1"
-          icon={<FolderOpen size={12} />}
-          onClick={onLoad}
+          icon={<Upload size={14} />}
+          disabled={!hasWaypoints || !hasDrone}
+          loading={uploadState === "uploading"}
+          onClick={onUpload}
         >
-          Load
+          Upload to Drone
         </Button>
         <DropdownMenu
           trigger={

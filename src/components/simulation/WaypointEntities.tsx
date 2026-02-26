@@ -2,20 +2,24 @@
  * @module WaypointEntities
  * @description Renders numbered waypoint billboards at their actual altitude in the 3D scene.
  * Clicking a waypoint selects it (syncs with planner store).
+ * Entity creation and selection styling are split into separate effects
+ * to avoid recreating all entities on selection change.
  * @license GPL-3.0-only
  */
 
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   Cartesian2,
   Cartesian3,
   Color,
+  ConstantProperty,
   VerticalOrigin,
   HorizontalOrigin,
   LabelStyle,
   type Viewer as CesiumViewer,
+  type Entity,
   ScreenSpaceEventType,
   ScreenSpaceEventHandler,
   defined,
@@ -33,36 +37,32 @@ const WP_ENTITY_PREFIX = "sim-wp-";
 
 export function WaypointEntities({ viewer, waypoints }: WaypointEntitiesProps) {
   const selectedWaypointId = usePlannerStore((s) => s.selectedWaypointId);
+  const entityMapRef = useRef<Map<string, Entity>>(new Map());
 
+  // Effect 1 — Entity creation (only on viewer/waypoints change)
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
 
-    const entities: ReturnType<typeof viewer.entities.add>[] = [];
+    const entityMap = new Map<string, Entity>();
 
     for (let i = 0; i < waypoints.length; i++) {
       const wp = waypoints[i];
-      const isSelected = wp.id === selectedWaypointId;
-      const bgColor = isSelected
-        ? Color.fromCssColorString(MAP_COLORS.accentSelected)
-        : Color.fromCssColorString(MAP_COLORS.accentPrimary);
-      const textColor = isSelected
-        ? Color.fromCssColorString(MAP_COLORS.background)
-        : Color.WHITE;
+      const bgColor = Color.fromCssColorString(MAP_COLORS.accentPrimary);
 
       const entity = viewer.entities.add({
         id: `${WP_ENTITY_PREFIX}${wp.id}`,
         position: Cartesian3.fromDegrees(wp.lon, wp.lat, wp.alt),
         point: {
-          pixelSize: isSelected ? 14 : 10,
+          pixelSize: 10,
           color: bgColor,
           outlineColor: Color.WHITE,
-          outlineWidth: isSelected ? 2 : 1,
+          outlineWidth: 1,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
         label: {
           text: String(i + 1),
           font: "12px Inter, sans-serif",
-          fillColor: textColor,
+          fillColor: Color.WHITE,
           style: LabelStyle.FILL,
           outlineWidth: 2,
           outlineColor: Color.BLACK,
@@ -75,18 +75,48 @@ export function WaypointEntities({ viewer, waypoints }: WaypointEntitiesProps) {
           backgroundPadding: new Cartesian2(4, 2),
         },
       });
-      entities.push(entity);
+      entityMap.set(wp.id, entity);
     }
 
+    entityMapRef.current = entityMap;
+
     return () => {
-      for (const entity of entities) {
+      for (const entity of entityMap.values()) {
         if (viewer && !viewer.isDestroyed()) {
           viewer.entities.remove(entity);
         }
       }
+      entityMapRef.current = new Map();
     };
-  }, [viewer, waypoints, selectedWaypointId]);
+  }, [viewer, waypoints]);
 
+  // Effect 2 — Selection styling (in-place property updates, no entity recreation)
+  useEffect(() => {
+    const entityMap = entityMapRef.current;
+    if (entityMap.size === 0) return;
+
+    const selectedColor = Color.fromCssColorString(MAP_COLORS.accentSelected);
+    const defaultColor = Color.fromCssColorString(MAP_COLORS.accentPrimary);
+    const selectedTextColor = Color.fromCssColorString(MAP_COLORS.background);
+
+    for (const [wpId, entity] of entityMap) {
+      const isSelected = wpId === selectedWaypointId;
+      const bgColor = isSelected ? selectedColor : defaultColor;
+      const textColor = isSelected ? selectedTextColor : Color.WHITE;
+
+      if (entity.point) {
+        entity.point.pixelSize = new ConstantProperty(isSelected ? 14 : 10);
+        entity.point.color = new ConstantProperty(bgColor);
+        entity.point.outlineWidth = new ConstantProperty(isSelected ? 2 : 1);
+      }
+      if (entity.label) {
+        entity.label.fillColor = new ConstantProperty(textColor);
+        entity.label.backgroundColor = new ConstantProperty(bgColor.withAlpha(0.8));
+      }
+    }
+  }, [selectedWaypointId]);
+
+  // Click handler for waypoint selection
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
 

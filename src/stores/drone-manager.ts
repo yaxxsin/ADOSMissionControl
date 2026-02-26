@@ -69,6 +69,9 @@ const KNOWN_MODES: Set<string> = new Set([
   // ArduCopter extras
   "POSHOLD", "BRAKE", "SMART_RTL", "DRIFT", "SPORT",
   "AVOID_ADSB", "THERMAL", "QAUTOTUNE", "QACRO", "FLIP", "THROW",
+  "FLOWHOLD", "FOLLOW", "ZIGZAG", "SYSTEMID", "HELI_AUTOROTATE", "AUTO_RTL",
+  // ArduPlane extras
+  "TAKEOFF", "LOITER_TO_QLAND",
 ]);
 
 /**

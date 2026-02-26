@@ -13,7 +13,11 @@ import {
   useMap,
 } from "react-leaflet";
 import L from "leaflet";
-import "leaflet/dist/leaflet.css";
+import dynamic from "next/dynamic";
+const GcsMarker = dynamic(
+  () => import("@/components/map/GcsMarker").then((m) => ({ default: m.GcsMarker })),
+  { ssr: false }
+);
 
 const BANGALORE_CENTER: [number, number] = [12.9716, 77.5946];
 const DARK_TILES = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
@@ -70,7 +74,7 @@ export function OverviewMap() {
   const hasGps = dronePos !== null;
 
   return (
-    <div className="relative w-full h-full border border-border-default overflow-hidden bg-[#0a0a0a]">
+    <div className="relative w-full h-full border border-border-default overflow-hidden bg-[#0a0a0a] isolate">
       <span className="absolute top-2 left-2 z-[1000] text-[9px] font-mono text-text-tertiary">
         Position
       </span>
@@ -87,7 +91,7 @@ export function OverviewMap() {
       <MapContainer
         center={dronePos ?? BANGALORE_CENTER}
         zoom={17}
-        className="w-full h-full isolate"
+        className="w-full h-full"
         zoomControl={false}
         attributionControl={false}
         style={{ background: "#0a0a0a" }}
@@ -124,6 +128,8 @@ export function OverviewMap() {
         {dronePos && (
           <Marker position={dronePos} icon={droneIcon} />
         )}
+
+        <GcsMarker />
       </MapContainer>
 
       {/* Follow toggle — bottom right */}

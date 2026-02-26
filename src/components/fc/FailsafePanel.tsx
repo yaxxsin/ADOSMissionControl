@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useDroneManager } from "@/stores/drone-manager";
-import { ShieldAlert, Battery, Radio, Gauge, Save } from "lucide-react";
+import { ShieldAlert, Battery, Radio, Gauge, Save, HardDrive } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FailsafeParam {
@@ -34,6 +34,7 @@ export function FailsafePanel() {
   const [params, setParams] = useState<Params>(DEFAULT_PARAMS);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [showCommitButton, setShowCommitButton] = useState(false);
 
   const updateParam = useCallback((name: string, value: string) => {
     setParams((prev) => ({
@@ -75,8 +76,16 @@ export function FailsafePanel() {
         // parameter write failed
       }
     }
+    setShowCommitButton(true);
     setSaving(false);
   }, [getSelectedProtocol, params]);
+
+  const commitToFlash = useCallback(async () => {
+    const protocol = getSelectedProtocol();
+    if (!protocol) return;
+    await protocol.commitParamsToFlash();
+    setShowCommitButton(false);
+  }, [getSelectedProtocol]);
 
   const hasDirty = Object.values(params).some((p) => p.dirty);
   const connected = !!getSelectedProtocol();
@@ -225,6 +234,16 @@ export function FailsafePanel() {
           >
             Save to Flight Controller
           </Button>
+          {showCommitButton && (
+            <Button
+              variant="secondary"
+              size="lg"
+              icon={<HardDrive size={14} />}
+              onClick={commitToFlash}
+            >
+              Write to Flash
+            </Button>
+          )}
           {!connected && (
             <span className="text-[10px] text-text-tertiary">Connect a drone to save parameters</span>
           )}

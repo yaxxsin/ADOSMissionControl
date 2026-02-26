@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { useDroneManager } from "@/stores/drone-manager";
+import { useDroneStore } from "@/stores/drone-store";
 import { useTelemetryStore } from "@/stores/telemetry-store";
-import { RotateCcw, Save } from "lucide-react";
+import { bitmaskToSet, setToBitmask } from "@/lib/rc-options";
+import { RotateCcw, Save, HardDrive, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { UnifiedFlightMode } from "@/lib/protocol/types";
 
@@ -40,6 +42,18 @@ const MODE_DESCRIPTIONS: Partial<Record<UnifiedFlightMode, string>> = {
   QLOITER: "VTOL GPS position hold",
   QLAND: "VTOL land mode",
   QRTL: "VTOL return to launch",
+  QAUTOTUNE: "VTOL automatic PID tuning",
+  QACRO: "VTOL rate-based control",
+  FLOWHOLD: "Optical flow position hold without GPS",
+  FOLLOW: "Follow another vehicle or GCS",
+  ZIGZAG: "Fly zigzag pattern between waypoints A & B",
+  SYSTEMID: "System identification for dynamic response characterization",
+  HELI_AUTOROTATE: "Helicopter autorotation emergency landing",
+  AUTO_RTL: "Return via Smart RTL path then switch to AUTO",
+  TAKEOFF: "Automatic takeoff sequence",
+  LOITER_TO_QLAND: "Loiter then transition to VTOL landing",
+  AVOID_ADSB: "Automatic avoidance of ADS-B equipped aircraft",
+  THERMAL: "Soaring in thermal updrafts",
 };
 
 // ── PWM ranges per mode slot (6 slots, standard ArduPilot) ──
@@ -55,23 +69,111 @@ const MODE_PWM_RANGES = [
 
 const MODE_SLOT_COUNT = 6;
 
+// ── Types ────────────────────────────────────────────────────
+
+interface ModeSlotConfig {
+  mode: string;
+  simple: boolean;
+  superSimple: boolean;
+}
+
+interface FlightModeGlobalConfig {
+  modeChannel: string;
+  initialMode: string;
+}
+
+function defaultSlot(): ModeSlotConfig {
+  return { mode: "STABILIZE", simple: false, superSimple: false };
+}
+
+function defaultGlobalConfig(): FlightModeGlobalConfig {
+  return { modeChannel: "5", initialMode: "0" };
+}
+
+// ── PWM Range Bar ────────────────────────────────────────────
+
+function PwmRangeBar({ currentPwm, activeSlot }: { currentPwm: number; activeSlot: number }) {
+  // Bar spans 800 to 2100
+  const barMin = 800;
+  const barMax = 2100;
+  const barRange = barMax - barMin;
+
+  const markerPct = currentPwm > 0
+    ? Math.max(0, Math.min(100, ((currentPwm - barMin) / barRange) * 100))
+    : -1;
+
+  return (
+    <div className="space-y-1">
+      <div className="relative h-6 bg-bg-tertiary border border-border-default overflow-hidden">
+        {MODE_PWM_RANGES.map((range, i) => {
+          const left = ((Math.max(range.min, barMin) - barMin) / barRange) * 100;
+          const right = ((Math.min(range.max, barMax) - barMin) / barRange) * 100;
+          const width = right - left;
+          const isActive = activeSlot === i;
+
+          return (
+            <div
+              key={i}
+              className={cn(
+                "absolute top-0 bottom-0 flex items-center justify-center text-[9px] font-mono transition-colors",
+                isActive
+                  ? "bg-accent-primary/20 text-accent-primary font-bold"
+                  : i % 2 === 0
+                    ? "bg-bg-secondary/50 text-text-tertiary"
+                    : "bg-bg-tertiary/80 text-text-tertiary",
+                i < 5 && "border-r border-border-default",
+              )}
+              style={{ left: `${left}%`, width: `${width}%` }}
+            >
+              {i + 1}
+            </div>
+          );
+        })}
+        {/* Current PWM marker */}
+        {markerPct >= 0 && (
+          <div
+            className="absolute top-0 bottom-0 w-0.5 bg-accent-primary z-10 transition-all duration-150"
+            style={{ left: `${markerPct}%` }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main Component ───────────────────────────────────────────
+
 export function FlightModesPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const protocol = getSelectedProtocol();
   const firmwareHandler = protocol?.getFirmwareHandler() ?? null;
+  const isCopter = firmwareHandler?.vehicleClass === "copter";
 
   // Live RC data
   const rcBuffer = useTelemetryStore((s) => s.rc);
   const latestRc = rcBuffer.latest();
 
-  // ── State ──────────────────────────────────────────────────
-  const [modeChannel, setModeChannel] = useState("5");
-  const [modes, setModes] = useState<string[]>(
-    () => Array.from({ length: MODE_SLOT_COUNT }, () => "STABILIZE"),
+  // Current heartbeat mode from drone store
+  const heartbeatMode = useDroneStore((s) => s.flightMode);
+
+  // ── Slot state ────────────────────────────────────────────
+  const [slots, setSlots] = useState<ModeSlotConfig[]>(
+    () => Array.from({ length: MODE_SLOT_COUNT }, defaultSlot),
   );
+  const baselineRef = useRef<ModeSlotConfig[]>(
+    Array.from({ length: MODE_SLOT_COUNT }, defaultSlot),
+  );
+  const [dirtySlots, setDirtySlots] = useState<Set<number>>(new Set());
+
+  // ── Global config state ───────────────────────────────────
+  const [globalConfig, setGlobalConfig] = useState<FlightModeGlobalConfig>(defaultGlobalConfig);
+  const globalBaselineRef = useRef<FlightModeGlobalConfig>(defaultGlobalConfig());
+  const [globalDirty, setGlobalDirty] = useState(false);
+
+  // ── UI state ──────────────────────────────────────────────
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [dirty, setDirty] = useState(false);
+  const [showCommitButton, setShowCommitButton] = useState(false);
 
   // ── Available modes from firmware handler ──────────────────
 
@@ -82,7 +184,6 @@ export function FlightModesPanel() {
         label: m,
       }));
     }
-    // Fallback common modes
     return [
       "STABILIZE", "ACRO", "ALT_HOLD", "AUTO", "GUIDED", "LOITER",
       "RTL", "LAND", "CIRCLE", "POSHOLD", "AUTOTUNE", "MANUAL",
@@ -90,7 +191,7 @@ export function FlightModesPanel() {
     ].map((m) => ({ value: m, label: m }));
   }, [firmwareHandler]);
 
-  // ── Channel options ────────────────────────────────────────
+  // ── Channel options ──────────────────────────────────────
 
   const channelOptions = useMemo(
     () => Array.from({ length: 16 }, (_, i) => ({
@@ -100,9 +201,9 @@ export function FlightModesPanel() {
     [],
   );
 
-  // ── Current mode channel PWM value ─────────────────────────
+  // ── Current mode channel PWM value ───────────────────────
 
-  const modeChIdx = Number(modeChannel) - 1;
+  const modeChIdx = Number(globalConfig.modeChannel) - 1;
   const currentPwm = latestRc?.channels[modeChIdx] ?? 0;
 
   // Determine active slot based on current PWM
@@ -115,71 +216,203 @@ export function FlightModesPanel() {
     return -1;
   }, [currentPwm]);
 
-  // ── Fetch params ───────────────────────────────────────────
+  // ── Duplicate mode detection ─────────────────────────────
+
+  const duplicateModes = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const s of slots) {
+      counts.set(s.mode, (counts.get(s.mode) ?? 0) + 1);
+    }
+    const dups = new Set<string>();
+    for (const [mode, count] of counts) {
+      if (count > 1) dups.add(mode);
+    }
+    return dups;
+  }, [slots]);
+
+  const hasDuplicates = duplicateModes.size > 0;
+
+  // ── Derived dirty count ──────────────────────────────────
+
+  const totalDirtyCount = dirtySlots.size + (globalDirty ? 1 : 0);
+  const isDirty = totalDirtyCount > 0;
+
+  // ── Fetch params ─────────────────────────────────────────
 
   const fetchParams = useCallback(async () => {
     if (!protocol) return;
     setLoading(true);
     try {
-      const chParam = await protocol.getParameter("FLTMODE_CH");
-      setModeChannel(String(chParam.value));
+      // Read global config
+      const [chParam, initialModeParam] = await Promise.all([
+        protocol.getParameter("FLTMODE_CH"),
+        protocol.getParameter("INITIAL_MODE"),
+      ]);
 
+      const g: FlightModeGlobalConfig = {
+        modeChannel: String(chParam.value),
+        initialMode: String(initialModeParam.value),
+      };
+      setGlobalConfig(g);
+      globalBaselineRef.current = { ...g };
+      setGlobalDirty(false);
+
+      // Read 6 mode slots
       const modeParams = await Promise.all(
         Array.from({ length: MODE_SLOT_COUNT }, (_, i) =>
           protocol.getParameter(`FLTMODE${i + 1}`),
         ),
       );
 
-      // Decode mode numbers to names via firmware handler
-      const modeNames = modeParams.map((p) => {
-        if (firmwareHandler) {
-          return firmwareHandler.decodeFlightMode(p.value);
-        }
-        return "STABILIZE";
-      });
+      // Read bitmasks (copter only)
+      let simpleBitmask = 0;
+      let superSimpleBitmask = 0;
+      if (isCopter) {
+        const [simpleParam, superSimpleParam] = await Promise.all([
+          protocol.getParameter("SIMPLE"),
+          protocol.getParameter("SUPER_SIMPLE"),
+        ]);
+        simpleBitmask = simpleParam.value;
+        superSimpleBitmask = superSimpleParam.value;
+      }
 
-      setModes(modeNames);
-      setDirty(false);
+      const simpleSet = bitmaskToSet(simpleBitmask);
+      const superSimpleSet = bitmaskToSet(superSimpleBitmask);
+
+      const newSlots: ModeSlotConfig[] = modeParams.map((p, i) => ({
+        mode: firmwareHandler
+          ? firmwareHandler.decodeFlightMode(p.value)
+          : "STABILIZE",
+        simple: simpleSet.has(i),
+        superSimple: superSimpleSet.has(i),
+      }));
+
+      setSlots(newSlots);
+      baselineRef.current = newSlots.map((s) => ({ ...s }));
+      setDirtySlots(new Set());
+      setShowCommitButton(false);
     } catch {
       // partial read
     } finally {
       setLoading(false);
     }
-  }, [protocol, firmwareHandler]);
+  }, [protocol, firmwareHandler, isCopter]);
 
-  // ── Save params ────────────────────────────────────────────
+  // ── Auto-read on mount (Bug #1 fix) ─────────────────────
+
+  useEffect(() => {
+    fetchParams();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Save params — only dirty writes (Bug #3 fix) ─────────
 
   const saveParams = useCallback(async () => {
     if (!protocol) return;
+    if (!isDirty) return;
     setSaving(true);
     try {
-      await protocol.setParameter("FLTMODE_CH", Number(modeChannel));
-
-      for (let i = 0; i < MODE_SLOT_COUNT; i++) {
-        // Encode mode name to number via firmware handler
-        if (firmwareHandler) {
-          const { customMode } = firmwareHandler.encodeFlightMode(
-            modes[i] as UnifiedFlightMode,
-          );
-          await protocol.setParameter(`FLTMODE${i + 1}`, customMode);
+      // Global config
+      if (globalDirty) {
+        const g = globalConfig;
+        const gb = globalBaselineRef.current;
+        if (g.modeChannel !== gb.modeChannel) {
+          await protocol.setParameter("FLTMODE_CH", Number(g.modeChannel));
+        }
+        if (g.initialMode !== gb.initialMode) {
+          await protocol.setParameter("INITIAL_MODE", Number(g.initialMode));
         }
       }
-      setDirty(false);
+
+      // Per-slot modes
+      let simpleChanged = false;
+      let superSimpleChanged = false;
+
+      for (const idx of dirtySlots) {
+        const slot = slots[idx];
+        const base = baselineRef.current[idx];
+
+        // Write mode param if changed
+        if (slot.mode !== base.mode && firmwareHandler) {
+          const { customMode } = firmwareHandler.encodeFlightMode(
+            slot.mode as UnifiedFlightMode,
+          );
+          await protocol.setParameter(`FLTMODE${idx + 1}`, customMode);
+        }
+
+        if (slot.simple !== base.simple) simpleChanged = true;
+        if (slot.superSimple !== base.superSimple) superSimpleChanged = true;
+      }
+
+      // Write SIMPLE bitmask if any slot's simple changed (copter only)
+      if (isCopter && simpleChanged) {
+        const simpleSet = new Set<number>();
+        for (let i = 0; i < MODE_SLOT_COUNT; i++) {
+          if (slots[i].simple) simpleSet.add(i);
+        }
+        await protocol.setParameter("SIMPLE", setToBitmask(simpleSet));
+      }
+
+      // Write SUPER_SIMPLE bitmask if any slot's superSimple changed (copter only)
+      if (isCopter && superSimpleChanged) {
+        const ssSet = new Set<number>();
+        for (let i = 0; i < MODE_SLOT_COUNT; i++) {
+          if (slots[i].superSimple) ssSet.add(i);
+        }
+        await protocol.setParameter("SUPER_SIMPLE", setToBitmask(ssSet));
+      }
+
+      // Update baselines
+      baselineRef.current = slots.map((s) => ({ ...s }));
+      globalBaselineRef.current = { ...globalConfig };
+      setDirtySlots(new Set());
+      setGlobalDirty(false);
+      setShowCommitButton(true);
     } finally {
       setSaving(false);
     }
-  }, [protocol, firmwareHandler, modeChannel, modes]);
+  }, [protocol, firmwareHandler, isCopter, slots, globalConfig, isDirty, globalDirty, dirtySlots]);
 
-  // ── Mode updater ───────────────────────────────────────────
+  // ── Commit to flash (Bug #2 fix) ─────────────────────────
 
-  const updateMode = useCallback((idx: number, mode: string) => {
-    setModes((prev) => {
+  const commitToFlash = useCallback(async () => {
+    if (!protocol) return;
+    await protocol.commitParamsToFlash();
+    setShowCommitButton(false);
+  }, [protocol]);
+
+  // ── Slot updaters ────────────────────────────────────────
+
+  const updateSlot = useCallback((idx: number, partial: Partial<ModeSlotConfig>) => {
+    setSlots((prev) => {
       const next = [...prev];
-      next[idx] = mode;
+      next[idx] = { ...next[idx], ...partial };
       return next;
     });
-    setDirty(true);
+    setDirtySlots((prev) => new Set(prev).add(idx));
   }, []);
+
+  const resetSlot = useCallback((idx: number) => {
+    setSlots((prev) => {
+      const next = [...prev];
+      next[idx] = { ...baselineRef.current[idx] };
+      return next;
+    });
+    setDirtySlots((prev) => {
+      const next = new Set(prev);
+      next.delete(idx);
+      return next;
+    });
+  }, []);
+
+  // ── Global config updater ────────────────────────────────
+
+  const updateGlobal = useCallback((partial: Partial<FlightModeGlobalConfig>) => {
+    setGlobalConfig((prev) => ({ ...prev, ...partial }));
+    setGlobalDirty(true);
+  }, []);
+
+  // ── No protocol ──────────────────────────────────────────
 
   if (!protocol) {
     return (
@@ -197,8 +430,18 @@ export function FlightModesPanel() {
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-2xl space-y-4">
+        {/* ── Header ────────────────────────────────────────── */}
+
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-text-primary">Flight Modes</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-sm font-semibold text-text-primary">Flight Modes</h2>
+            {isDirty && (
+              <span className="flex items-center gap-1 text-[10px] text-status-warning">
+                <span className="w-1.5 h-1.5 rounded-full bg-status-warning" />
+                {totalDirtyCount} unsaved
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <Button
               variant="secondary"
@@ -214,24 +457,89 @@ export function FlightModesPanel() {
               size="sm"
               icon={<Save size={12} />}
               loading={saving}
-              disabled={!dirty}
+              disabled={!isDirty}
               onClick={saveParams}
             >
-              Save
+              Save{dirtySlots.size > 0 ? ` (${dirtySlots.size})` : ""}
             </Button>
+            {showCommitButton && (
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<HardDrive size={12} />}
+                onClick={commitToFlash}
+              >
+                Write to Flash
+              </Button>
+            )}
           </div>
         </div>
 
-        {/* ── Mode Switch Channel ──────────────────────────── */}
+        {/* ── Current Mode Bar ──────────────────────────────── */}
+
+        <div className="bg-bg-secondary border border-border-default p-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-text-tertiary uppercase tracking-wider">Current Mode:</span>
+              <span className="text-sm font-mono font-bold text-accent-primary">
+                {heartbeatMode}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-[10px] font-mono text-text-secondary">
+              {activeSlot >= 0 && (
+                <span className="text-status-success font-medium">
+                  Slot {activeSlot + 1}
+                </span>
+              )}
+              {currentPwm > 0 && (
+                <span className="text-text-tertiary">
+                  CH{globalConfig.modeChannel} PWM {currentPwm}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Mode Switch Channel ───────────────────────────── */}
 
         <Card title="Mode Switch Channel">
           <div className="space-y-3">
-            <Select
-              label="RC channel for flight mode switch"
-              value={modeChannel}
-              onChange={(v) => { setModeChannel(v); setDirty(true); }}
-              options={channelOptions}
-            />
+            <div className="grid grid-cols-2 gap-3">
+              <Select
+                label="RC channel for flight mode switch"
+                value={globalConfig.modeChannel}
+                onChange={(v) => updateGlobal({ modeChannel: v })}
+                options={channelOptions}
+              />
+              <Select
+                label="Initial boot mode (INITIAL_MODE)"
+                value={globalConfig.initialMode}
+                onChange={(v) => updateGlobal({ initialMode: v })}
+                options={[
+                  { value: "0", label: "0 — Use mode switch" },
+                  ...availableModes
+                    .map((m) => {
+                      // Encode mode to custom_mode number for param value
+                      if (firmwareHandler) {
+                        try {
+                          const { customMode } = firmwareHandler.encodeFlightMode(
+                            m.value as UnifiedFlightMode,
+                          );
+                          return { value: String(customMode), label: `${customMode} — ${m.label}` };
+                        } catch {
+                          return null;
+                        }
+                      }
+                      return { value: m.value, label: m.label };
+                    })
+                    .filter((opt): opt is { value: string; label: string } => opt !== null && opt.value !== "0"),
+                ]}
+              />
+            </div>
+
+            {/* PWM Range Bar */}
+            <PwmRangeBar currentPwm={currentPwm} activeSlot={activeSlot} />
+
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-text-secondary">Current PWM:</span>
               <span className="text-xs font-mono text-accent-primary tabular-nums">
@@ -246,19 +554,32 @@ export function FlightModesPanel() {
           </div>
         </Card>
 
-        {/* ── Mode Slots ──────────────────────────────────── */}
+        {/* ── Duplicate Mode Info ───────────────────────────── */}
+
+        {hasDuplicates && (
+          <div className="flex items-center gap-2 p-2 bg-accent-primary/5 border border-accent-primary/20">
+            <Info size={14} className="text-accent-primary shrink-0" />
+            <span className="text-[10px] text-accent-primary">
+              Same mode in multiple slots: {[...duplicateModes].join(", ")}. This is valid but unusual.
+            </span>
+          </div>
+        )}
+
+        {/* ── Mode Slots ────────────────────────────────────── */}
 
         <div className="grid grid-cols-1 gap-2">
-          {modes.map((mode, i) => {
+          {slots.map((slot, i) => {
             const isActive = activeSlot === i;
+            const isSlotDirty = dirtySlots.has(i);
             const range = MODE_PWM_RANGES[i];
-            const description = MODE_DESCRIPTIONS[mode as UnifiedFlightMode];
+            const description = MODE_DESCRIPTIONS[slot.mode as UnifiedFlightMode];
 
             return (
               <div
                 key={i}
                 className={cn(
                   "bg-bg-secondary border p-3 transition-colors",
+                  isSlotDirty && "border-l-2 border-l-status-warning",
                   isActive
                     ? "border-accent-primary bg-accent-primary/5"
                     : "border-border-default",
@@ -280,16 +601,51 @@ export function FlightModesPanel() {
                   {/* Mode selector */}
                   <div className="flex-1">
                     <Select
-                      value={mode}
-                      onChange={(v) => updateMode(i, v)}
+                      value={slot.mode}
+                      onChange={(v) => updateSlot(i, { mode: v })}
                       options={availableModes}
                     />
                   </div>
+
+                  {/* Simple / Super Simple checkboxes (copter only) */}
+                  {isCopter && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <label className="flex items-center gap-1 text-[10px] text-text-secondary cursor-pointer" title="Simple Mode — earth-relative heading">
+                        <input
+                          type="checkbox"
+                          checked={slot.simple}
+                          onChange={(e) => updateSlot(i, { simple: e.target.checked })}
+                          className="accent-accent-primary"
+                        />
+                        S
+                      </label>
+                      <label className="flex items-center gap-1 text-[10px] text-text-secondary cursor-pointer" title="Super Simple Mode — home-relative heading">
+                        <input
+                          type="checkbox"
+                          checked={slot.superSimple}
+                          onChange={(e) => updateSlot(i, { superSimple: e.target.checked })}
+                          className="accent-accent-primary"
+                        />
+                        SS
+                      </label>
+                    </div>
+                  )}
 
                   {/* PWM range */}
                   <span className="text-[10px] font-mono text-text-tertiary shrink-0 w-28 text-right">
                     {range.label}
                   </span>
+
+                  {/* Reset button (only when dirty) */}
+                  {isSlotDirty && (
+                    <button
+                      onClick={() => resetSlot(i)}
+                      title="Reset to FC values"
+                      className="text-text-tertiary hover:text-text-primary cursor-pointer shrink-0"
+                    >
+                      <RotateCcw size={12} />
+                    </button>
+                  )}
                 </div>
 
                 {/* Description */}

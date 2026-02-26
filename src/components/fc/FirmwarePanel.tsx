@@ -58,6 +58,7 @@ export function FirmwarePanel() {
   // ── Custom file state ──────────────────────────────────
   const [customFile, setCustomFile] = useState<File | null>(null);
   const [useCustom, setUseCustom] = useState(false);
+  const [showCommitButton, setShowCommitButton] = useState(false);
 
   // ── Flash state ────────────────────────────────────────
   const [progress, setProgress] = useState<FlashProgress | null>(null);
@@ -302,8 +303,18 @@ export function FirmwarePanel() {
       }
 
       setFlashMessage(`Restored ${success} parameters (${failed} failed)`);
+      if (success > 0) {
+        setShowCommitButton(true);
+      }
     };
     input.click();
+  }, [drone]);
+
+  const commitToFlash = useCallback(async () => {
+    const protocol = drone?.protocol;
+    if (!protocol) return;
+    await protocol.commitParamsToFlash();
+    setShowCommitButton(false);
   }, [drone]);
 
   const handleCustomFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -661,6 +672,16 @@ export function FirmwarePanel() {
             <Upload size={14} />
             Restore Parameters
           </button>
+
+          {showCommitButton && (
+            <button
+              onClick={commitToFlash}
+              className="flex items-center gap-2 px-4 py-2 text-xs border border-accent-primary/50 text-accent-primary hover:bg-accent-primary/10 cursor-pointer transition-colors"
+            >
+              <HardDrive size={14} />
+              Write to Flash
+            </button>
+          )}
         </div>
       </div>
     </div>

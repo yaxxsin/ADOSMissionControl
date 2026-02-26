@@ -56,6 +56,13 @@ export class WebSerialTransport implements Transport {
 
     try {
       this.port = await navigator.serial.requestPort();
+
+      // Port may still be open from a previous session (e.g. page refresh).
+      // Close it first so we can reopen cleanly with the desired baud rate.
+      if (this.port.readable) {
+        await this.port.close().catch(() => {});
+      }
+
       await this.port.open({ baudRate });
       this._connected = true;
 
@@ -87,6 +94,13 @@ export class WebSerialTransport implements Transport {
 
     try {
       this.port = port;
+
+      // Port may still be open from a previous session (e.g. page refresh).
+      // Close it first so we can reopen cleanly with the desired baud rate.
+      if (port.readable) {
+        await port.close().catch(() => {});
+      }
+
       await this.port.open({ baudRate });
       this._connected = true;
 

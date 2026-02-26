@@ -445,6 +445,49 @@ export function encodeRequestDataStream(
   return buildFrame(66, payload, sysId, compId);
 }
 
+// ── COMMAND_INT (ID 75) ─────────────────────────────────────
+
+/**
+ * Encode a COMMAND_INT message.
+ *
+ * Like COMMAND_LONG but param5/param6 (x/y) are int32 for lat/lon * 1e7 precision
+ * instead of float32 (which loses ~1m accuracy at drone-relevant coordinates).
+ */
+export function encodeCommandInt(
+  targetSys: number,
+  targetComp: number,
+  frame: number,
+  command: number,
+  current: number,
+  autocontinue: number,
+  p1 = 0,
+  p2 = 0,
+  p3 = 0,
+  p4 = 0,
+  x = 0,
+  y = 0,
+  z = 0,
+  sysId = 255,
+  compId = 190,
+): Uint8Array {
+  const payload = new Uint8Array(35);
+  const dv = new DataView(payload.buffer);
+  dv.setFloat32(0, p1, true);
+  dv.setFloat32(4, p2, true);
+  dv.setFloat32(8, p3, true);
+  dv.setFloat32(12, p4, true);
+  dv.setInt32(16, x, true);     // lat * 1e7
+  dv.setInt32(20, y, true);     // lon * 1e7
+  dv.setFloat32(24, z, true);   // alt
+  dv.setUint16(28, command, true);
+  payload[30] = targetSys;
+  payload[31] = targetComp;
+  payload[32] = frame;
+  payload[33] = current;
+  payload[34] = autocontinue;
+  return buildFrame(75, payload, sysId, compId);
+}
+
 // ── MISSION_CLEAR_ALL (ID 45) ───────────────────────────────
 
 /** Clear all mission items on the flight controller. */

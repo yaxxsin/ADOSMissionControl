@@ -7,16 +7,18 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DroneStatusBadge } from "@/components/shared/drone-status-badge";
 import { DroneOverviewTab } from "@/components/drone-detail/DroneOverviewTab";
-import { DroneTelemetryTab } from "@/components/drone-detail/DroneTelemetryTab";
 import { DroneFlightsTab } from "@/components/drone-detail/DroneFlightsTab";
 import { DroneConfigureTab } from "@/components/drone-detail/DroneConfigureTab";
 import { DroneSettingsTab } from "@/components/drone-detail/DroneSettingsTab";
-import { X } from "lucide-react";
+import { CalibrationPanel } from "@/components/fc/CalibrationPanel";
+import { ParametersPanel } from "@/components/fc/ParametersPanel";
+import { X, RotateCcw } from "lucide-react";
 
 const TABS = [
   { id: "overview", label: "Overview" },
-  { id: "telemetry", label: "Telemetry" },
   { id: "flights", label: "Flights" },
+  { id: "calibrate", label: "Calibrate" },
+  { id: "parameters", label: "Parameters" },
   { id: "configure", label: "Configure" },
   { id: "settings", label: "Settings" },
 ];
@@ -87,13 +89,27 @@ export function DroneDetailPanel({ droneId, onClose }: DroneDetailPanelProps) {
         <span className="text-[10px] font-mono text-text-tertiary ml-auto shrink-0">
           ID: {drone.id}
         </span>
+        {isConnected && (
+          <Button
+            variant="danger"
+            size="sm"
+            icon={<RotateCcw size={12} />}
+            onClick={() => {
+              const protocol = useDroneManager.getState().getSelectedProtocol();
+              if (protocol) protocol.reboot();
+            }}
+          >
+            Reboot FC
+          </Button>
+        )}
       </div>
 
       {/* Tab content */}
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
         {activeTab === "overview" && <DroneOverviewTab drone={drone} />}
-        {activeTab === "telemetry" && <DroneTelemetryTab drone={drone} />}
         {activeTab === "flights" && <DroneFlightsTab droneId={droneId} />}
+        {activeTab === "calibrate" && <CalibrationPanel />}
+        {activeTab === "parameters" && <ParametersPanel />}
         {activeTab === "configure" && (
           <DroneConfigureTab
             droneId={droneId}

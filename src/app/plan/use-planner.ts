@@ -2,7 +2,7 @@
  * @module use-planner
  * @description Core hook for the mission planner page. Encapsulates all planner
  * logic: store connections, local state, map/context handlers, save/load,
- * autosave recovery, and the cancel-on-unmount cleanup.
+ * autosave recovery, auto-save to library, and the cancel-on-unmount cleanup.
  * @license GPL-3.0-only
  */
 
@@ -10,6 +10,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useMissionStore } from "@/stores/mission-store";
 import { usePlannerStore } from "@/stores/planner-store";
 import { useFleetStore } from "@/stores/fleet-store";
+import { usePlanLibraryStore } from "@/stores/plan-library-store";
 import { useToast } from "@/components/ui/toast";
 import { randomId } from "@/lib/utils";
 import { DEFAULT_CENTER } from "@/lib/map-constants";
@@ -19,12 +20,8 @@ import {
   cancelAutoSave,
   getAutoSave,
   clearAutoSave,
-  downloadMissionFile,
-  saveMissionToStorage,
-  loadMissionFromStorage,
   exportWaypointsFormat,
   exportQGCPlan,
-  importMissionFile,
 } from "@/lib/mission-io";
 import type { ContextMenuItem } from "@/components/planner/MapContextMenu";
 import type { SuiteType, Waypoint } from "@/lib/types";
@@ -90,9 +87,9 @@ export function usePlanner() {
   // Clear confirm
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
-  // Save/Load dialog state
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const [showLoadDialog, setShowLoadDialog] = useState(false);
+  // Plan library integration
+  const activePlanId = usePlanLibraryStore((s) => s.activePlanId);
+  const isDirty = usePlanLibraryStore((s) => s.isDirty);
 
   // ── Autosave recovery ─────────────────────────────────────
   const autoSaveChecked = useRef(false);
@@ -111,7 +108,7 @@ export function usePlanner() {
     })();
   }, [setWaypoints, toast]);
 
-  // Auto-save on waypoint changes + cleanup on unmount
+  // Auto-save to IndexedDB (legacy autosave key) on waypoint changes
   useEffect(() => {
     if (waypoints.length > 0) {
       autoSave(waypoints, {
@@ -122,6 +119,44 @@ export function usePlanner() {
     }
     return () => cancelAutoSave();
   }, [waypoints, missionName, selectedDroneId, suiteType]);
+
+  // Auto-save to library plan (debounced 3s) when waypoints change
+  const libAutoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const libStore = usePlanLibraryStore.getState();
+    if (!libStore.activePlanId || waypoints.length === 0) return;
+
+    if (libAutoSaveTimer.current) clearTimeout(libAutoSaveTimer.current);
+    libAutoSaveTimer.current = setTimeout(() => {
+      const current = usePlanLibraryStore.getState();
+      if (!current.activePlanId || !current.isDirty) return;
+      current.savePlan(current.activePlanId, waypoints, {
+        droneId: selectedDroneId || undefined,
+        suiteType: (suiteType as SuiteType) || undefined,
+      });
+    }, 3000);
+
+    return () => {
+      if (libAutoSaveTimer.current) clearTimeout(libAutoSaveTimer.current);
+    };
+  }, [waypoints, selectedDroneId, suiteType]);
+
+  // Auto-sync plan name to library when it changes
+  useEffect(() => {
+    const libStore = usePlanLibraryStore.getState();
+    if (!libStore.activePlanId || !missionName) return;
+    libStore.updatePlanName(libStore.activePlanId, missionName);
+  }, [missionName]);
+
+  // Dirty detection — compare waypoints + name to saved snapshot
+  useEffect(() => {
+    const libStore = usePlanLibraryStore.getState();
+    if (!libStore.activePlanId) return;
+    const waypointsDirty = JSON.stringify(waypoints) !== libStore.savedSnapshot;
+    const plan = libStore.plans.find((p) => p.id === libStore.activePlanId);
+    const nameDirty = plan ? plan.name !== missionName : false;
+    libStore.setDirty(waypointsDirty || nameDirty);
+  }, [waypoints, missionName]);
 
   // ── Map handlers ──────────────────────────────────────────
   const handleMapClick = useCallback(
@@ -260,85 +295,88 @@ export function usePlanner() {
     toast("Mission cleared", "info");
   }, [clearMission, setSelectedWaypoint, setExpandedWaypoint, toast]);
 
-  // ── Save/Load ─────────────────────────────────────────────
-  const handleSaveNative = useCallback(async (name: string) => {
-    const metadata = {
-      name,
-      droneId: selectedDroneId || undefined,
-      suiteType: (suiteType as SuiteType) || undefined,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-    setMissionName(name);
-    await downloadMissionFile(waypoints, metadata);
-    await saveMissionToStorage(waypoints, metadata);
+  // ── Save/Load (Library-based) ────────────────────────────
+  /** Cmd+S — save to active plan in library, or create new if none. */
+  const handleSave = useCallback(() => {
+    const libStore = usePlanLibraryStore.getState();
+    if (libStore.activePlanId) {
+      // Sync plan name to library before saving
+      if (missionName) {
+        libStore.updatePlanName(libStore.activePlanId, missionName);
+      }
+      libStore.savePlan(libStore.activePlanId, waypoints, {
+        droneId: selectedDroneId || undefined,
+        suiteType: (suiteType as SuiteType) || undefined,
+        totalDistance: undefined,
+        estimatedTime: undefined,
+      });
+    } else {
+      libStore.createPlan(missionName || "Untitled Plan", waypoints, {
+        droneId: selectedDroneId || undefined,
+        suiteType: (suiteType as SuiteType) || undefined,
+      });
+    }
+    // Cancel pending library auto-save since we just saved explicitly
+    if (libAutoSaveTimer.current) clearTimeout(libAutoSaveTimer.current);
     useSettingsStore.getState().incrementSaveCount();
-    toast("Mission saved (.altmission)", "success");
-  }, [waypoints, selectedDroneId, suiteType, toast, setMissionName]);
-
-  const handleSaveWaypoints = useCallback((name: string) => {
-    setMissionName(name);
-    exportWaypointsFormat(waypoints, name);
-    toast("Exported (.waypoints)", "success");
-  }, [waypoints, toast, setMissionName]);
-
-  const handleSaveQGCPlan = useCallback((name: string) => {
-    setMissionName(name);
-    exportQGCPlan(waypoints, name);
-    toast("Exported (.plan)", "success");
-  }, [waypoints, toast, setMissionName]);
-
-  /** For keyboard shortcut — quick save as native format. */
-  const handleSave = useCallback(async () => {
-    const metadata = {
-      name: missionName || "Untitled Mission",
-      droneId: selectedDroneId || undefined,
-      suiteType: (suiteType as SuiteType) || undefined,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-    await downloadMissionFile(waypoints, metadata);
-    await saveMissionToStorage(waypoints, metadata);
-    useSettingsStore.getState().incrementSaveCount();
-    toast("Mission saved", "success");
+    toast("Plan saved", "success");
   }, [waypoints, missionName, selectedDroneId, suiteType, toast]);
 
-  const handleImportFile = useCallback(
-    async (file: File) => {
-      try {
-        const result = await importMissionFile(file);
-        setWaypoints(result.waypoints);
-        if (result.metadata?.name) setMissionName(result.metadata.name);
-        if (result.metadata?.droneId) setSelectedDroneId(result.metadata.droneId);
-        if (result.metadata?.suiteType) setSuiteType(result.metadata.suiteType);
-        const name = result.metadata?.name || file.name;
-        toast(`Loaded "${name}" (${result.waypoints.length} waypoints)`, "success");
-      } catch {
-        toast("Failed to load mission file", "error");
-      }
+  /** Save As — always create a new plan in the library. */
+  const handleSaveAs = useCallback(() => {
+    const libStore = usePlanLibraryStore.getState();
+    libStore.createPlan(missionName || "Untitled Plan", waypoints, {
+      droneId: selectedDroneId || undefined,
+      suiteType: (suiteType as SuiteType) || undefined,
+    });
+    useSettingsStore.getState().incrementSaveCount();
+    toast("Plan saved as new copy", "success");
+  }, [waypoints, missionName, selectedDroneId, suiteType, toast]);
+
+  /** Export as .waypoints file download. */
+  const handleExportWaypoints = useCallback(() => {
+    exportWaypointsFormat(waypoints, missionName || "mission");
+    toast("Exported (.waypoints)", "success");
+  }, [waypoints, missionName, toast]);
+
+  /** Export as QGC .plan file download. */
+  const handleExportPlan = useCallback(() => {
+    exportQGCPlan(waypoints, missionName || "mission");
+    toast("Exported (.plan)", "success");
+  }, [waypoints, missionName, toast]);
+
+  /** Callback from FlightPlanLibrary when a plan is selected/loaded. */
+  const handlePlanLoaded = useCallback(
+    (plan: { name: string; droneId?: string; suiteType?: string }) => {
+      setMissionName(plan.name);
+      setSelectedDroneId(plan.droneId || "");
+      setSuiteType(plan.suiteType || "");
     },
-    [setWaypoints, toast, setMissionName, setSelectedDroneId, setSuiteType]
+    []
   );
 
-  const handleLoadRecent = useCallback(
-    async (key: string) => {
-      try {
-        const mission = await loadMissionFromStorage(key);
-        if (!mission) {
-          toast("Mission not found", "error");
-          return;
-        }
-        setWaypoints(mission.waypoints);
-        if (mission.metadata.name) setMissionName(mission.metadata.name);
-        if (mission.metadata.droneId) setSelectedDroneId(mission.metadata.droneId);
-        if (mission.metadata.suiteType) setSuiteType(mission.metadata.suiteType);
-        toast(`Loaded "${mission.metadata.name}"`, "success");
-      } catch {
-        toast("Failed to load recent mission", "error");
-      }
-    },
-    [setWaypoints, toast, setMissionName, setSelectedDroneId, setSuiteType]
-  );
+  /** Called when the active plan is renamed via context menu — syncs local missionName. */
+  const handlePlanRenamed = useCallback((name: string) => {
+    setMissionName(name);
+  }, []);
+
+  /** New plan — clear state and create in library. */
+  const handleNewPlan = useCallback(() => {
+    const libStore = usePlanLibraryStore.getState();
+    libStore.createPlan();
+    clearMission();
+    setMissionName("Untitled Plan");
+    setSelectedDroneId("");
+    setSuiteType("");
+    setSelectedWaypoint(null);
+    setExpandedWaypoint(null);
+    toast("New plan created", "info");
+  }, [clearMission, setSelectedWaypoint, setExpandedWaypoint, toast]);
+
+  /** Focus library search — dispatches custom event for the search bar. */
+  const handleFocusSearch = useCallback(() => {
+    document.dispatchEvent(new CustomEvent("plan-library:focus-search"));
+  }, []);
 
   const handleReverseWaypoints = useCallback(() => {
     if (waypoints.length < 2) return;
@@ -388,9 +426,9 @@ export function usePlanner() {
     contextMenu, setContextMenu,
     showClearConfirm, setShowClearConfirm,
 
-    // Save/Load dialogs
-    showSaveDialog, setShowSaveDialog,
-    showLoadDialog, setShowLoadDialog,
+    // Library integration
+    isDirty,
+    activePlanId,
 
     // Handlers
     handleMapClick,
@@ -402,11 +440,13 @@ export function usePlanner() {
     handleClearAll,
     confirmClear,
     handleSave,
-    handleSaveNative,
-    handleSaveWaypoints,
-    handleSaveQGCPlan,
-    handleImportFile,
-    handleLoadRecent,
+    handleSaveAs,
+    handleExportWaypoints,
+    handleExportPlan,
+    handlePlanLoaded,
+    handlePlanRenamed,
+    handleNewPlan,
+    handleFocusSearch,
     handleReverseWaypoints,
     handleUpload,
     handleAddManualWaypoint,

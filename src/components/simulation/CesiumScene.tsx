@@ -119,6 +119,9 @@ const CesiumScene = forwardRef<CesiumSceneHandle, CesiumSceneProps>(
       viewer.scene.globe.depthTestAgainstTerrain = false;
       viewer.scene.globe.enableLighting = false;
 
+      // Prevent camera from clipping through terrain at deep zoom
+      viewer.scene.screenSpaceCameraController.minimumZoomDistance = 15;
+
       // Hide Cesium credits
       const creditContainer = viewer.cesiumWidget.creditContainer as HTMLElement;
       if (creditContainer) creditContainer.style.display = "none";

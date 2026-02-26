@@ -13,6 +13,7 @@ import {
   Usb,
   RefreshCw,
   Info,
+  HardDrive,
 } from "lucide-react";
 
 /** Serial port protocol options (SERIAL_PROTOCOL values). */
@@ -73,6 +74,7 @@ export function PortsPanel() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsReboot, setNeedsReboot] = useState(false);
+  const [showCommitButton, setShowCommitButton] = useState(false);
 
   // Load serial port config from FC on mount
   useEffect(() => {
@@ -166,9 +168,17 @@ export function PortsPanel() {
     } else {
       setOriginal(ports.map((p) => ({ ...p })));
       setNeedsReboot(true);
+      setShowCommitButton(true);
     }
     setSaving(false);
   }, [ports, original]);
+
+  const commitToFlash = useCallback(async () => {
+    const protocol = useDroneManager.getState().getSelectedProtocol();
+    if (!protocol) return;
+    await protocol.commitParamsToFlash();
+    setShowCommitButton(false);
+  }, []);
 
   const handleRevert = useCallback(() => {
     if (original.length > 0) {
@@ -229,6 +239,16 @@ export function PortsPanel() {
           >
             Save Changes
           </Button>
+          {showCommitButton && (
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<HardDrive size={12} />}
+              onClick={commitToFlash}
+            >
+              Write to Flash
+            </Button>
+          )}
           {needsReboot && (
             <Button
               variant="danger"

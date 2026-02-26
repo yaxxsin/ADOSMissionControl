@@ -4,7 +4,7 @@ import { useState, useCallback, useRef } from "react";
 import { useDroneManager } from "@/stores/drone-manager";
 import {
   Monitor, Eye, EyeOff, Save, RotateCcw, Grid3x3,
-  Layers, Upload, Download,
+  Layers, Upload, Download, HardDrive,
 } from "lucide-react";
 
 interface OsdElement {
@@ -91,6 +91,7 @@ export function OsdEditorPanel() {
   const [dragElement, setDragElement] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
+  const [showCommitButton, setShowCommitButton] = useState(false);
 
   const gridRef = useRef<HTMLDivElement>(null);
 
@@ -155,8 +156,16 @@ export function OsdEditorPanel() {
       }
     }
 
+    setShowCommitButton(true);
     setSaving(false);
   }, [elements, activeScreen, getSelectedDrone]);
+
+  const commitToFlash = useCallback(async () => {
+    const drone = getSelectedDrone();
+    if (!drone) return;
+    await drone.protocol.commitParamsToFlash();
+    setShowCommitButton(false);
+  }, [getSelectedDrone]);
 
   const handleReset = () => {
     setElements(DEFAULT_ELEMENTS);
@@ -240,6 +249,15 @@ export function OsdEditorPanel() {
             <Save size={12} />
             {saving ? "Saving..." : "Save to FC"}
           </button>
+          {showCommitButton && (
+            <button
+              onClick={commitToFlash}
+              className="flex items-center justify-center gap-2 w-full px-3 py-1.5 text-xs font-semibold text-text-secondary border border-accent-primary/50 hover:text-accent-primary hover:bg-accent-primary/10 cursor-pointer"
+            >
+              <HardDrive size={12} />
+              Write to Flash
+            </button>
+          )}
           <button
             onClick={handleReset}
             className="flex items-center justify-center gap-2 w-full px-3 py-1.5 text-xs text-text-secondary border border-border-default hover:text-text-primary hover:bg-bg-tertiary cursor-pointer"

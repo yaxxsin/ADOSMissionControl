@@ -10,6 +10,7 @@
 
 import { useState, useEffect } from "react";
 import { useSettingsStore } from "@/stores/settings-store";
+import { useGcsLocationStore, type GeoPermission } from "@/stores/gcs-location-store";
 import { JURISDICTIONS, type Jurisdiction } from "@/lib/jurisdiction";
 import type { UnitSystem } from "@/stores/settings-store";
 
@@ -27,11 +28,17 @@ export function WelcomeModal() {
   const setUnits = useSettingsStore((s) => s.setUnits);
   const setDemoMode = useSettingsStore((s) => s.setDemoMode);
   const setAudioEnabled = useSettingsStore((s) => s.setAudioEnabled);
+  const setLocationEnabled = useSettingsStore((s) => s.setLocationEnabled);
+  const requestPermission = useGcsLocationStore((s) => s.requestPermission);
+  const isSupported = useGcsLocationStore((s) => s.isSupported);
 
   const [jurisdiction, setLocalJurisdiction] = useState<Jurisdiction>("dgca");
   const [units, setLocalUnits] = useState<UnitSystem>("metric");
   const [demoMode, setLocalDemoMode] = useState(true);
   const [audioEnabled, setLocalAudioEnabled] = useState(false);
+  const [locationEnabled, setLocalLocationEnabled] = useState(false);
+  const [locationPermission, setLocationPermission] = useState<GeoPermission>("prompt");
+  const [locationChecking, setLocationChecking] = useState(false);
 
   // Auto-set units when jurisdiction changes
   useEffect(() => {
@@ -41,11 +48,27 @@ export function WelcomeModal() {
 
   if (!hasHydrated || onboarded) return null;
 
+  const handleLocationToggle = async () => {
+    if (locationEnabled) {
+      setLocalLocationEnabled(false);
+      setLocationPermission("prompt");
+      return;
+    }
+    setLocationChecking(true);
+    const perm = await requestPermission();
+    setLocationChecking(false);
+    setLocationPermission(perm);
+    if (perm === "granted") {
+      setLocalLocationEnabled(true);
+    }
+  };
+
   const handleGetStarted = () => {
     setJurisdiction(jurisdiction);
     setUnits(units);
     setDemoMode(demoMode);
     setAudioEnabled(audioEnabled);
+    setLocationEnabled(locationEnabled);
     setOnboarded(true);
   };
 
@@ -148,6 +171,40 @@ export function WelcomeModal() {
               <span
                 className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
                   audioEnabled ? "translate-x-[18px]" : "translate-x-[3px]"
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Location toggle */}
+          <div className="flex items-center justify-between pt-2 border-t border-border-default">
+            <div>
+              <span className="text-sm text-text-primary">Share GCS Location</span>
+              <p className="text-[10px] text-text-tertiary mt-0.5">
+                Shows your position on all map views
+              </p>
+              {locationPermission === "granted" && locationEnabled && (
+                <p className="text-[10px] text-status-success mt-0.5">Location access granted</p>
+              )}
+              {locationPermission === "denied" && (
+                <p className="text-[10px] text-status-warning mt-0.5">
+                  Permission denied — enable in browser settings or /config later
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={locationEnabled}
+              disabled={locationChecking || !isSupported}
+              onClick={handleLocationToggle}
+              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                locationEnabled ? "bg-accent-primary" : "bg-bg-tertiary"
+              } ${(locationChecking || !isSupported) ? "opacity-50 cursor-not-allowed" : ""}`}
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
+                  locationEnabled ? "translate-x-[18px]" : "translate-x-[3px]"
                 }`}
               />
             </button>

@@ -71,6 +71,8 @@ interface SettingsStoreState {
   autoReconnect: boolean;
   /** Auto-connect to last device on page load. */
   autoConnectOnLoad: boolean;
+  /** Whether GCS location sharing is enabled. */
+  locationEnabled: boolean;
 
   setMapTileSource: (source: MapTileSource) => void;
   setUnits: (units: UnitSystem) => void;
@@ -90,6 +92,7 @@ interface SettingsStoreState {
   setAlertPopupDuration: (duration: string) => void;
   setAutoReconnect: (enabled: boolean) => void;
   setAutoConnectOnLoad: (enabled: boolean) => void;
+  setLocationEnabled: (enabled: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsStoreState>()(
@@ -119,6 +122,7 @@ export const useSettingsStore = create<SettingsStoreState>()(
       alertPopupDuration: "5",
       autoReconnect: true,
       autoConnectOnLoad: true,
+      locationEnabled: false,
 
       setMapTileSource: (mapTileSource) => set({ mapTileSource }),
       setUnits: (units) => set({ units }),
@@ -144,11 +148,12 @@ export const useSettingsStore = create<SettingsStoreState>()(
       setAlertPopupDuration: (alertPopupDuration) => set({ alertPopupDuration }),
       setAutoReconnect: (autoReconnect) => set({ autoReconnect }),
       setAutoConnectOnLoad: (autoConnectOnLoad) => set({ autoConnectOnLoad }),
+      setLocationEnabled: (locationEnabled) => set({ locationEnabled }),
     }),
     {
       name: "altcmd:settings",
       storage: createJSONStorage(indexedDBStorage.storage),
-      version: 8,
+      version: 9,
       migrate: (persisted, version) => {
         const state = persisted as Record<string, unknown>;
         if (version < 2) {
@@ -182,6 +187,10 @@ export const useSettingsStore = create<SettingsStoreState>()(
           // v8: auto-reconnect + auto-connect on load
           state.autoReconnect = true;
           state.autoConnectOnLoad = true;
+        }
+        if (version < 9) {
+          // v9: GCS location sharing
+          state.locationEnabled = false;
         }
         return state as unknown as SettingsStoreState;
       },
