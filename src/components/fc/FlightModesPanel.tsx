@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useDroneStore } from "@/stores/drone-store";
 import { useTelemetryStore } from "@/stores/telemetry-store";
@@ -145,6 +146,7 @@ function PwmRangeBar({ currentPwm, activeSlot }: { currentPwm: number; activeSlo
 
 export function FlightModesPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
+  const { toast } = useToast();
   const protocol = getSelectedProtocol();
   const firmwareHandler = protocol?.getFirmwareHandler() ?? null;
   const isCopter = firmwareHandler?.vehicleClass === "copter";
@@ -291,12 +293,13 @@ export function FlightModesPanel() {
       baselineRef.current = newSlots.map((s) => ({ ...s }));
       setDirtySlots(new Set());
       setShowCommitButton(false);
+      toast("Loaded flight mode configuration", "success");
     } catch {
-      // partial read
+      toast("Failed to load flight modes", "error");
     } finally {
       setLoading(false);
     }
-  }, [protocol, firmwareHandler, isCopter]);
+  }, [protocol, firmwareHandler, isCopter, toast]);
 
   // ── Auto-read on mount (Bug #1 fix) ─────────────────────
 
@@ -368,18 +371,26 @@ export function FlightModesPanel() {
       setDirtySlots(new Set());
       setGlobalDirty(false);
       setShowCommitButton(true);
+      toast("Saved to flight controller", "success");
+    } catch {
+      toast("Failed to save flight modes", "error");
     } finally {
       setSaving(false);
     }
-  }, [protocol, firmwareHandler, isCopter, slots, globalConfig, isDirty, globalDirty, dirtySlots]);
+  }, [protocol, firmwareHandler, isCopter, slots, globalConfig, isDirty, globalDirty, dirtySlots, toast]);
 
   // ── Commit to flash (Bug #2 fix) ─────────────────────────
 
   const commitToFlash = useCallback(async () => {
     if (!protocol) return;
-    await protocol.commitParamsToFlash();
-    setShowCommitButton(false);
-  }, [protocol]);
+    try {
+      await protocol.commitParamsToFlash();
+      setShowCommitButton(false);
+      toast("Written to flash — persists after reboot", "success");
+    } catch {
+      toast("Failed to write to flash", "error");
+    }
+  }, [protocol, toast]);
 
   // ── Slot updaters ────────────────────────────────────────
 

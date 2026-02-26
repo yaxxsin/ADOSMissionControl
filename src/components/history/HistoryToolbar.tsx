@@ -3,9 +3,9 @@
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/toast";
 import { Download } from "lucide-react";
-import type { SuiteType } from "@/lib/types";
+import type { FlightRecord } from "@/lib/types";
+import { exportFlightRecordsAsCsv } from "@/lib/csv-export";
 
 const STATUS_OPTIONS = [
   { value: "all", label: "All Statuses" },
@@ -39,6 +39,7 @@ interface HistoryToolbarProps {
   suiteFilter: string;
   sort: string;
   droneNames: { value: string; label: string }[];
+  records: FlightRecord[];
   onDateFromChange: (v: string) => void;
   onDateToChange: (v: string) => void;
   onStatusChange: (v: string) => void;
@@ -55,6 +56,7 @@ export function HistoryToolbar({
   suiteFilter,
   sort,
   droneNames,
+  records,
   onDateFromChange,
   onDateToChange,
   onStatusChange,
@@ -62,7 +64,6 @@ export function HistoryToolbar({
   onSuiteFilterChange,
   onSortChange,
 }: HistoryToolbarProps) {
-  const { toast } = useToast();
 
   const allDroneOptions = [{ value: "all", label: "All Drones" }, ...droneNames];
 
@@ -110,7 +111,7 @@ export function HistoryToolbar({
         variant="secondary"
         size="md"
         icon={<Download size={14} />}
-        onClick={() => toast("Export not available in demo mode", "warning")}
+        onClick={() => exportFlightRecordsAsCsv(records)}
       >
         Export
       </Button>

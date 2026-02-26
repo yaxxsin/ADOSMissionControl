@@ -7,6 +7,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ParameterGrid } from "./ParameterGrid";
 import { ColumnVisibilityToggle } from "./ColumnVisibilityToggle";
 import { WriteConfirmDialog } from "./WriteConfirmDialog";
+import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useSettingsStore } from "@/stores/settings-store";
 import { getParamMetadata, firmwareTypeToVehicle, type ParamMetadata } from "@/lib/protocol/param-metadata";
@@ -39,6 +40,7 @@ function getCategory(name: string): string {
 }
 
 export function ParametersPanel() {
+  const { toast } = useToast();
   const [parameters, setParameters] = useState<ParameterValue[]>([]);
   const [modified, setModified] = useState<Map<string, number>>(new Map());
   const [filter, setFilter] = useState("");
@@ -177,6 +179,7 @@ export function ParametersPanel() {
 
     if (failures.length > 0) {
       setError(`Failed to write ${failures.length} param(s): ${failures.join(", ")}`);
+      toast(`Failed to write ${failures.length} parameter(s)`, "error");
     } else {
       // Check if any written param needs reboot
       const needsReboot = entries.some(([name]) => metadata.get(name)?.rebootRequired);
@@ -189,6 +192,7 @@ export function ParametersPanel() {
       );
       setModified(new Map());
       setShowCommitButton(true);
+      toast(`Wrote ${entries.length} parameter(s) to FC`, "success");
 
       if (needsReboot) {
         setShowRebootPrompt(true);
@@ -196,7 +200,7 @@ export function ParametersPanel() {
     }
     setSaving(false);
     setWriteProgress({ current: 0, total: 0 });
-  }, [modified, parameters, metadata]);
+  }, [modified, parameters, metadata, toast]);
 
   const writeChanges = useMemo(() => {
     return Array.from(modified.entries()).map(([name, newValue]) => ({
@@ -374,8 +378,13 @@ export function ParametersPanel() {
               onClick={async () => {
                 const protocol = useDroneManager.getState().getSelectedProtocol();
                 if (protocol) {
-                  await protocol.commitParamsToFlash();
-                  setShowCommitButton(false);
+                  try {
+                    await protocol.commitParamsToFlash();
+                    setShowCommitButton(false);
+                    toast("Written to flash — persists after reboot", "success");
+                  } catch {
+                    toast("Failed to write to flash", "error");
+                  }
                 }
               }}
             >

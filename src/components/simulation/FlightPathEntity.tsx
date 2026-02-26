@@ -1,7 +1,7 @@
 /**
  * @module FlightPathEntity
- * @description Renders the flight path polyline at altitude with vertical altitude poles
- * (drop lines) from ground to each waypoint. Uses CesiumJS primitives.
+ * @description Renders the flight path polyline clamped to terrain surface.
+ * Waypoint altitude visualization comes from WaypointEntities (RELATIVE_TO_GROUND).
  * @license GPL-3.0-only
  */
 
@@ -11,8 +11,8 @@ import { useEffect } from "react";
 import {
   Cartesian3,
   Color,
-  PolylineDashMaterialProperty,
   type Viewer as CesiumViewer,
+  type Entity,
 } from "cesium";
 import type { Waypoint } from "@/lib/types";
 import { MAP_COLORS } from "@/lib/map-constants";
@@ -24,49 +24,30 @@ interface FlightPathEntityProps {
 
 export function FlightPathEntity({ viewer, waypoints }: FlightPathEntityProps) {
   useEffect(() => {
-    if (!viewer || viewer.isDestroyed() || waypoints.length < 2) return;
+    if (!viewer || viewer.isDestroyed()) return;
 
-    const entities: ReturnType<typeof viewer.entities.add>[] = [];
+    const entities: Entity[] = [];
 
-    // Flight path polyline at altitude
-    const positions = waypoints.map((wp) =>
-      Cartesian3.fromDegrees(wp.lon, wp.lat, wp.alt)
-    );
+    if (waypoints.length >= 2) {
+      // Flight path polyline — draped on terrain surface
+      const positions = waypoints.map((wp) =>
+        Cartesian3.fromDegrees(wp.lon, wp.lat, wp.alt)
+      );
 
-    const pathEntity = viewer.entities.add({
-      polyline: {
-        positions,
-        width: 3,
-        material: Color.fromCssColorString(MAP_COLORS.accentPrimary).withAlpha(0.9),
-        clampToGround: false,
-      },
-    });
-    entities.push(pathEntity);
-
-    // Altitude poles (vertical drop lines from ground to waypoint)
-    for (const wp of waypoints) {
-      const groundPos = Cartesian3.fromDegrees(wp.lon, wp.lat, 0);
-      const airPos = Cartesian3.fromDegrees(wp.lon, wp.lat, wp.alt);
-
-      const poleEntity = viewer.entities.add({
+      const pathEntity = viewer.entities.add({
         polyline: {
-          positions: [groundPos, airPos],
-          width: 1,
-          material: new PolylineDashMaterialProperty({
-            color: Color.fromCssColorString(MAP_COLORS.accentPrimary).withAlpha(0.5),
-            dashLength: 8,
-          }),
-          clampToGround: false,
+          positions,
+          width: 3,
+          material: Color.fromCssColorString(MAP_COLORS.accentPrimary).withAlpha(0.9),
+          clampToGround: true,
         },
       });
-      entities.push(poleEntity);
+      entities.push(pathEntity);
     }
 
     return () => {
       for (const entity of entities) {
-        if (viewer && !viewer.isDestroyed()) {
-          viewer.entities.remove(entity);
-        }
+        if (!viewer.isDestroyed()) viewer.entities.remove(entity);
       }
     };
   }, [viewer, waypoints]);

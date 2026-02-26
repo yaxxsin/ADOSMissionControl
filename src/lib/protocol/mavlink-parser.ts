@@ -75,6 +75,12 @@ export const CRC_EXTRA: ReadonlyMap<number, number> = new Map([
   [62, 183],  // NAV_CONTROLLER_OUTPUT
   [26, 170],  // SCALED_IMU
   [124, 87],  // GPS2_RAW
+  [117, 128], // LOG_REQUEST_LIST
+  [118, 56],  // LOG_ENTRY
+  [119, 116], // LOG_REQUEST_DATA
+  [120, 134], // LOG_DATA
+  [121, 237], // LOG_ERASE
+  [122, 203], // LOG_REQUEST_END
 ]);
 
 /**
@@ -127,6 +133,12 @@ const PAYLOAD_LENGTHS: ReadonlyMap<number, number> = new Map([
   [62, 26],   // NAV_CONTROLLER_OUTPUT
   [26, 22],   // SCALED_IMU
   [124, 35],  // GPS2_RAW
+  [117, 6],   // LOG_REQUEST_LIST
+  [118, 14],  // LOG_ENTRY
+  [119, 12],  // LOG_REQUEST_DATA
+  [120, 97],  // LOG_DATA
+  [121, 2],   // LOG_ERASE
+  [122, 2],   // LOG_REQUEST_END
 ]);
 
 // ── CRC-16/MCRF4XX ─────────────────────────────────────────

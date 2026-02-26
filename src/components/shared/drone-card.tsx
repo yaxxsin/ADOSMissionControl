@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { BatteryBar } from "./battery-bar";
 import { StatusDot } from "@/components/ui/status-dot";
 import { cn } from "@/lib/utils";
+import { useDroneMetadataStore } from "@/stores/drone-metadata-store";
 import type { FleetDrone, DroneStatus } from "@/lib/types";
 
 interface DroneCardProps {
@@ -32,12 +33,13 @@ const statusToDot: Record<DroneStatus, "online" | "idle" | "warning" | "error" |
 };
 
 export function DroneCard({ drone, selected, onClick }: DroneCardProps) {
+  const displayName = useDroneMetadataStore((s) => s.profiles[drone.id]?.displayName) ?? drone.name;
   return (
     <Card className={cn(selected && "border-accent-primary bg-accent-primary/5")} onClick={() => onClick?.(drone.id)}>
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2">
           <StatusDot status={statusToDot[drone.status]} />
-          <span className="text-sm font-semibold text-text-primary">{drone.name}</span>
+          <span className="text-sm font-semibold text-text-primary">{displayName}</span>
         </div>
         <Badge variant={statusToBadgeVariant[drone.status]}>{drone.status.replace("_", " ")}</Badge>
       </div>

@@ -5,9 +5,10 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Toggle } from "@/components/ui/toggle";
+import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useTelemetryStore } from "@/stores/telemetry-store";
-import { RotateCcw, Save, Radio } from "lucide-react";
+import { RotateCcw, Save, Radio, HardDrive } from "lucide-react";
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -63,11 +64,12 @@ function RcChannelBar({ index, value, min, max }: {
   );
 }
 
-// ── Main Page ────────────────────────────────────────────────
+// ── Main Component ───────────────────────────────────────────
 
 export function ReceiverPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const protocol = getSelectedProtocol();
+  const { toast } = useToast();
 
   // Live RC data from telemetry store
   const rcBuffer = useTelemetryStore((s) => s.rc);
@@ -89,6 +91,7 @@ export function ReceiverPanel() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [showCommitButton, setShowCommitButton] = useState(false);
 
   // ── Calibration state ──────────────────────────────────────
   const [calibrating, setCalibrating] = useState(false);
@@ -146,12 +149,14 @@ export function ReceiverPanel() {
       }
       setChannelConfigs(configs);
       setDirty(false);
+      setShowCommitButton(false);
+      toast("Receiver parameters loaded", "success");
     } catch {
-      // partial read — keep defaults
+      toast("Failed to read receiver parameters", "error");
     } finally {
       setLoading(false);
     }
-  }, [protocol]);
+  }, [protocol, toast]);
 
   // ── Save params ────────────────────────────────────────────
 
@@ -174,10 +179,28 @@ export function ReceiverPanel() {
         await protocol.setParameter(`RC${n}_REVERSED`, cfg.reversed ? 1 : 0);
       }
       setDirty(false);
+      setShowCommitButton(true);
+      toast("Receiver parameters saved to RAM", "success");
+    } catch {
+      toast("Failed to save receiver parameters", "error");
     } finally {
       setSaving(false);
     }
-  }, [protocol, mapRoll, mapPitch, mapThrottle, mapYaw, channelConfigs]);
+  }, [protocol, mapRoll, mapPitch, mapThrottle, mapYaw, channelConfigs, toast]);
+
+  // ── Flash commit ───────────────────────────────────────────
+
+  const commitToFlash = useCallback(async () => {
+    const proto = getSelectedProtocol();
+    if (!proto) return;
+    try {
+      await proto.commitParamsToFlash();
+      setShowCommitButton(false);
+      toast("Parameters written to flash", "success");
+    } catch {
+      toast("Failed to write to flash", "error");
+    }
+  }, [getSelectedProtocol, toast]);
 
   // ── Channel config updater ─────────────────────────────────
 
@@ -202,7 +225,8 @@ export function ReceiverPanel() {
     );
     setCalibrating(false);
     setDirty(true);
-  }, [calMins, calMaxs]);
+    toast("Calibration applied — save to write to FC", "info");
+  }, [calMins, calMaxs, toast]);
 
   // ── RSSI percentage ────────────────────────────────────────
 
@@ -225,7 +249,14 @@ export function ReceiverPanel() {
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-3xl space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-text-primary">RC Receiver</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-text-primary">RC Receiver</h2>
+            {dirty && (
+              <span className="text-[10px] font-mono text-status-warning px-1.5 py-0.5 bg-status-warning/10 border border-status-warning/20">
+                UNSAVED
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <Button
               variant="secondary"
@@ -246,6 +277,16 @@ export function ReceiverPanel() {
             >
               Save
             </Button>
+            {showCommitButton && (
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<HardDrive size={12} />}
+                onClick={commitToFlash}
+              >
+                Write to Flash
+              </Button>
+            )}
           </div>
         </div>
 

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
+import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
 import {
   Save,
@@ -66,6 +67,7 @@ interface PortConfig {
 }
 
 export function PortsPanel() {
+  const { toast } = useToast();
   const [ports, setPorts] = useState<PortConfig[]>(
     Array.from({ length: NUM_PORTS }, () => ({ protocol: "-1", baud: "57" }))
   );
@@ -108,12 +110,15 @@ export function PortsPanel() {
       }
       setPorts(loaded);
       setOriginal(loaded.map((p) => ({ ...p })));
+      toast("Loaded serial port configuration", "success");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to read serial parameters");
+      const msg = err instanceof Error ? err.message : "Failed to read serial parameters";
+      setError(msg);
+      toast("Failed to load serial parameters", "error");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   const updatePort = useCallback((index: number, field: keyof PortConfig, value: string) => {
     setPorts((prev) => {
@@ -165,20 +170,27 @@ export function PortsPanel() {
 
     if (failures.length > 0) {
       setError(`Failed: ${failures.join(", ")}`);
+      toast(`Failed to save ${failures.length} parameter(s)`, "error");
     } else {
       setOriginal(ports.map((p) => ({ ...p })));
       setNeedsReboot(true);
       setShowCommitButton(true);
+      toast("Saved to flight controller", "success");
     }
     setSaving(false);
-  }, [ports, original]);
+  }, [ports, original, toast]);
 
   const commitToFlash = useCallback(async () => {
     const protocol = useDroneManager.getState().getSelectedProtocol();
     if (!protocol) return;
-    await protocol.commitParamsToFlash();
-    setShowCommitButton(false);
-  }, []);
+    try {
+      await protocol.commitParamsToFlash();
+      setShowCommitButton(false);
+      toast("Written to flash — persists after reboot", "success");
+    } catch {
+      toast("Failed to write to flash", "error");
+    }
+  }, [toast]);
 
   const handleRevert = useCallback(() => {
     if (original.length > 0) {

@@ -8,6 +8,7 @@
 
 import { useState, useEffect } from "react";
 import { useDroneManager } from "@/stores/drone-manager";
+import { useDroneMetadataStore } from "@/stores/drone-metadata-store";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Usb, Wifi, RotateCw, Trash2 } from "lucide-react";
@@ -54,6 +55,11 @@ export function RecentConnections() {
           type: "websocket",
           url: conn.url,
         });
+        useDroneMetadataStore.getState().ensureProfile(droneId, {
+          displayName: droneName,
+          serial: `ALT-${droneId.toUpperCase()}`,
+          enrolledAt: Date.now(),
+        });
         void saveRecentConnection({ ...conn, name: droneName, date: Date.now() });
       } else if (conn.type === "serial") {
         const ports = await serialPortManager.getKnownPorts();
@@ -72,6 +78,11 @@ export function RecentConnections() {
           baudRate: conn.baudRate,
           portVendorId: ports[0].vendorId,
           portProductId: ports[0].productId,
+        });
+        useDroneMetadataStore.getState().ensureProfile(droneId, {
+          displayName: droneName,
+          serial: `ALT-${droneId.toUpperCase()}`,
+          enrolledAt: Date.now(),
         });
         void saveRecentConnection({ ...conn, name: droneName, date: Date.now() });
       }

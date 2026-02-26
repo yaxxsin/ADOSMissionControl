@@ -12,6 +12,7 @@ import {
   Cartesian3,
   Color,
   ConstantPositionProperty,
+  HeightReference,
   type Viewer as CesiumViewer,
   type Entity,
 } from "cesium";
@@ -54,6 +55,7 @@ export function GcsEntity({ viewer }: GcsEntityProps) {
         image: GCS_DATA_URL,
         width: 28,
         height: 28,
+        heightReference: HeightReference.CLAMP_TO_GROUND,
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
       },
       label: {
@@ -61,6 +63,7 @@ export function GcsEntity({ viewer }: GcsEntityProps) {
         font: "10px JetBrains Mono, monospace",
         fillColor: Color.fromCssColorString("#22c55e"),
         pixelOffset: { x: 0, y: -20 } as any,
+        heightReference: HeightReference.CLAMP_TO_GROUND,
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
       },
     });
@@ -96,11 +99,11 @@ export function GcsEntity({ viewer }: GcsEntityProps) {
 
     const cartesian = Cartesian3.fromDegrees(position.lon, position.lat, 0);
 
-    if (billboardRef.current?.position) {
-      (billboardRef.current.position as ConstantPositionProperty).setValue(cartesian);
+    if (billboardRef.current?.position instanceof ConstantPositionProperty) {
+      billboardRef.current.position.setValue(cartesian);
     }
-    if (ellipseRef.current?.position) {
-      (ellipseRef.current.position as ConstantPositionProperty).setValue(cartesian);
+    if (ellipseRef.current?.position instanceof ConstantPositionProperty) {
+      ellipseRef.current.position.setValue(cartesian);
     }
   }, [viewer, position]);
 

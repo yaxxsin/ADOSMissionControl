@@ -4,8 +4,9 @@ import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
-import { ShieldAlert, Battery, Radio, Gauge, Save, HardDrive } from "lucide-react";
+import { ShieldAlert, Battery, Radio, Gauge, Save, HardDrive, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FailsafeParam {
@@ -27,10 +28,16 @@ const DEFAULT_PARAMS: Params = {
   FS_GCS_ENABL: { name: "FS_GCS_ENABL", value: "0", dirty: false },
   THR_FAILSAFE: { name: "THR_FAILSAFE", value: "0", dirty: false },
   THR_FS_VALUE: { name: "THR_FS_VALUE", value: "950", dirty: false },
+  FENCE_ENABLE: { name: "FENCE_ENABLE", value: "0", dirty: false },
+  FENCE_ACTION: { name: "FENCE_ACTION", value: "0", dirty: false },
+  FENCE_ALT_MAX: { name: "FENCE_ALT_MAX", value: "100", dirty: false },
+  FENCE_RADIUS: { name: "FENCE_RADIUS", value: "300", dirty: false },
+  FENCE_ALT_MIN: { name: "FENCE_ALT_MIN", value: "0", dirty: false },
 };
 
 export function FailsafePanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
+  const { toast } = useToast();
   const [params, setParams] = useState<Params>(DEFAULT_PARAMS);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -58,7 +65,8 @@ export function FailsafePanel() {
     }
     setParams(updated);
     setLoaded(true);
-  }, [getSelectedProtocol, params]);
+    toast("Loaded failsafe parameters", "success");
+  }, [getSelectedProtocol, params, toast]);
 
   const saveParams = useCallback(async () => {
     const protocol = getSelectedProtocol();
@@ -72,20 +80,26 @@ export function FailsafePanel() {
           ...prev,
           [p.name]: { ...prev[p.name], dirty: false },
         }));
-      } catch {
-        // parameter write failed
+      } catch (err) {
+        toast(`Failed to write ${p.name}`, "error");
       }
     }
     setShowCommitButton(true);
     setSaving(false);
-  }, [getSelectedProtocol, params]);
+    toast("Saved to flight controller", "success");
+  }, [getSelectedProtocol, params, toast]);
 
   const commitToFlash = useCallback(async () => {
     const protocol = getSelectedProtocol();
     if (!protocol) return;
-    await protocol.commitParamsToFlash();
-    setShowCommitButton(false);
-  }, [getSelectedProtocol]);
+    try {
+      await protocol.commitParamsToFlash();
+      setShowCommitButton(false);
+      toast("Written to flash — persists after reboot", "success");
+    } catch {
+      toast("Failed to write to flash", "error");
+    }
+  }, [getSelectedProtocol, toast]);
 
   const hasDirty = Object.values(params).some((p) => p.dirty);
   const connected = !!getSelectedProtocol();
@@ -220,6 +234,41 @@ export function FailsafePanel() {
             value={params.THR_FS_VALUE.value}
             onChange={(e) => updateParam("THR_FS_VALUE", e.target.value)}
           />
+        </Card>
+
+        {/* Geofence */}
+        <Card icon={<MapPin size={14} />} title="Geofence" description="Geographical boundary enforcement">
+          <Select
+            label="FENCE_ENABLE — Fence Type"
+            options={[
+              { value: "0", label: "0 — Disabled" },
+              { value: "1", label: "1 — Altitude Only" },
+              { value: "2", label: "2 — Circle Only" },
+              { value: "3", label: "3 — Altitude + Circle" },
+              { value: "4", label: "4 — Polygon Only" },
+              { value: "5", label: "5 — Altitude + Polygon" },
+              { value: "6", label: "6 — Circle + Polygon" },
+              { value: "7", label: "7 — All" },
+            ]}
+            value={params.FENCE_ENABLE.value}
+            onChange={(v) => updateParam("FENCE_ENABLE", v)}
+          />
+          <Select
+            label="FENCE_ACTION — Breach Action"
+            options={[
+              { value: "0", label: "0 — Report Only" },
+              { value: "1", label: "1 — RTL or Land" },
+              { value: "2", label: "2 — Always Land" },
+              { value: "3", label: "3 — SmartRTL or RTL or Land" },
+              { value: "4", label: "4 — Brake or Land" },
+              { value: "5", label: "5 — SmartRTL or Land" },
+            ]}
+            value={params.FENCE_ACTION.value}
+            onChange={(v) => updateParam("FENCE_ACTION", v)}
+          />
+          <Input label="FENCE_ALT_MAX — Max Altitude" type="number" step="1" min="0" unit="m" value={params.FENCE_ALT_MAX.value} onChange={(e) => updateParam("FENCE_ALT_MAX", e.target.value)} />
+          <Input label="FENCE_RADIUS — Max Radius" type="number" step="1" min="0" unit="m" value={params.FENCE_RADIUS.value} onChange={(e) => updateParam("FENCE_RADIUS", e.target.value)} />
+          <Input label="FENCE_ALT_MIN — Min Altitude" type="number" step="0.5" min="-100" unit="m" value={params.FENCE_ALT_MIN.value} onChange={(e) => updateParam("FENCE_ALT_MIN", e.target.value)} />
         </Card>
 
         {/* Save */}

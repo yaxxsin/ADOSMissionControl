@@ -24,6 +24,8 @@ import type {
   FirmwareHandler,
   MissionItem,
   UnifiedFlightMode,
+  LogEntry,
+  LogDownloadProgressCallback,
   AttitudeCallback,
   PositionCallback,
   BatteryCallback,
@@ -498,6 +500,46 @@ export class MockProtocol implements DroneProtocol {
       clearInterval(t as ReturnType<typeof setInterval>);
     }
     this.compassCalTimers = [];
+  }
+
+  // ── Log Download ────────────────────────────────────
+
+  async getLogList(): Promise<LogEntry[]> {
+    const baseTime = Math.floor(Date.now() / 1000) - 86400; // 1 day ago
+    return [
+      { id: 1, numLogs: 5, lastLogId: 5, size: 24576,  timeUtc: baseTime - 86400 * 4 },
+      { id: 2, numLogs: 5, lastLogId: 5, size: 51200,  timeUtc: baseTime - 86400 * 3 },
+      { id: 3, numLogs: 5, lastLogId: 5, size: 102400, timeUtc: baseTime - 86400 * 2 },
+      { id: 4, numLogs: 5, lastLogId: 5, size: 32768,  timeUtc: baseTime - 86400 },
+      { id: 5, numLogs: 5, lastLogId: 5, size: 16384,  timeUtc: baseTime },
+    ];
+  }
+
+  async downloadLog(_logId: number, onProgress?: LogDownloadProgressCallback): Promise<Uint8Array> {
+    const totalSize = 4096;
+    const chunkSize = 90;
+    const chunks = Math.ceil(totalSize / chunkSize);
+
+    // Simulate chunked progress
+    for (let i = 0; i < chunks; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      if (onProgress) onProgress(Math.min((i + 1) * chunkSize, totalSize), totalSize);
+    }
+
+    // Return small Uint8Array with ArduPilot log header magic
+    const data = new Uint8Array(totalSize);
+    data[0] = 0xa3; // ArduPilot log header magic byte 1
+    data[1] = 0x95; // ArduPilot log header magic byte 2
+    return data;
+  }
+
+  async eraseAllLogs(): Promise<CommandResult> {
+    this.emitStatusText(6, "All logs erased");
+    return ok("Logs erased");
+  }
+
+  cancelLogDownload(): void {
+    // no-op in mock
   }
 
   // ── Motor Test ──────────────────────────────────────────

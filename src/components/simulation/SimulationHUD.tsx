@@ -7,26 +7,20 @@
 
 "use client";
 
-import type { Waypoint } from "@/lib/types";
-import type { FlightSegment } from "@/lib/simulation-utils";
-import { interpolatePosition, formatEta } from "@/lib/simulation-utils";
-import { formatAlt, formatHeading } from "@/lib/telemetry-utils";
+import { useMissionStore } from "@/stores/mission-store";
 import { useSimulationStore } from "@/stores/simulation-store";
-import { useThrottledElapsed } from "@/hooks/use-throttled-elapsed";
+import { useInterpolatedPosition } from "@/hooks/use-interpolated-position";
+import { formatEta } from "@/lib/simulation-utils";
+import { formatAlt, formatHeading } from "@/lib/telemetry-utils";
 
-interface SimulationHUDProps {
-  waypoints: Waypoint[];
-  segments: FlightSegment[];
-}
-
-export function SimulationHUD({ waypoints, segments }: SimulationHUDProps) {
-  const elapsed = useThrottledElapsed();
+export function SimulationHUD() {
+  const waypoints = useMissionStore((s) => s.waypoints);
   const totalDuration = useSimulationStore((s) => s.totalDuration);
   const playbackState = useSimulationStore((s) => s.playbackState);
+  const { pos, elapsed } = useInterpolatedPosition();
 
   if (waypoints.length === 0) return null;
 
-  const pos = interpolatePosition(segments, waypoints, elapsed);
   const remaining = Math.max(0, totalDuration - elapsed);
 
   const items = [

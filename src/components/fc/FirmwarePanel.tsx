@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
 import {
   Cpu, Download, Upload, AlertTriangle, CheckCircle2,
@@ -38,6 +39,7 @@ const FLASH_METHODS: { id: FlashMethod; label: string; icon: typeof Wifi; desc: 
 export function FirmwarePanel() {
   const selectedDroneId = useDroneManager((s) => s.selectedDroneId);
   const getSelectedDrone = useDroneManager((s) => s.getSelectedDrone);
+  const { toast } = useToast();
   const drone = getSelectedDrone();
 
   // ── Manifest state ─────────────────────────────────────
@@ -233,12 +235,13 @@ export function FirmwarePanel() {
       }
       if (!userMessage.includes("aborted")) {
         setProgress({ phase: "error", percent: 0, message: userMessage });
+        toast("Firmware flash failed", "error");
       }
     } finally {
       setIsFlashing(false);
       flashManagerRef.current = null;
     }
-  }, [useCustom, customFile, selectedBoard, selectedVehicleType, selectedVersion, flashMethod, drone, checklist.paramBackup]);
+  }, [useCustom, customFile, selectedBoard, selectedVehicleType, selectedVersion, flashMethod, drone, checklist.paramBackup, toast]);
 
   const handleAbort = useCallback(() => {
     flashManagerRef.current?.abort();
@@ -262,10 +265,12 @@ export function FirmwarePanel() {
       URL.revokeObjectURL(url);
       setFlashMessage(`Backed up ${params.length} parameters`);
       setChecklist((prev) => ({ ...prev, paramBackup: true }));
+      toast(`Backed up ${params.length} parameters`, "success");
     } catch (err) {
       setFlashMessage(`Backup failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+      toast("Parameter backup failed", "error");
     }
-  }, [drone]);
+  }, [drone, toast]);
 
   const handleRestoreParams = useCallback(async () => {
     const input = document.createElement("input");
@@ -305,17 +310,26 @@ export function FirmwarePanel() {
       setFlashMessage(`Restored ${success} parameters (${failed} failed)`);
       if (success > 0) {
         setShowCommitButton(true);
+        toast(`Restored ${success} parameters`, "success");
+      }
+      if (failed > 0) {
+        toast(`${failed} parameters failed to restore`, "warning");
       }
     };
     input.click();
-  }, [drone]);
+  }, [drone, toast]);
 
   const commitToFlash = useCallback(async () => {
     const protocol = drone?.protocol;
     if (!protocol) return;
-    await protocol.commitParamsToFlash();
-    setShowCommitButton(false);
-  }, [drone]);
+    try {
+      await protocol.commitParamsToFlash();
+      setShowCommitButton(false);
+      toast("Written to flash — persists after reboot", "success");
+    } catch {
+      toast("Failed to write to flash", "error");
+    }
+  }, [drone, toast]);
 
   const handleCustomFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

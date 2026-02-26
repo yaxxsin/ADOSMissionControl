@@ -429,6 +429,21 @@ export type ScaledImuCallback = (data: {
 
 export type LinkStateCallback = () => void;
 
+// ── Log Download ────────────────────────────────────────────
+
+/** On-board log entry received from LOG_ENTRY (msg 118). */
+export interface LogEntry {
+  id: number;
+  numLogs: number;
+  lastLogId: number;
+  size: number;
+  /** Seconds since 1970 UTC, or 0 if unavailable. */
+  timeUtc: number;
+}
+
+/** Progress callback for log data download. */
+export type LogDownloadProgressCallback = (receivedBytes: number, totalBytes: number) => void;
+
 // ── Mission Items ───────────────────────────────────────────
 
 /** Wire-format mission item for upload/download (INT variant). */
@@ -546,6 +561,16 @@ export interface DroneProtocol {
   uploadMission(items: MissionItem[]): Promise<CommandResult>;
   downloadMission(): Promise<MissionItem[]>;
   setCurrentMissionItem(seq: number): Promise<CommandResult>;
+
+  // ── Log Download ────────────────────────────────────────
+  /** Request list of on-board logs. */
+  getLogList(): Promise<LogEntry[]>;
+  /** Download a log by ID, with optional progress callback. Returns raw binary data. */
+  downloadLog(logId: number, onProgress?: LogDownloadProgressCallback): Promise<Uint8Array>;
+  /** Erase all on-board logs. */
+  eraseAllLogs(): Promise<CommandResult>;
+  /** Cancel an in-progress log download. */
+  cancelLogDownload(): void;
 
   // ── Calibration ─────────────────────────────────────────
   startCalibration(

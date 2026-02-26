@@ -35,8 +35,16 @@ export function BuildPresetCard({
   const { specs } = preset;
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
       className={`w-full text-left p-3 border transition-all cursor-pointer ${
         selected
           ? "border-accent-primary bg-accent-primary/8 ring-1 ring-accent-primary/30"
@@ -116,6 +124,6 @@ export function BuildPresetCard({
           </span>
         )}
       </div>
-    </button>
+    </div>
   );
 }

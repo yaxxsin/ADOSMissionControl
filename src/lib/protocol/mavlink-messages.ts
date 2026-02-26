@@ -1321,6 +1321,72 @@ export function decodeScaledImu(dv: DataView): ScaledImuMsg {
   };
 }
 
+// ── LOG_ENTRY (ID 118) ──────────────────────────────────────
+
+export interface LogEntryMsg {
+  id: number;
+  numLogs: number;
+  lastLogNum: number;
+  timeUtc: number;
+  size: number;
+}
+
+/**
+ * Decode LOG_ENTRY (msg ID 118).
+ *
+ * Wire order (uint32 → uint16):
+ * | Offset | Type   | Field      |
+ * |--------|--------|------------|
+ * | 0      | uint32 | timeUtc    |
+ * | 4      | uint32 | size       |
+ * | 8      | uint16 | id         |
+ * | 10     | uint16 | numLogs    |
+ * | 12     | uint16 | lastLogNum |
+ */
+export function decodeLogEntry(dv: DataView): LogEntryMsg {
+  return {
+    timeUtc: dv.getUint32(0, true),
+    size: dv.getUint32(4, true),
+    id: dv.getUint16(8, true),
+    numLogs: dv.getUint16(10, true),
+    lastLogNum: dv.getUint16(12, true),
+  };
+}
+
+// ── LOG_DATA (ID 120) ───────────────────────────────────────
+
+export interface LogDataMsg {
+  ofs: number;
+  id: number;
+  count: number;
+  data: Uint8Array;
+}
+
+/**
+ * Decode LOG_DATA (msg ID 120).
+ *
+ * Wire order (uint32 → uint16 → uint8):
+ * | Offset | Type      | Field |
+ * |--------|-----------|-------|
+ * | 0      | uint32    | ofs   |
+ * | 4      | uint16    | id    |
+ * | 6      | uint8     | count |
+ * | 7      | uint8[90] | data  |
+ */
+export function decodeLogData(dv: DataView): LogDataMsg {
+  const count = dv.getUint8(6);
+  const data = new Uint8Array(count);
+  for (let i = 0; i < count; i++) {
+    data[i] = dv.getUint8(7 + i);
+  }
+  return {
+    ofs: dv.getUint32(0, true),
+    id: dv.getUint16(4, true),
+    count,
+    data,
+  };
+}
+
 // ── GPS2_RAW (ID 124) ──────────────────────────────────────
 
 export interface Gps2RawMsg {

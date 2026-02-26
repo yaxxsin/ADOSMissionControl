@@ -15,6 +15,7 @@ import {
   Cartesian3,
   Color,
   ConstantProperty,
+  HeightReference,
   VerticalOrigin,
   HorizontalOrigin,
   LabelStyle,
@@ -57,6 +58,7 @@ export function WaypointEntities({ viewer, waypoints }: WaypointEntitiesProps) {
           color: bgColor,
           outlineColor: Color.WHITE,
           outlineWidth: 1,
+          heightReference: HeightReference.RELATIVE_TO_GROUND,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
         label: {
@@ -69,6 +71,7 @@ export function WaypointEntities({ viewer, waypoints }: WaypointEntitiesProps) {
           verticalOrigin: VerticalOrigin.BOTTOM,
           horizontalOrigin: HorizontalOrigin.CENTER,
           pixelOffset: new Cartesian2(0, -16),
+          heightReference: HeightReference.RELATIVE_TO_GROUND,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
           showBackground: true,
           backgroundColor: bgColor.withAlpha(0.8),

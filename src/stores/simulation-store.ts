@@ -36,6 +36,9 @@ interface SimulationStoreState {
 
 const STEP_SECONDS = 1;
 
+/** Quantize to 3 decimal places — matches syncFromClock precision */
+const quantize = (v: number) => Math.round(v * 1000) / 1000;
+
 // Module-level clock binding (CesiumJS objects are not serializable in Zustand)
 let _viewer: CesiumViewer | null = null;
 let _startJulian: JulianDate | null = null;
@@ -99,21 +102,21 @@ export const useSimulationStore = create<SimulationStoreState>()((set, get) => (
 
   seek: (time) => {
     const { totalDuration } = get();
-    const clamped = Math.max(0, Math.min(time, totalDuration));
+    const clamped = quantize(Math.max(0, Math.min(time, totalDuration)));
     set({ elapsed: clamped });
     seekClock(clamped);
   },
 
   stepForward: () => {
     const { elapsed, totalDuration } = get();
-    const next = Math.min(elapsed + STEP_SECONDS, totalDuration);
+    const next = quantize(Math.min(elapsed + STEP_SECONDS, totalDuration));
     set({ elapsed: next });
     seekClock(next);
   },
 
   stepBack: () => {
     const { elapsed } = get();
-    const prev = Math.max(elapsed - STEP_SECONDS, 0);
+    const prev = quantize(Math.max(elapsed - STEP_SECONDS, 0));
     set({ elapsed: prev });
     seekClock(prev);
   },
@@ -144,13 +147,13 @@ export const useSimulationStore = create<SimulationStoreState>()((set, get) => (
       _viewer.clock.currentTime,
       _startJulian
     );
-    const { totalDuration, playbackState } = get();
-    const clamped = Math.max(0, Math.min(elapsed, totalDuration));
+    const { totalDuration, playbackState, elapsed: current } = get();
+    const clamped = quantize(Math.max(0, Math.min(elapsed, totalDuration)));
 
     // Detect CesiumJS auto-stop (ClockRange.CLAMPED stops clock at stopTime)
     if (playbackState === "playing" && !_viewer.clock.shouldAnimate) {
       set({ elapsed: clamped, playbackState: "paused" });
-    } else {
+    } else if (clamped !== current) {
       set({ elapsed: clamped });
     }
   },
@@ -160,6 +163,7 @@ export const useSimulationStore = create<SimulationStoreState>()((set, get) => (
       playbackState: "stopped",
       playbackSpeed: 1,
       elapsed: 0,
+      totalDuration: 0,
       cameraMode: "topdown",
     });
     if (_viewer && !_viewer.isDestroyed()) {

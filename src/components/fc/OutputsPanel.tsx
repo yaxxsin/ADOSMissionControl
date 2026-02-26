@@ -3,38 +3,17 @@
 import { useState, useCallback, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import { Toggle } from "@/components/ui/toggle";
+import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
-import { AlertTriangle, RotateCcw, Save, Zap } from "lucide-react";
+import { SERVO_FUNCTION_GROUPS } from "@/lib/servo-functions";
+import { AlertTriangle, RotateCcw, Save, Zap, HardDrive } from "lucide-react";
 
-// ── Servo function IDs (ArduPilot) ─────────────────────────
-
-const SERVO_FUNCTIONS: { value: string; label: string }[] = [
-  { value: "0", label: "0 — Disabled" },
-  { value: "4", label: "4 — Aileron" },
-  { value: "19", label: "19 — Elevator" },
-  { value: "21", label: "21 — Rudder" },
-  { value: "33", label: "33 — Motor 1" },
-  { value: "34", label: "34 — Motor 2" },
-  { value: "35", label: "35 — Motor 3" },
-  { value: "36", label: "36 — Motor 4" },
-  { value: "37", label: "37 — Motor 5" },
-  { value: "38", label: "38 — Motor 6" },
-  { value: "39", label: "39 — Motor 7" },
-  { value: "40", label: "40 — Motor 8" },
-  { value: "51", label: "51 — RCIN1" },
-  { value: "52", label: "52 — RCIN2" },
-  { value: "53", label: "53 — RCIN3" },
-  { value: "54", label: "54 — RCIN4" },
-  { value: "70", label: "70 — Throttle" },
-  { value: "73", label: "73 — ThrottleLeft" },
-  { value: "74", label: "74 — ThrottleRight" },
-  { value: "94", label: "94 — Script1" },
-];
+// ── Constants ────────────────────────────────────────────────
 
 const OUTPUT_COUNT = 16;
+const PWM_ABS_MIN = 800;
+const PWM_ABS_MAX = 2200;
 
 interface OutputRow {
   function: number;
@@ -48,9 +27,65 @@ function defaultRow(): OutputRow {
   return { function: 0, min: 1000, max: 2000, trim: 1500, reversed: false };
 }
 
+// ── Validation helpers ───────────────────────────────────────
+
+interface PwmWarning {
+  output: number;
+  message: string;
+}
+
+function validateOutputs(rows: OutputRow[]): { pwmWarnings: PwmWarning[]; conflicts: string[] } {
+  const pwmWarnings: PwmWarning[] = [];
+  const conflicts: string[] = [];
+
+  // Track function assignments for conflict detection
+  const fnAssignments = new Map<number, number[]>();
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const n = i + 1;
+
+    // PWM range validation
+    if (row.min < PWM_ABS_MIN || row.min > PWM_ABS_MAX) {
+      pwmWarnings.push({ output: n, message: `Min (${row.min}) outside ${PWM_ABS_MIN}-${PWM_ABS_MAX}` });
+    }
+    if (row.max < PWM_ABS_MIN || row.max > PWM_ABS_MAX) {
+      pwmWarnings.push({ output: n, message: `Max (${row.max}) outside ${PWM_ABS_MIN}-${PWM_ABS_MAX}` });
+    }
+    if (row.min >= row.max) {
+      pwmWarnings.push({ output: n, message: `Min (${row.min}) >= Max (${row.max})` });
+    }
+    if (row.trim < row.min || row.trim > row.max) {
+      pwmWarnings.push({ output: n, message: `Trim (${row.trim}) outside Min/Max range` });
+    }
+
+    // Conflict detection — skip disabled (0) and GPIO (-1)
+    if (row.function > 0) {
+      const existing = fnAssignments.get(row.function) ?? [];
+      existing.push(n);
+      fnAssignments.set(row.function, existing);
+    }
+  }
+
+  // Build conflict messages
+  for (const [fnId, outputs] of fnAssignments) {
+    if (outputs.length > 1) {
+      const fnLabel = SERVO_FUNCTION_GROUPS
+        .flatMap((g) => g.functions)
+        .find((f) => f.value === fnId)?.label ?? `ID ${fnId}`;
+      conflicts.push(`"${fnLabel}" assigned to outputs ${outputs.join(", ")}`);
+    }
+  }
+
+  return { pwmWarnings, conflicts };
+}
+
+// ── Component ────────────────────────────────────────────────
+
 export function OutputsPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const protocol = getSelectedProtocol();
+  const { toast } = useToast();
 
   // ── Output param state ─────────────────────────────────────
   const [outputs, setOutputs] = useState<OutputRow[]>(
@@ -59,6 +94,7 @@ export function OutputsPanel() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [showCommitButton, setShowCommitButton] = useState(false);
 
   // ── Motor test state ───────────────────────────────────────
   const [motorTestEnabled, setMotorTestEnabled] = useState(false);
@@ -71,6 +107,9 @@ export function OutputsPanel() {
   const [servoTestValues, setServoTestValues] = useState<number[]>(
     () => Array.from({ length: OUTPUT_COUNT }, () => 1500),
   );
+
+  // ── Validation ─────────────────────────────────────────────
+  const { pwmWarnings, conflicts } = useMemo(() => validateOutputs(outputs), [outputs]);
 
   // ── Fetch params from FC ───────────────────────────────────
 
@@ -97,17 +136,23 @@ export function OutputsPanel() {
       }
       setOutputs(rows);
       setDirty(false);
+      setShowCommitButton(false);
+      toast("Output parameters loaded", "success");
     } catch {
-      // params may not all exist — keep defaults
+      toast("Failed to read output parameters", "error");
     } finally {
       setLoading(false);
     }
-  }, [protocol]);
+  }, [protocol, toast]);
 
   // ── Save params to FC ──────────────────────────────────────
 
   const saveParams = useCallback(async () => {
     if (!protocol) return;
+    if (pwmWarnings.length > 0 || conflicts.length > 0) {
+      toast("Fix warnings before saving", "warning");
+      return;
+    }
     setSaving(true);
     try {
       for (let i = 0; i < OUTPUT_COUNT; i++) {
@@ -120,10 +165,28 @@ export function OutputsPanel() {
         await protocol.setParameter(`SERVO${n}_REVERSED`, row.reversed ? 1 : 0);
       }
       setDirty(false);
+      setShowCommitButton(true);
+      toast("Output parameters saved to RAM", "success");
+    } catch {
+      toast("Failed to save output parameters", "error");
     } finally {
       setSaving(false);
     }
-  }, [protocol, outputs]);
+  }, [protocol, outputs, pwmWarnings, conflicts, toast]);
+
+  // ── Flash commit ───────────────────────────────────────────
+
+  const commitToFlash = useCallback(async () => {
+    const proto = getSelectedProtocol();
+    if (!proto) return;
+    try {
+      await proto.commitParamsToFlash();
+      setShowCommitButton(false);
+      toast("Parameters written to flash", "success");
+    } catch {
+      toast("Failed to write to flash", "error");
+    }
+  }, [getSelectedProtocol, toast]);
 
   // ── Row updater ────────────────────────────────────────────
 
@@ -147,10 +210,13 @@ export function OutputsPanel() {
         testThrottle,
         testDuration,
       );
+      toast(`Motor ${testMotor} test complete`, "info");
+    } catch {
+      toast("Motor test failed", "error");
     } finally {
       setMotorTesting(false);
     }
-  }, [protocol, motorTestEnabled, testMotor, testThrottle, testDuration]);
+  }, [protocol, motorTestEnabled, testMotor, testThrottle, testDuration, toast]);
 
   // ── Motor options ──────────────────────────────────────────
 
@@ -179,7 +245,14 @@ export function OutputsPanel() {
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-4xl space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-text-primary">Servo / Motor Outputs</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-text-primary">Servo / Motor Outputs</h2>
+            {dirty && (
+              <span className="text-[10px] font-mono text-status-warning px-1.5 py-0.5 bg-status-warning/10 border border-status-warning/20">
+                UNSAVED
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <Button
               variant="secondary"
@@ -200,8 +273,44 @@ export function OutputsPanel() {
             >
               Save
             </Button>
+            {showCommitButton && (
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<HardDrive size={12} />}
+                onClick={commitToFlash}
+              >
+                Write to Flash
+              </Button>
+            )}
           </div>
         </div>
+
+        {/* ── Warnings ─────────────────────────────────────── */}
+
+        {conflicts.length > 0 && (
+          <div className="p-2 bg-status-error/10 border border-status-error/20 space-y-1">
+            <div className="flex items-center gap-1.5">
+              <AlertTriangle size={12} className="text-status-error shrink-0" />
+              <span className="text-[10px] font-medium text-status-error">Function Conflicts</span>
+            </div>
+            {conflicts.map((c, i) => (
+              <p key={i} className="text-[10px] text-status-error pl-5">{c}</p>
+            ))}
+          </div>
+        )}
+
+        {pwmWarnings.length > 0 && (
+          <div className="p-2 bg-status-warning/10 border border-status-warning/20 space-y-1">
+            <div className="flex items-center gap-1.5">
+              <AlertTriangle size={12} className="text-status-warning shrink-0" />
+              <span className="text-[10px] font-medium text-status-warning">PWM Warnings</span>
+            </div>
+            {pwmWarnings.map((w, i) => (
+              <p key={i} className="text-[10px] text-status-warning pl-5">Output {w.output}: {w.message}</p>
+            ))}
+          </div>
+        )}
 
         {/* ── Output Table ──────────────────────────────────── */}
 
@@ -219,58 +328,88 @@ export function OutputsPanel() {
                 </tr>
               </thead>
               <tbody>
-                {outputs.map((row, i) => (
-                  <tr key={i} className="border-b border-border-default last:border-0 hover:bg-bg-tertiary/50">
-                    <td className="px-3 py-1.5 font-mono text-text-secondary">{i + 1}</td>
-                    <td className="px-3 py-1.5">
-                      <select
-                        value={String(row.function)}
-                        onChange={(e) => updateRow(i, { function: Number(e.target.value) })}
-                        className="w-full h-7 px-1.5 bg-bg-tertiary border border-border-default text-xs text-text-primary appearance-none focus:outline-none focus:border-accent-primary"
-                      >
-                        {SERVO_FUNCTIONS.map((fn) => (
-                          <option key={fn.value} value={fn.value}>{fn.label}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-3 py-1.5">
-                      <input
-                        type="number"
-                        value={row.min}
-                        onChange={(e) => updateRow(i, { min: Number(e.target.value) })}
-                        className="w-16 h-7 px-1.5 bg-bg-tertiary border border-border-default text-xs font-mono text-text-primary focus:outline-none focus:border-accent-primary"
-                      />
-                    </td>
-                    <td className="px-3 py-1.5">
-                      <input
-                        type="number"
-                        value={row.max}
-                        onChange={(e) => updateRow(i, { max: Number(e.target.value) })}
-                        className="w-16 h-7 px-1.5 bg-bg-tertiary border border-border-default text-xs font-mono text-text-primary focus:outline-none focus:border-accent-primary"
-                      />
-                    </td>
-                    <td className="px-3 py-1.5">
-                      <input
-                        type="number"
-                        value={row.trim}
-                        onChange={(e) => updateRow(i, { trim: Number(e.target.value) })}
-                        className="w-16 h-7 px-1.5 bg-bg-tertiary border border-border-default text-xs font-mono text-text-primary focus:outline-none focus:border-accent-primary"
-                      />
-                    </td>
-                    <td className="px-3 py-1.5">
-                      <button
-                        onClick={() => updateRow(i, { reversed: !row.reversed })}
-                        className={`w-7 h-7 border text-[10px] font-mono transition-colors ${
-                          row.reversed
-                            ? "bg-accent-primary border-accent-primary text-white"
-                            : "bg-bg-tertiary border-border-default text-text-tertiary"
-                        }`}
-                      >
-                        {row.reversed ? "R" : "—"}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {outputs.map((row, i) => {
+                  const hasConflict = row.function > 0 && outputs.some(
+                    (other, j) => j !== i && other.function === row.function
+                  );
+                  return (
+                    <tr
+                      key={i}
+                      className={`border-b border-border-default last:border-0 hover:bg-bg-tertiary/50 ${
+                        hasConflict ? "bg-status-error/5" : ""
+                      }`}
+                    >
+                      <td className="px-3 py-1.5 font-mono text-text-secondary">{i + 1}</td>
+                      <td className="px-3 py-1.5">
+                        <select
+                          value={String(row.function)}
+                          onChange={(e) => updateRow(i, { function: Number(e.target.value) })}
+                          className={`w-full h-7 px-1.5 bg-bg-tertiary border text-xs text-text-primary appearance-none focus:outline-none focus:border-accent-primary ${
+                            hasConflict ? "border-status-error" : "border-border-default"
+                          }`}
+                        >
+                          {SERVO_FUNCTION_GROUPS.map((group) => (
+                            <optgroup key={group.label} label={group.label}>
+                              {group.functions.map((fn) => (
+                                <option key={fn.value} value={String(fn.value)}>
+                                  {fn.value} — {fn.label}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <input
+                          type="number"
+                          value={row.min}
+                          onChange={(e) => updateRow(i, { min: Number(e.target.value) })}
+                          className={`w-16 h-7 px-1.5 bg-bg-tertiary border text-xs font-mono text-text-primary focus:outline-none focus:border-accent-primary ${
+                            row.min < PWM_ABS_MIN || row.min > PWM_ABS_MAX || row.min >= row.max
+                              ? "border-status-warning"
+                              : "border-border-default"
+                          }`}
+                        />
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <input
+                          type="number"
+                          value={row.max}
+                          onChange={(e) => updateRow(i, { max: Number(e.target.value) })}
+                          className={`w-16 h-7 px-1.5 bg-bg-tertiary border text-xs font-mono text-text-primary focus:outline-none focus:border-accent-primary ${
+                            row.max < PWM_ABS_MIN || row.max > PWM_ABS_MAX || row.min >= row.max
+                              ? "border-status-warning"
+                              : "border-border-default"
+                          }`}
+                        />
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <input
+                          type="number"
+                          value={row.trim}
+                          onChange={(e) => updateRow(i, { trim: Number(e.target.value) })}
+                          className={`w-16 h-7 px-1.5 bg-bg-tertiary border text-xs font-mono text-text-primary focus:outline-none focus:border-accent-primary ${
+                            row.trim < row.min || row.trim > row.max
+                              ? "border-status-warning"
+                              : "border-border-default"
+                          }`}
+                        />
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <button
+                          onClick={() => updateRow(i, { reversed: !row.reversed })}
+                          className={`w-7 h-7 border text-[10px] font-mono transition-colors ${
+                            row.reversed
+                              ? "bg-accent-primary border-accent-primary text-white"
+                              : "bg-bg-tertiary border-border-default text-text-tertiary"
+                          }`}
+                        >
+                          {row.reversed ? "R" : "—"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -295,12 +434,18 @@ export function OutputsPanel() {
 
             {motorTestEnabled && (
               <div className="space-y-3">
-                <Select
-                  label="Motor"
-                  value={testMotor}
-                  onChange={setTestMotor}
-                  options={motorOptions}
-                />
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-text-secondary">Motor</label>
+                  <select
+                    value={testMotor}
+                    onChange={(e) => setTestMotor(e.target.value)}
+                    className="h-7 px-1.5 bg-bg-tertiary border border-border-default text-xs text-text-primary appearance-none focus:outline-none focus:border-accent-primary"
+                  >
+                    {motorOptions.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
 
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-text-secondary">

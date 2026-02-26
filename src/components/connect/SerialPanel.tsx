@@ -8,6 +8,7 @@ import { Plug, Plus, Usb } from "lucide-react";
 import { WebSerialTransport } from "@/lib/protocol/transport-webserial";
 import { MAVLinkAdapter } from "@/lib/protocol/mavlink-adapter";
 import { useDroneManager } from "@/stores/drone-manager";
+import { useDroneMetadataStore } from "@/stores/drone-metadata-store";
 import { randomId } from "@/lib/utils";
 import { serialPortManager, type PortInfo } from "@/lib/serial-port-manager";
 import { useToast } from "@/components/ui/toast";
@@ -113,6 +114,13 @@ export function SerialPanel({
         portVendorId: portInfo?.vendorId,
         portProductId: portInfo?.productId,
       });
+
+      useDroneMetadataStore.getState().ensureProfile(droneId, {
+        displayName: droneName,
+        serial: `ALT-${droneId.toUpperCase()}`,
+        enrolledAt: Date.now(),
+      });
+
       onConnected?.(droneName, "serial", baud);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Connection failed");

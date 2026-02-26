@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useDroneMetadataStore } from "@/stores/drone-metadata-store";
 import type { FleetDrone } from "@/lib/types";
 
 const MapWrapper = dynamic(
@@ -19,6 +20,7 @@ interface FleetMapProps {
 }
 
 export function FleetMap({ drones, onDroneClick, className }: FleetMapProps) {
+  const profiles = useDroneMetadataStore((s) => s.profiles);
   return (
     <MapWrapper className={className}>
       {drones.map((drone) =>
@@ -26,7 +28,7 @@ export function FleetMap({ drones, onDroneClick, className }: FleetMapProps) {
           <DroneMarker
             key={drone.id}
             id={drone.id}
-            name={drone.name}
+            name={profiles[drone.id]?.displayName ?? drone.name}
             lat={drone.position.lat}
             lon={drone.position.lon}
             heading={drone.position.heading}

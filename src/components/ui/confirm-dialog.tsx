@@ -29,6 +29,7 @@ export function ConfirmDialog({
       open={open}
       onClose={onCancel}
       title={title}
+      className="max-w-lg"
       footer={
         <>
           <Button variant="ghost" onClick={onCancel}>

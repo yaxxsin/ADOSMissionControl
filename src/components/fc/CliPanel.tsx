@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useDroneManager } from "@/stores/drone-manager";
 import { Button } from "@/components/ui/button";
-import { Trash2, Terminal } from "lucide-react";
+import { Trash2, Terminal, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface LogEntry {
@@ -108,6 +108,21 @@ export function CliPanel() {
     setEntries([]);
   }, []);
 
+  const exportLog = useCallback(() => {
+    const lines = entries.map((e) => {
+      const time = formatTs(e.timestamp);
+      const sev = SEVERITY_LABELS[e.severity] ?? "???";
+      return `[${time}] [${sev}] ${e.text}`;
+    });
+    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `fc-console-${Date.now()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [entries]);
+
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
@@ -174,9 +189,14 @@ export function CliPanel() {
             {connected ? "CONNECTED" : "DISCONNECTED"}
           </span>
         </div>
-        <Button variant="ghost" size="sm" icon={<Trash2 size={12} />} onClick={clearLog}>
-          Clear
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" icon={<Download size={12} />} onClick={exportLog} disabled={entries.length === 0}>
+            Export
+          </Button>
+          <Button variant="ghost" size="sm" icon={<Trash2 size={12} />} onClick={clearLog}>
+            Clear
+          </Button>
+        </div>
       </div>
 
       {/* Terminal display */}
@@ -195,7 +215,7 @@ export function CliPanel() {
           </div>
         )}
         {entries.map((entry) => (
-          <div key={entry.id} className="flex gap-2 leading-5">
+          <div key={entry.id} className={cn("flex gap-2 leading-5", entry.severity <= 3 && "bg-status-error/5")}>
             <span className="text-text-tertiary shrink-0">{formatTs(entry.timestamp)}</span>
             <span
               className={cn("shrink-0 w-14 text-right", severityColor(entry.severity))}

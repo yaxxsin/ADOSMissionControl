@@ -7,13 +7,12 @@
 
 "use client";
 
-import { useMemo } from "react";
 import { MapPin, ChevronRight } from "lucide-react";
 import type { Waypoint } from "@/lib/types";
-import { computeFlightPlan, interpolatePosition, formatEta } from "@/lib/simulation-utils";
+import { formatEta } from "@/lib/simulation-utils";
 import { formatAlt } from "@/lib/telemetry-utils";
 import { useSimulationStore } from "@/stores/simulation-store";
-import { useThrottledElapsed } from "@/hooks/use-throttled-elapsed";
+import { useInterpolatedPosition } from "@/hooks/use-interpolated-position";
 import { usePlannerStore } from "@/stores/planner-store";
 import { cn } from "@/lib/utils";
 
@@ -25,20 +24,12 @@ interface SimulationPanelProps {
 
 export function SimulationPanel({
   waypoints,
-  defaultSpeed,
   onClose,
 }: SimulationPanelProps) {
-  const elapsed = useThrottledElapsed();
   const totalDuration = useSimulationStore((s) => s.totalDuration);
   const playbackState = useSimulationStore((s) => s.playbackState);
   const setSelectedWaypoint = usePlannerStore((s) => s.setSelectedWaypoint);
-
-  const flightPlan = useMemo(
-    () => computeFlightPlan(waypoints, defaultSpeed),
-    [waypoints, defaultSpeed]
-  );
-
-  const pos = interpolatePosition(flightPlan.segments, waypoints, elapsed);
+  const { pos, flightPlan } = useInterpolatedPosition();
 
   return (
     <div className="w-[320px] shrink-0 flex flex-col border-l border-border-default bg-bg-secondary">

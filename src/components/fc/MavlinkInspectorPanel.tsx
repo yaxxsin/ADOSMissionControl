@@ -62,6 +62,60 @@ const MSG_NAMES: Record<number, string> = {
   253: "STATUSTEXT",
 };
 
+interface DecodedField {
+  name: string;
+  value: string;
+}
+
+function decodePayload(msgId: number, payload: Uint8Array): DecodedField[] | null {
+  const dv = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+  try {
+    switch (msgId) {
+      case 0: // HEARTBEAT
+        return [
+          { name: "type", value: String(payload[0]) },
+          { name: "autopilot", value: String(payload[1]) },
+          { name: "base_mode", value: `0x${payload[2].toString(16).padStart(2, "0")}` },
+          { name: "custom_mode", value: String(dv.getUint32(3, true)) },
+          { name: "system_status", value: String(payload[7]) },
+          { name: "mavlink_version", value: String(payload[8]) },
+        ];
+      case 1: // SYS_STATUS
+        return [
+          { name: "load", value: `${(dv.getUint16(12, true) / 10).toFixed(1)}%` },
+          { name: "voltage", value: `${(dv.getUint16(14, true) / 1000).toFixed(2)}V` },
+          { name: "current", value: `${(dv.getInt16(16, true) / 100).toFixed(1)}A` },
+          { name: "battery_remaining", value: `${dv.getInt8(18)}%` },
+        ];
+      case 30: // ATTITUDE
+        return [
+          { name: "roll", value: `${(dv.getFloat32(4, true) * 180 / Math.PI).toFixed(1)}°` },
+          { name: "pitch", value: `${(dv.getFloat32(8, true) * 180 / Math.PI).toFixed(1)}°` },
+          { name: "yaw", value: `${(dv.getFloat32(12, true) * 180 / Math.PI).toFixed(1)}°` },
+        ];
+      case 33: // GLOBAL_POSITION_INT
+        return [
+          { name: "lat", value: `${(dv.getInt32(4, true) / 1e7).toFixed(7)}°` },
+          { name: "lon", value: `${(dv.getInt32(8, true) / 1e7).toFixed(7)}°` },
+          { name: "alt", value: `${(dv.getInt32(12, true) / 1000).toFixed(1)}m` },
+          { name: "relative_alt", value: `${(dv.getInt32(16, true) / 1000).toFixed(1)}m` },
+        ];
+      case 24: // GPS_RAW_INT
+        return [
+          { name: "fix_type", value: String(payload[8]) },
+          { name: "lat", value: `${(dv.getInt32(9, true) / 1e7).toFixed(7)}°` },
+          { name: "lon", value: `${(dv.getInt32(13, true) / 1e7).toFixed(7)}°` },
+          { name: "alt", value: `${(dv.getInt32(17, true) / 1000).toFixed(1)}m` },
+          { name: "satellites", value: String(payload[25]) },
+        ];
+      default:
+        return null;
+    }
+  } catch {
+    return null;
+  }
+}
+
 interface InspectorMessage {
   id: number;
   timestamp: number;
@@ -72,6 +126,7 @@ interface InspectorMessage {
   sequence: number;
   payloadLength: number;
   payloadHex: string;
+  payloadBytes: Uint8Array;
   direction: "rx" | "tx";
 }
 
@@ -91,6 +146,7 @@ export function MavlinkInspectorPanel() {
   const [autoscroll, setAutoscroll] = useState(true);
   const [maxMessages] = useState(500);
   const [msgRates, setMsgRates] = useState<Map<number, MsgRate>>(new Map());
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const logRef = useRef<HTMLDivElement>(null);
   const msgCounterRef = useRef(0);
@@ -151,6 +207,7 @@ export function MavlinkInspectorPanel() {
             sequence: seq,
             payloadLength: payloadLen,
             payloadHex,
+            payloadBytes: new Uint8Array(payloadBytes),
             direction: "rx",
           };
 
@@ -338,24 +395,47 @@ export function MavlinkInspectorPanel() {
               {selectedDroneId ? (paused ? "Stream paused" : "Waiting for MAVLink frames...") : "Connect a drone to inspect MAVLink traffic"}
             </div>
           ) : (
-            filtered.map((msg) => (
-              <div
-                key={msg.id}
-                className="flex items-start gap-0 px-4 py-0.5 hover:bg-bg-tertiary/50"
-              >
-                <span className="w-[90px] shrink-0 text-text-tertiary">{formatTime(msg.timestamp)}</span>
-                <span className={`w-[20px] shrink-0 ${msg.direction === "tx" ? "text-accent-primary" : "text-green-400"}`}>
-                  {msg.direction === "tx" ? "TX" : "RX"}
-                </span>
-                <span className="w-[40px] shrink-0 text-right text-text-secondary">{msg.msgId}</span>
-                <span className="w-[180px] shrink-0 pl-2 text-accent-primary">{msg.msgName}</span>
-                <span className="w-[30px] shrink-0 text-right text-text-secondary">{msg.systemId}</span>
-                <span className="w-[35px] shrink-0 text-right text-text-secondary">{msg.componentId}</span>
-                <span className="w-[30px] shrink-0 text-right text-text-tertiary">{msg.sequence}</span>
-                <span className="w-[30px] shrink-0 text-right text-text-tertiary">{msg.payloadLength}</span>
-                <span className="pl-2 flex-1 text-text-tertiary break-all">{msg.payloadHex}</span>
-              </div>
-            ))
+            filtered.map((msg) => {
+              const isExpanded = expandedId === msg.id;
+              const decoded = isExpanded ? decodePayload(msg.msgId, msg.payloadBytes) : null;
+              return (
+                <div key={msg.id}>
+                  <div
+                    className={`flex items-start gap-0 px-4 py-0.5 hover:bg-bg-tertiary/50 cursor-pointer ${isExpanded ? "bg-bg-tertiary/30" : ""}`}
+                    onClick={() => setExpandedId(isExpanded ? null : msg.id)}
+                  >
+                    <span className="w-[90px] shrink-0 text-text-tertiary">{formatTime(msg.timestamp)}</span>
+                    <span className={`w-[20px] shrink-0 ${msg.direction === "tx" ? "text-accent-primary" : "text-green-400"}`}>
+                      {msg.direction === "tx" ? "TX" : "RX"}
+                    </span>
+                    <span className="w-[40px] shrink-0 text-right text-text-secondary">{msg.msgId}</span>
+                    <span className="w-[180px] shrink-0 pl-2 text-accent-primary">{msg.msgName}</span>
+                    <span className="w-[30px] shrink-0 text-right text-text-secondary">{msg.systemId}</span>
+                    <span className="w-[35px] shrink-0 text-right text-text-secondary">{msg.componentId}</span>
+                    <span className="w-[30px] shrink-0 text-right text-text-tertiary">{msg.sequence}</span>
+                    <span className="w-[30px] shrink-0 text-right text-text-tertiary">{msg.payloadLength}</span>
+                    <span className="pl-2 flex-1 text-text-tertiary break-all">{msg.payloadHex}</span>
+                  </div>
+                  {isExpanded && decoded && (
+                    <div className="px-4 py-1.5 bg-bg-tertiary/20 border-l-2 border-accent-primary ml-4">
+                      <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5">
+                        {decoded.map((f) => (
+                          <div key={f.name} className="contents">
+                            <span className="text-text-tertiary">{f.name}</span>
+                            <span className="text-text-primary">{f.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {isExpanded && !decoded && (
+                    <div className="px-4 py-1 bg-bg-tertiary/20 border-l-2 border-border-default ml-4 text-text-tertiary italic">
+                      No decoder available for {msg.msgName}
+                    </div>
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
       </div>

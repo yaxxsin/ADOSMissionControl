@@ -3,16 +3,18 @@
 import { useState, useEffect } from "react";
 import { useFleetStore } from "@/stores/fleet-store";
 import { useDroneManager } from "@/stores/drone-manager";
+import { useDroneMetadataStore } from "@/stores/drone-metadata-store";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { DroneStatusBadge } from "@/components/shared/drone-status-badge";
 import { DroneOverviewTab } from "@/components/drone-detail/DroneOverviewTab";
 import { DroneFlightsTab } from "@/components/drone-detail/DroneFlightsTab";
 import { DroneConfigureTab } from "@/components/drone-detail/DroneConfigureTab";
-import { DroneSettingsTab } from "@/components/drone-detail/DroneSettingsTab";
 import { CalibrationPanel } from "@/components/fc/CalibrationPanel";
 import { ParametersPanel } from "@/components/fc/ParametersPanel";
-import { X, RotateCcw } from "lucide-react";
+import { X, RotateCcw, Trash2 } from "lucide-react";
 
 const TABS = [
   { id: "overview", label: "Overview" },
@@ -20,7 +22,6 @@ const TABS = [
   { id: "calibrate", label: "Calibrate" },
   { id: "parameters", label: "Parameters" },
   { id: "configure", label: "Configure" },
-  { id: "settings", label: "Settings" },
 ];
 
 interface DroneDetailPanelProps {
@@ -30,11 +31,17 @@ interface DroneDetailPanelProps {
 
 export function DroneDetailPanel({ droneId, onClose }: DroneDetailPanelProps) {
   const drones = useFleetStore((s) => s.drones);
+  const removeDrone = useFleetStore((s) => s.removeDrone);
   const [activeTab, setActiveTab] = useState("overview");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const { toast } = useToast();
 
   const drone = drones.find((d) => d.id === droneId);
+  const metadata = useDroneMetadataStore((s) => s.profiles[droneId]);
   const managedDrones = useDroneManager((s) => s.drones);
   const isConnected = managedDrones.has(droneId);
+
+  const displayName = metadata?.displayName ?? drone?.name ?? droneId;
 
   // Select this drone in drone-manager so getSelectedProtocol() returns the right protocol
   useEffect(() => {
@@ -42,6 +49,20 @@ export function DroneDetailPanel({ droneId, onClose }: DroneDetailPanelProps) {
       useDroneManager.getState().selectDrone(droneId);
     }
   }, [droneId, isConnected]);
+
+  function handleDelete() {
+    // Disconnect if connected
+    if (isConnected) {
+      useDroneManager.getState().removeDrone(droneId);
+    }
+    // Remove from fleet
+    removeDrone(droneId);
+    // Delete metadata
+    useDroneMetadataStore.getState().deleteProfile(droneId);
+    setDeleteOpen(false);
+    toast(`Drone "${displayName}" deleted`, "warning");
+    onClose();
+  }
 
   if (!drone) {
     return (
@@ -60,7 +81,7 @@ export function DroneDetailPanel({ droneId, onClose }: DroneDetailPanelProps) {
     <div className="flex-1 flex flex-col h-full overflow-hidden">
       {/* Merged header + tabs bar */}
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border-default bg-bg-secondary flex-shrink-0">
-        <h1 className="text-sm font-semibold text-text-primary shrink-0">{drone.name}</h1>
+        <h1 className="text-sm font-semibold text-text-primary shrink-0">{displayName}</h1>
         <DroneStatusBadge status={drone.status} />
         <Button
           variant="ghost"
@@ -89,6 +110,13 @@ export function DroneDetailPanel({ droneId, onClose }: DroneDetailPanelProps) {
         <span className="text-[10px] font-mono text-text-tertiary ml-auto shrink-0">
           ID: {drone.id}
         </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={<Trash2 size={12} />}
+          onClick={() => setDeleteOpen(true)}
+          className="text-status-error hover:text-status-error"
+        />
         {isConnected && (
           <Button
             variant="danger"
@@ -113,12 +141,21 @@ export function DroneDetailPanel({ droneId, onClose }: DroneDetailPanelProps) {
         {activeTab === "configure" && (
           <DroneConfigureTab
             droneId={droneId}
-            droneName={drone.name}
+            droneName={displayName}
             isConnected={isConnected}
           />
         )}
-        {activeTab === "settings" && <DroneSettingsTab drone={drone} />}
       </div>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteOpen(false)}
+        title="Delete Drone"
+        message={`Are you sure you want to delete "${displayName}"? This removes the drone from the fleet and deletes all saved metadata.`}
+        confirmLabel="Delete"
+        variant="danger"
+      />
     </div>
   );
 }

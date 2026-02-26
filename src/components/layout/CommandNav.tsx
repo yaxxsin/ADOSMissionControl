@@ -2,14 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  Route,
-  Play,
-  History,
-  BarChart3,
-  HeartPulse,
-} from "lucide-react";
+import { LayoutDashboard, Route, Play, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const tabs = [
@@ -17,8 +10,6 @@ const tabs = [
   { icon: Route, label: "Plan", href: "/plan" },
   { icon: Play, label: "Simulate", href: "/simulate" },
 { icon: History, label: "History", href: "/history" },
-  { icon: BarChart3, label: "Analytics", href: "/analytics" },
-  { icon: HeartPulse, label: "Wizard", href: "/wizard" },
 ] as const;
 
 export function CommandNav() {

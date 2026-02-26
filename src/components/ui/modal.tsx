@@ -36,7 +36,7 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
         if (e.target === overlayRef.current) onClose();
       }}
     >
-      <div className={cn("bg-bg-secondary border border-border-default w-full max-w-lg mx-4", className)}>
+      <div className={cn("bg-bg-secondary border border-border-default w-full mx-4", className)}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-border-default">
           <h2 className="text-sm font-semibold text-text-primary">{title}</h2>
           <button onClick={onClose} className="text-text-tertiary hover:text-text-primary transition-colors">

@@ -30,6 +30,21 @@ interface TelemetryStoreState {
   pushServoOutput: (data: ServoOutputData) => void;
   pushWind: (data: WindData) => void;
   pushTerrain: (data: TerrainData) => void;
+  pushBatch: (batch: Partial<{
+    attitude: AttitudeData;
+    position: PositionData;
+    battery: BatteryData;
+    gps: GpsData;
+    vfr: VfrData;
+    rc: RcData;
+    sysStatus: SysStatusData;
+    radio: RadioData;
+    ekf: EkfData;
+    vibration: VibrationData;
+    servoOutput: ServoOutputData;
+    wind: WindData;
+    terrain: TerrainData;
+  }>) => void;
   clear: () => void;
 }
 
@@ -85,6 +100,23 @@ export const useTelemetryStore = create<TelemetryStoreState>((set, get) => ({
   pushServoOutput: (data) => { get().servoOutput.push(data); set({}); },
   pushWind: (data) => { get().wind.push(data); set({}); },
   pushTerrain: (data) => { get().terrain.push(data); set({}); },
+  pushBatch: (batch) => {
+    const s = get();
+    if (batch.attitude) s.attitude.push(batch.attitude);
+    if (batch.position) s.position.push(batch.position);
+    if (batch.battery) s.battery.push(batch.battery);
+    if (batch.gps) s.gps.push(batch.gps);
+    if (batch.vfr) s.vfr.push(batch.vfr);
+    if (batch.rc) s.rc.push(batch.rc);
+    if (batch.sysStatus) s.sysStatus.push(batch.sysStatus);
+    if (batch.radio) s.radio.push(batch.radio);
+    if (batch.ekf) s.ekf.push(batch.ekf);
+    if (batch.vibration) s.vibration.push(batch.vibration);
+    if (batch.servoOutput) s.servoOutput.push(batch.servoOutput);
+    if (batch.wind) s.wind.push(batch.wind);
+    if (batch.terrain) s.terrain.push(batch.terrain);
+    set({});
+  },
   clear: () =>
     set({
       attitude: new RingBuffer<AttitudeData>(600),

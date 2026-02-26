@@ -3,6 +3,8 @@
 import { useState, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useTelemetryStore } from "@/stores/telemetry-store";
 import { Battery, Zap, Save, HardDrive } from "lucide-react";
@@ -15,10 +17,27 @@ interface ParamState {
 
 type PowerParams = Record<string, ParamState>;
 
+const BATT_MONITOR_OPTIONS = [
+  { value: "0", label: "0 — Disabled" },
+  { value: "3", label: "3 — Analog Voltage Only" },
+  { value: "4", label: "4 — Analog Voltage and Current" },
+  { value: "5", label: "5 — Solo" },
+  { value: "7", label: "7 — SMBus" },
+  { value: "8", label: "8 — DroneCAN" },
+  { value: "9", label: "9 — ESC" },
+  { value: "10", label: "10 — Sum of Selected" },
+  { value: "16", label: "16 — Analog VCC" },
+];
+
 const DEFAULT_PARAMS: PowerParams = {
+  BATT_MONITOR: { value: "0", dirty: false },
   BATT_CAPACITY: { value: "0", dirty: false },
   BATT_AMP_PERVLT: { value: "17.0", dirty: false },
   BATT_AMP_OFFSET: { value: "0.0", dirty: false },
+  BATT2_MONITOR: { value: "0", dirty: false },
+  BATT2_CAPACITY: { value: "0", dirty: false },
+  BATT2_AMP_PERVLT: { value: "17.0", dirty: false },
+  BATT2_AMP_OFFSET: { value: "0.0", dirty: false },
 };
 
 function cellVoltageColor(v: number): string {
@@ -35,6 +54,7 @@ function cellVoltageBg(v: number): string {
 
 export function PowerPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
+  const { toast } = useToast();
   const batteryBuffer = useTelemetryStore((s) => s.battery);
   const [params, setParams] = useState<PowerParams>(DEFAULT_PARAMS);
   const [saving, setSaving] = useState(false);
@@ -78,7 +98,8 @@ export function PowerPanel() {
     }
     setParams(updated);
     setLoaded(true);
-  }, [getSelectedProtocol, params]);
+    toast("Loaded power parameters", "success");
+  }, [getSelectedProtocol, params, toast]);
 
   const saveParams = useCallback(async () => {
     const protocol = getSelectedProtocol();
@@ -90,19 +111,25 @@ export function PowerPanel() {
         await protocol.setParameter(name, parseFloat(p.value));
         setParams((prev) => ({ ...prev, [name]: { ...prev[name], dirty: false } }));
       } catch {
-        // write failed
+        toast(`Failed to write ${name}`, "error");
       }
     }
     setShowCommitButton(true);
     setSaving(false);
-  }, [getSelectedProtocol, params]);
+    toast("Saved to flight controller", "success");
+  }, [getSelectedProtocol, params, toast]);
 
   const commitToFlash = useCallback(async () => {
     const protocol = getSelectedProtocol();
     if (!protocol) return;
-    await protocol.commitParamsToFlash();
-    setShowCommitButton(false);
-  }, [getSelectedProtocol]);
+    try {
+      await protocol.commitParamsToFlash();
+      setShowCommitButton(false);
+      toast("Written to flash — persists after reboot", "success");
+    } catch {
+      toast("Failed to write to flash", "error");
+    }
+  }, [getSelectedProtocol, toast]);
 
   const hasDirty = Object.values(params).some((p) => p.dirty);
   const connected = !!getSelectedProtocol();
@@ -175,6 +202,12 @@ export function PowerPanel() {
             <Battery size={14} className="text-accent-primary" />
             <h2 className="text-sm font-medium text-text-primary">Battery Settings</h2>
           </div>
+          <Select
+            label="BATT_MONITOR — Battery Monitor Type"
+            options={BATT_MONITOR_OPTIONS}
+            value={params.BATT_MONITOR.value}
+            onChange={(v) => updateParam("BATT_MONITOR", v)}
+          />
           <Input
             label="BATT_CAPACITY — Battery Capacity"
             type="number"
@@ -209,6 +242,47 @@ export function PowerPanel() {
             onChange={(e) => updateParam("BATT_AMP_OFFSET", e.target.value)}
           />
         </div>
+
+        {/* Battery 2 */}
+        {params.BATT2_MONITOR.value !== "0" && (
+          <div className="border border-border-default bg-bg-secondary p-4 space-y-3">
+            <div className="flex items-center gap-2 mb-1">
+              <Battery size={14} className="text-accent-primary" />
+              <h2 className="text-sm font-medium text-text-primary">Battery 2</h2>
+            </div>
+            <Select
+              label="BATT2_MONITOR — Battery 2 Monitor Type"
+              options={BATT_MONITOR_OPTIONS}
+              value={params.BATT2_MONITOR.value}
+              onChange={(v) => updateParam("BATT2_MONITOR", v)}
+            />
+            <Input
+              label="BATT2_CAPACITY — Battery 2 Capacity"
+              type="number"
+              step="100"
+              min="0"
+              unit="mAh"
+              value={params.BATT2_CAPACITY.value}
+              onChange={(e) => updateParam("BATT2_CAPACITY", e.target.value)}
+            />
+            <Input
+              label="BATT2_AMP_PERVLT — Battery 2 Amps Per Volt"
+              type="number"
+              step="0.1"
+              unit="A/V"
+              value={params.BATT2_AMP_PERVLT.value}
+              onChange={(e) => updateParam("BATT2_AMP_PERVLT", e.target.value)}
+            />
+            <Input
+              label="BATT2_AMP_OFFSET — Battery 2 Current Offset"
+              type="number"
+              step="0.01"
+              unit="A"
+              value={params.BATT2_AMP_OFFSET.value}
+              onChange={(e) => updateParam("BATT2_AMP_OFFSET", e.target.value)}
+            />
+          </div>
+        )}
 
         {/* Save */}
         <div className="flex items-center gap-3 pt-2 pb-4">

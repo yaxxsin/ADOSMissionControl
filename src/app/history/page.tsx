@@ -1,14 +1,21 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { HistoryToolbar } from "@/components/history/HistoryToolbar";
 import { HistoryTable } from "@/components/history/HistoryTable";
 import { HistoryDetailPanel } from "@/components/history/HistoryDetailPanel";
 import { getFlightHistory } from "@/mock/history";
+import { useHistoryStore } from "@/stores/history-store";
 import type { FlightRecord } from "@/lib/types";
 
 export default function FlightHistoryPage() {
-  const allRecords = useMemo(() => getFlightHistory(), []);
+  // Init store with seed data once
+  const initWithSeedData = useHistoryStore((s) => s.initWithSeedData);
+  useEffect(() => {
+    initWithSeedData(getFlightHistory());
+  }, [initWithSeedData]);
+
+  const allRecords = useHistoryStore((s) => s.records);
 
   // Filters
   const [dateFrom, setDateFrom] = useState("");
@@ -94,6 +101,7 @@ export default function FlightHistoryPage() {
         suiteFilter={suiteFilter}
         sort={sort}
         droneNames={droneNames}
+        records={filteredRecords}
         onDateFromChange={setDateFrom}
         onDateToChange={setDateTo}
         onStatusChange={setStatus}

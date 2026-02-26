@@ -7,6 +7,7 @@ import { Plug } from "lucide-react";
 import { WebSocketTransport } from "@/lib/protocol/transport-websocket";
 import { MAVLinkAdapter } from "@/lib/protocol/mavlink-adapter";
 import { useDroneManager } from "@/stores/drone-manager";
+import { useDroneMetadataStore } from "@/stores/drone-metadata-store";
 import { randomId } from "@/lib/utils";
 import { getPreset } from "@/lib/presets/presets";
 import { BuildPresetPicker } from "./BuildPresetPicker";
@@ -67,6 +68,12 @@ export function WebSocketPanel({
         type: "websocket",
         url: trimmed,
         presetId: selectedPresetId ?? undefined,
+      });
+
+      useDroneMetadataStore.getState().ensureProfile(droneId, {
+        displayName: droneName,
+        serial: `ALT-${droneId.toUpperCase()}`,
+        enrolledAt: Date.now(),
       });
 
       onConnected?.(droneName, "websocket", trimmed);

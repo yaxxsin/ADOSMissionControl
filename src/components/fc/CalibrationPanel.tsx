@@ -8,6 +8,7 @@ import {
   type CompassProgressEntry,
   type CompassResultEntry,
 } from "./CalibrationWizard";
+import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
 import { cn } from "@/lib/utils";
 import { Trash2 } from "lucide-react";
@@ -124,6 +125,7 @@ const SEVERITY_COLORS: Record<number, string> = {
 
 export function CalibrationPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
+  const { toast } = useToast();
   const connected = !!getSelectedProtocol();
 
   const [accel, setAccel] = useState<CalibrationState>(INITIAL_STATE);
@@ -270,6 +272,7 @@ export function CalibrationPanel() {
               message: text,
             };
           });
+          toast(`${calType.charAt(0).toUpperCase() + calType.slice(1)} calibration complete`, "success");
           cleanupSubs(calType);
           return;
         }
@@ -278,6 +281,7 @@ export function CalibrationPanel() {
         if (lower.includes("calibration failed") || lower.includes("cal failed")) {
           if (!typeRelevant) return;
           setter((prev) => ({ ...prev, status: "error", message: text, waitingForConfirm: false }));
+          toast(`${calType.charAt(0).toUpperCase() + calType.slice(1)} calibration failed`, "error");
           cleanupSubs(calType);
           return;
         }
@@ -426,7 +430,7 @@ export function CalibrationPanel() {
         }
       }
     },
-    [getSelectedProtocol],
+    [getSelectedProtocol, toast],
   );
 
   const cancelCalibration = useCallback(
@@ -487,7 +491,10 @@ export function CalibrationPanel() {
               status: "error",
               message: result.message || "Calibration command rejected",
             }));
+            toast(`${type.charAt(0).toUpperCase() + type.slice(1)} calibration rejected`, "error");
           }
+        } else {
+          toast(`${type.charAt(0).toUpperCase() + type.slice(1)} calibration started`, "info");
         }
       } catch {
         cleanupSubs(type);
@@ -496,9 +503,10 @@ export function CalibrationPanel() {
           status: "error",
           message: "Failed to send calibration command",
         }));
+        toast("Failed to send calibration command", "error");
       }
     },
-    [getSelectedProtocol, subscribeToStatus],
+    [getSelectedProtocol, subscribeToStatus, toast],
   );
 
   const compassProgressEntries: CompassProgressEntry[] = Array.from(compass.compassProgress.entries())

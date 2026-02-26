@@ -2,13 +2,14 @@
  * @module MissionStatsBar
  * @description Compact stats overlay at the bottom-left of the map showing
  * waypoint count, total distance, estimated time, max altitude, and average speed.
+ * Uses 3D distance (haversine + altitude) to match simulation calculations.
  * @license GPL-3.0-only
  */
 "use client";
 
 import { useMemo } from "react";
 import type { Waypoint } from "@/lib/types";
-import { totalPathDistance } from "@/lib/telemetry-utils";
+import { computeFlightPlan } from "@/lib/simulation-utils";
 
 interface MissionStatsBarProps {
   waypoints: Waypoint[];
@@ -17,16 +18,16 @@ interface MissionStatsBarProps {
 
 export function MissionStatsBar({ waypoints, defaultSpeed }: MissionStatsBarProps) {
   const stats = useMemo(() => {
-    const totalDist = totalPathDistance(waypoints);
+    const plan = computeFlightPlan(waypoints, defaultSpeed);
     let maxAlt = 0;
     for (const wp of waypoints) {
       if (wp.alt > maxAlt) maxAlt = wp.alt;
     }
     const avgSpeed = defaultSpeed || 5;
-    const estTime = totalDist / avgSpeed;
+    const estTime = plan.totalDistance / avgSpeed;
     return {
       wpCount: waypoints.length,
-      totalDistKm: (totalDist / 1000).toFixed(1),
+      totalDistKm: (plan.totalDistance / 1000).toFixed(1),
       estTimeMin: Math.ceil(estTime / 60),
       maxAlt: Math.round(maxAlt),
       avgSpeed: Math.round(avgSpeed),

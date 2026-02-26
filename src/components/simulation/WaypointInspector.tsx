@@ -9,25 +9,26 @@
 import { useMemo } from "react";
 import { MapPin } from "lucide-react";
 import { useMissionStore } from "@/stores/mission-store";
-import { usePlannerStore } from "@/stores/planner-store";
 import { useSimulationStore } from "@/stores/simulation-store";
-import { useThrottledElapsed } from "@/hooks/use-throttled-elapsed";
-import { computeFlightPlan, interpolatePosition, formatEta } from "@/lib/simulation-utils";
+import { useInterpolatedPosition } from "@/hooks/use-interpolated-position";
+import { formatEta } from "@/lib/simulation-utils";
 import { formatAlt } from "@/lib/telemetry-utils";
 
 export function WaypointInspector() {
   const waypoints = useMissionStore((s) => s.waypoints);
-  const defaultSpeed = usePlannerStore((s) => s.defaultSpeed);
   const playbackState = useSimulationStore((s) => s.playbackState);
   const seek = useSimulationStore((s) => s.seek);
-  const elapsed = useThrottledElapsed();
+  const { pos, flightPlan, elapsed } = useInterpolatedPosition();
 
-  const flightPlan = useMemo(
-    () => computeFlightPlan(waypoints, defaultSpeed),
-    [waypoints, defaultSpeed]
-  );
-
-  const pos = interpolatePosition(flightPlan.segments, waypoints, elapsed);
+  // Memoize cumulative times — only changes when flight plan changes
+  const cumulativeTimes = useMemo(() => {
+    const times: number[] = [];
+    for (const seg of flightPlan.segments) {
+      // seg.duration already includes holdTime — don't add it again
+      times.push(seg.cumulativeDuration);
+    }
+    return times;
+  }, [flightPlan.segments]);
 
   if (waypoints.length < 2) {
     return (
@@ -42,15 +43,6 @@ export function WaypointInspector() {
 
   const currentWp = waypoints[pos.currentWaypointIndex];
   const upcomingWps = waypoints.slice(pos.currentWaypointIndex + 1, pos.currentWaypointIndex + 4);
-
-  // Calculate cumulative durations for seeking
-  const cumulativeTimes: number[] = [];
-  let cumTime = 0;
-  for (const seg of flightPlan.segments) {
-    const wp = waypoints[seg.fromIndex];
-    cumTime += (wp?.holdTime || 0) + seg.duration;
-    cumulativeTimes.push(cumTime);
-  }
 
   return (
     <div className="px-3 py-3">

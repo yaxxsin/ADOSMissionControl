@@ -20,8 +20,11 @@ import { useFleetStore } from "@/stores/fleet-store";
 import { useTelemetryStore } from "@/stores/telemetry-store";
 import { useDroneStore } from "@/stores/drone-store";
 import { useDroneManager } from "@/stores/drone-manager";
+import { useHistoryStore } from "@/stores/history-store";
+import { useDroneMetadataStore } from "@/stores/drone-metadata-store";
 import { haversineDistance } from "@/lib/telemetry-utils";
-import type { FleetDrone } from "@/lib/types";
+import { randomId } from "@/lib/utils";
+import type { FleetDrone, FlightRecord } from "@/lib/types";
 import type { UnifiedFlightMode } from "@/lib/protocol/types";
 
 interface DroneSimState {
@@ -36,6 +39,15 @@ interface DroneSimState {
   transport: MockTransport;
   bootMessageIndex: number;
   statusMessageTick: number;
+  segmentDistances: number[]; // pre-computed haversine distances per segment
+  // Loop tracking for flight recording
+  loopStartTick: number;
+  loopMaxAlt: number;
+  loopMaxSpeed: number;
+  loopDistance: number;
+  loopBatteryStart: number;
+  loopTrail: [number, number][];
+  loopCount: number; // track completed loops — skip the first partial one
 }
 
 /** Core sensor bitmask: gyro | accel | compass | baro | GPS | motors | RC | AHRS | battery */
@@ -49,19 +61,38 @@ class MockFlightEngine {
   private running = false;
 
   constructor() {
-    this.states = DEMO_DRONES.map((cfg) => ({
-      config: cfg,
-      pathProgress: 0,
-      currentWaypointIdx: 0,
-      battery: cfg.batteryStart,
-      tickCount: 0,
-      lastAlertTick: 0,
-      batteryAlertSent: false,
-      protocol: new MockProtocol(),
-      transport: new MockTransport(),
-      bootMessageIndex: 0,
-      statusMessageTick: 0,
-    }));
+    this.states = DEMO_DRONES.map((cfg) => {
+      // Pre-compute segment distances so haversine isn't called every tick
+      const path = cfg.pathIndex >= 0 ? FLIGHT_PATHS[cfg.pathIndex] : null;
+      const segmentDistances: number[] = [];
+      if (path && path.length >= 2) {
+        for (let i = 0; i < path.length; i++) {
+          const next = (i + 1) % path.length;
+          segmentDistances.push(haversineDistance(path[i].lat, path[i].lon, path[next].lat, path[next].lon));
+        }
+      }
+      return {
+        config: cfg,
+        pathProgress: 0,
+        currentWaypointIdx: 0,
+        battery: cfg.batteryStart,
+        tickCount: 0,
+        lastAlertTick: 0,
+        batteryAlertSent: false,
+        protocol: new MockProtocol(),
+        transport: new MockTransport(),
+        bootMessageIndex: 0,
+        statusMessageTick: 0,
+        segmentDistances,
+        loopStartTick: 0,
+        loopMaxAlt: 0,
+        loopMaxSpeed: 0,
+        loopDistance: 0,
+        loopBatteryStart: cfg.batteryStart,
+        loopTrail: [],
+        loopCount: 0,
+      };
+    });
   }
 
   start(intervalMs = 200): void {
@@ -72,6 +103,22 @@ class MockFlightEngine {
     // Initialize fleet store with demo drones
     const initialDrones = DEMO_DRONES.map(configToFleetDrone);
     useFleetStore.getState().setDrones(initialDrones);
+
+    // Seed metadata profiles for demo drones (idempotent — won't overwrite user edits)
+    const metadataStore = useDroneMetadataStore.getState();
+    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    for (const cfg of DEMO_DRONES) {
+      metadataStore.ensureProfile(cfg.id, {
+        displayName: cfg.name,
+        serial: `ALT-${cfg.id.toUpperCase()}`,
+        computeModule: "RPi CM4",
+        weightClass: "Micro",
+        suiteType: cfg.suiteType ?? null,
+        totalFlights: cfg.pathIndex >= 0 ? 47 : 12,
+        totalHours: cfg.pathIndex >= 0 ? 23.4 : 5.1,
+        enrolledAt: thirtyDaysAgo,
+      });
+    }
 
     // Select first drone by default
     useDroneStore.getState().selectDrone("alpha-1");
@@ -137,8 +184,8 @@ class MockFlightEngine {
       const nextIdx = (state.currentWaypointIdx + 1) % path.length;
       const nextWp = path[nextIdx];
 
-      // Speed-based progress increment
-      const segmentDist = haversineDistance(wp.lat, wp.lon, nextWp.lat, nextWp.lon);
+      // Speed-based progress increment (use pre-computed distance)
+      const segmentDist = state.segmentDistances[state.currentWaypointIdx] ?? 0;
       const stepDist = (wp.speed * this.tickRate) / 1000; // meters per tick
       const progressStep = segmentDist > 0 ? stepDist / segmentDist : 0.01;
       state.pathProgress += progressStep;
@@ -146,11 +193,57 @@ class MockFlightEngine {
       // Move to next waypoint when segment complete
       if (state.pathProgress >= 1) {
         state.pathProgress = 0;
+
+        // Detect loop completion: wrapping from last WP to first
+        if (nextIdx === 0 && state.currentWaypointIdx > 0) {
+          state.loopCount++;
+          // Only record after the first full traversal (skip partial first loop)
+          if (state.loopCount >= 2) {
+            const duration = Math.round(
+              (state.tickCount - state.loopStartTick) * this.tickRate / 1000,
+            );
+            const record: FlightRecord = {
+              id: randomId(),
+              droneId: cfg.id,
+              droneName: cfg.name,
+              suiteType: cfg.suiteType,
+              date: Date.now(),
+              duration,
+              distance: Math.round(state.loopDistance),
+              maxAlt: Math.round(state.loopMaxAlt),
+              maxSpeed: Math.round(state.loopMaxSpeed * 10) / 10,
+              batteryUsed: Math.round(state.loopBatteryStart - state.battery),
+              waypointCount: path.length,
+              status: "completed",
+              path: state.loopTrail.length > 0 ? [...state.loopTrail] : undefined,
+            };
+            useHistoryStore.getState().addRecord(record);
+          }
+          // Reset loop trackers
+          state.loopStartTick = state.tickCount;
+          state.loopMaxAlt = 0;
+          state.loopMaxSpeed = 0;
+          state.loopDistance = 0;
+          state.loopBatteryStart = state.battery;
+          state.loopTrail = [];
+        }
+
+        // Accumulate distance for current segment
+        state.loopDistance += state.segmentDistances[state.currentWaypointIdx] ?? 0;
+
         state.currentWaypointIdx = nextIdx;
       }
 
       // Interpolate position
       const pos = interpolatePath(wp, nextWp, state.pathProgress);
+
+      // Accumulate loop metrics
+      if (pos.alt > state.loopMaxAlt) state.loopMaxAlt = pos.alt;
+      if (wp.speed > state.loopMaxSpeed) state.loopMaxSpeed = wp.speed;
+      // Record trail point every 10 ticks (~2s at 200ms tick)
+      if (state.tickCount % 10 === 0) {
+        state.loopTrail.push([pos.lat, pos.lon]);
+      }
 
       // GPS jitter
       const jitterLat = (Math.random() - 0.5) * 0.00002;
@@ -197,40 +290,41 @@ class MockFlightEngine {
       };
       fleetStore.updateDrone(cfg.id, droneUpdate);
 
-      // Push telemetry to ring buffers for selected drone
+      // Push telemetry to ring buffers for selected drone (batched — single store notification)
       if (cfg.id === selectedId) {
-        telemetryStore.pushAttitude({
-          timestamp: now,
-          roll,
-          pitch,
-          yaw: pos.heading,
-          rollSpeed: roll * 0.1,
-          pitchSpeed: pitch * 0.05,
-          yawSpeed: headingDelta * 0.02,
-        });
-        telemetryStore.pushPosition(droneUpdate.position!);
-        // Push battery at 2Hz (every 2.5 ticks at 5Hz)
-        if (state.tickCount % 3 === 0) {
-          telemetryStore.pushBattery(droneUpdate.battery!);
-        }
-        telemetryStore.pushGps(droneUpdate.gps!);
-        telemetryStore.pushVfr({
-          timestamp: now,
-          airspeed: wp.speed * 1.05,
-          groundspeed: wp.speed,
-          heading: pos.heading,
-          throttle: 45 + Math.random() * 15,
-          alt: pos.alt,
-          climb: (nextWp.alt - wp.alt) * progressStep,
-        });
         // Cycle CH5 through 6 mode zones so each slot activates in demo
         const modePhase = Math.floor(state.tickCount / 25) % 6;
         const modePwmTable = [1000, 1295, 1425, 1555, 1685, 1875];
         const ch5Pwm = modePwmTable[modePhase];
-        telemetryStore.pushRc({
-          timestamp: now,
-          channels: [1500, 1500, 1500, 1500, ch5Pwm, 1000, 1000, 1000, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500],
-          rssi: 200 + Math.floor(Math.random() * 55),
+
+        telemetryStore.pushBatch({
+          attitude: {
+            timestamp: now,
+            roll,
+            pitch,
+            yaw: pos.heading,
+            rollSpeed: roll * 0.1,
+            pitchSpeed: pitch * 0.05,
+            yawSpeed: headingDelta * 0.02,
+          },
+          position: droneUpdate.position!,
+          // Push battery at 2Hz (every 2.5 ticks at 5Hz)
+          ...(state.tickCount % 3 === 0 ? { battery: droneUpdate.battery! } : {}),
+          gps: droneUpdate.gps!,
+          vfr: {
+            timestamp: now,
+            airspeed: wp.speed * 1.05,
+            groundspeed: wp.speed,
+            heading: pos.heading,
+            throttle: 45 + Math.random() * 15,
+            alt: pos.alt,
+            climb: (nextWp.alt - wp.alt) * progressStep,
+          },
+          rc: {
+            timestamp: now,
+            channels: [1500, 1500, 1500, 1500, ch5Pwm, 1000, 1000, 1000, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500],
+            rssi: 200 + Math.floor(Math.random() * 55),
+          },
         });
 
         // ── Protocol-emitted telemetry (via callbacks → bridgeTelemetry) ──

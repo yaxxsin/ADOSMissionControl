@@ -13,6 +13,7 @@
 import type {
   DroneProtocol, Transport, VehicleInfo, CommandResult, ParameterValue,
   MissionItem, FirmwareHandler, ProtocolCapabilities, UnifiedFlightMode,
+  LogEntry, LogDownloadProgressCallback,
   AttitudeCallback, PositionCallback, BatteryCallback, GpsCallback,
   VfrCallback, RcCallback, StatusTextCallback, HeartbeatCallback,
   ParameterCallback, SerialDataCallback,
@@ -32,6 +33,7 @@ import {
   encodeMissionCount, encodeMissionItemInt, encodeSerialControl,
   encodeMissionRequestList, encodeMissionRequestInt, encodeMissionAck, encodeMissionClearAll,
   encodeRequestDataStream, encodeCommandInt,
+  encodeLogRequestList, encodeLogRequestData, encodeLogErase, encodeLogRequestEnd,
 } from './mavlink-encoder'
 import {
   decodeHeartbeat, decodeAttitude, decodeGlobalPositionInt,
@@ -48,6 +50,7 @@ import {
   decodeHomePosition, decodeAutopilotVersion,
   decodePowerStatus, decodeDistanceSensor, decodeFenceStatus,
   decodeNavControllerOutput, decodeScaledImu,
+  decodeLogEntry, decodeLogData,
 } from './mavlink-messages'
 import { CommandQueue } from './command-queue'
 import { createFirmwareHandler } from './firmware-ardupilot'
@@ -138,6 +141,29 @@ export class MAVLinkAdapter implements DroneProtocol {
     resolve: (items: MissionItem[]) => void
     reject: (err: Error) => void
     timer: ReturnType<typeof setTimeout>
+  } | null = null
+
+  // Log list state
+  private logListDownload: {
+    entries: Map<number, LogEntry>
+    lastLogId: number
+    resolve: (entries: LogEntry[]) => void
+    timer: ReturnType<typeof setTimeout>
+  } | null = null
+
+  // Log data download state
+  private logDataDownload: {
+    logId: number
+    totalSize: number
+    data: Uint8Array
+    receivedBytes: number
+    lastReceivedOfs: number
+    onProgress?: LogDownloadProgressCallback
+    resolve: (data: Uint8Array) => void
+    reject: (err: Error) => void
+    inactivityTimer: ReturnType<typeof setTimeout> | null
+    hardTimer: ReturnType<typeof setTimeout>
+    retryCount: number
   } | null = null
 
   get isConnected(): boolean { return this._connected }
@@ -248,6 +274,18 @@ export class MAVLinkAdapter implements DroneProtocol {
     }
     this.commandQueue.clear()
     this.parser.reset()
+    // Clean up log state machines
+    if (this.logListDownload) {
+      clearTimeout(this.logListDownload.timer)
+      this.logListDownload.resolve(Array.from(this.logListDownload.entries.values()))
+      this.logListDownload = null
+    }
+    if (this.logDataDownload) {
+      if (this.logDataDownload.inactivityTimer) clearTimeout(this.logDataDownload.inactivityTimer)
+      clearTimeout(this.logDataDownload.hardTimer)
+      this.logDataDownload.reject(new Error('Disconnected during log download'))
+      this.logDataDownload = null
+    }
     if (this.transport && this.dataHandler) {
       this.transport.off('data', this.dataHandler)
       this.transport.off('close', this.closeHandler as (data: void) => void)
@@ -327,6 +365,8 @@ export class MAVLinkAdapter implements DroneProtocol {
       case 162: this.handleFenceStatus(frame); break
       case 62:  this.handleNavControllerOutput(frame); break
       case 26:  this.handleScaledImu(frame); break
+      case 118: this.handleLogEntry(frame); break
+      case 120: this.handleLogData(frame); break
     }
   }
 
@@ -1293,6 +1333,210 @@ export class MAVLinkAdapter implements DroneProtocol {
 
   async doPreArmCheck(): Promise<CommandResult> {
     return this.sendCommandLong(401, [0, 0, 0, 0, 0, 0, 0])
+  }
+
+  // ── Log Download ───────────────────────────────────────
+
+  async getLogList(): Promise<LogEntry[]> {
+    if (!this.transport?.isConnected) return []
+
+    return new Promise<LogEntry[]>((resolve) => {
+      const timer = setTimeout(() => {
+        // 15s timeout — resolve with whatever we received
+        if (this.logListDownload) {
+          const entries = Array.from(this.logListDownload.entries.values())
+            .sort((a, b) => a.id - b.id)
+          this.logListDownload = null
+          resolve(entries)
+        } else {
+          resolve([])
+        }
+      }, 15000)
+
+      this.logListDownload = {
+        entries: new Map(),
+        lastLogId: 0,
+        resolve,
+        timer,
+      }
+
+      this.transport!.send(encodeLogRequestList(
+        this.targetSysId, this.targetCompId,
+        0, 0xffff,
+        this.sysId, this.compId,
+      ))
+    })
+  }
+
+  async downloadLog(logId: number, onProgress?: LogDownloadProgressCallback): Promise<Uint8Array> {
+    if (!this.transport?.isConnected) throw new Error('Not connected')
+
+    return new Promise<Uint8Array>((resolve, reject) => {
+      // 5 min hard timeout
+      const hardTimer = setTimeout(() => {
+        this.finishLogDataDownload(true)
+      }, 5 * 60 * 1000)
+
+      const createInactivityTimer = () => setTimeout(() => {
+        // 3s inactivity — retry from last offset
+        if (!this.logDataDownload || !this.transport?.isConnected) return
+        this.logDataDownload.retryCount++
+        if (this.logDataDownload.retryCount > 5) {
+          this.finishLogDataDownload(true)
+          return
+        }
+        // Re-request from last received offset
+        this.transport.send(encodeLogRequestData(
+          this.targetSysId, this.targetCompId,
+          this.logDataDownload.logId,
+          this.logDataDownload.receivedBytes,
+          0xffffffff,
+          this.sysId, this.compId,
+        ))
+        this.logDataDownload.inactivityTimer = createInactivityTimer()
+      }, 3000)
+
+      // We don't know totalSize upfront — allocate generously, will trim
+      this.logDataDownload = {
+        logId,
+        totalSize: 0, // updated when first data arrives or from log entry
+        data: new Uint8Array(0),
+        receivedBytes: 0,
+        lastReceivedOfs: -1,
+        onProgress,
+        resolve,
+        reject,
+        inactivityTimer: createInactivityTimer(),
+        hardTimer,
+        retryCount: 0,
+      }
+
+      this.transport!.send(encodeLogRequestData(
+        this.targetSysId, this.targetCompId,
+        logId, 0, 0xffffffff,
+        this.sysId, this.compId,
+      ))
+    })
+  }
+
+  async eraseAllLogs(): Promise<CommandResult> {
+    if (!this.transport?.isConnected) {
+      return { success: false, resultCode: -1, message: 'Not connected' }
+    }
+    this.transport.send(encodeLogErase(
+      this.targetSysId, this.targetCompId,
+      this.sysId, this.compId,
+    ))
+    return { success: true, resultCode: 0, message: 'Erase command sent' }
+  }
+
+  cancelLogDownload(): void {
+    if (this.logDataDownload) {
+      if (this.logDataDownload.inactivityTimer) clearTimeout(this.logDataDownload.inactivityTimer)
+      clearTimeout(this.logDataDownload.hardTimer)
+      this.logDataDownload.resolve(new Uint8Array(0))
+      this.logDataDownload = null
+    }
+    if (this.transport?.isConnected) {
+      this.transport.send(encodeLogRequestEnd(
+        this.targetSysId, this.targetCompId,
+        this.sysId, this.compId,
+      ))
+    }
+  }
+
+  private handleLogEntry(frame: MAVLinkFrame): void {
+    if (!this.logListDownload) return
+    const data = decodeLogEntry(frame.payload)
+    const entry: LogEntry = {
+      id: data.id,
+      numLogs: data.numLogs,
+      lastLogId: data.lastLogNum,
+      size: data.size,
+      timeUtc: data.timeUtc,
+    }
+    this.logListDownload.entries.set(data.id, entry)
+    this.logListDownload.lastLogId = data.lastLogNum
+
+    // Complete when we've received the last log entry
+    if (data.id >= data.lastLogNum || data.numLogs === 0) {
+      clearTimeout(this.logListDownload.timer)
+      const entries = Array.from(this.logListDownload.entries.values())
+        .sort((a, b) => a.id - b.id)
+      this.logListDownload.resolve(entries)
+      this.logListDownload = null
+    }
+  }
+
+  private handleLogData(frame: MAVLinkFrame): void {
+    if (!this.logDataDownload) return
+    const data = decodeLogData(frame.payload)
+    if (data.id !== this.logDataDownload.logId) return
+
+    // Grow data buffer if needed
+    const endOfs = data.ofs + data.count
+    if (endOfs > this.logDataDownload.data.length) {
+      const newBuf = new Uint8Array(Math.max(endOfs, this.logDataDownload.data.length * 2))
+      newBuf.set(this.logDataDownload.data)
+      this.logDataDownload.data = newBuf
+    }
+
+    // Copy chunk data
+    this.logDataDownload.data.set(data.data, data.ofs)
+    if (endOfs > this.logDataDownload.receivedBytes) {
+      this.logDataDownload.receivedBytes = endOfs
+    }
+    this.logDataDownload.lastReceivedOfs = data.ofs
+
+    // Fire progress callback
+    if (this.logDataDownload.onProgress && this.logDataDownload.totalSize > 0) {
+      this.logDataDownload.onProgress(
+        this.logDataDownload.receivedBytes,
+        this.logDataDownload.totalSize,
+      )
+    }
+
+    // Reset inactivity timer
+    if (this.logDataDownload.inactivityTimer) clearTimeout(this.logDataDownload.inactivityTimer)
+    this.logDataDownload.inactivityTimer = setTimeout(() => {
+      // Inactivity — retry or finish
+      if (!this.logDataDownload || !this.transport?.isConnected) return
+      this.logDataDownload.retryCount++
+      if (this.logDataDownload.retryCount > 5) {
+        this.finishLogDataDownload(true)
+        return
+      }
+      this.transport.send(encodeLogRequestData(
+        this.targetSysId, this.targetCompId,
+        this.logDataDownload.logId,
+        this.logDataDownload.receivedBytes,
+        0xffffffff,
+        this.sysId, this.compId,
+      ))
+    }, 3000)
+
+    // Complete when count < 90 (last chunk)
+    if (data.count < 90) {
+      this.finishLogDataDownload(false)
+    }
+  }
+
+  private finishLogDataDownload(partial: boolean): void {
+    if (!this.logDataDownload) return
+    const dl = this.logDataDownload
+    if (dl.inactivityTimer) clearTimeout(dl.inactivityTimer)
+    clearTimeout(dl.hardTimer)
+    // Trim to actual received size
+    const trimmed = dl.data.slice(0, dl.receivedBytes)
+    dl.resolve(trimmed)
+    this.logDataDownload = null
+    // Send LOG_REQUEST_END to resume normal logging
+    if (this.transport?.isConnected) {
+      this.transport.send(encodeLogRequestEnd(
+        this.targetSysId, this.targetCompId,
+        this.sysId, this.compId,
+      ))
+    }
   }
 
   // ── Serial Passthrough ───────────────────────────────

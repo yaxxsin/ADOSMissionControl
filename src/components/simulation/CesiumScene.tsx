@@ -7,7 +7,7 @@
 
 "use client";
 
-import { useEffect, useRef, forwardRef, useImperativeHandle } from "react";
+import { useEffect, useRef } from "react";
 
 // Set CESIUM_BASE_URL before cesium is imported
 if (typeof window !== "undefined") {
@@ -30,34 +30,26 @@ import {
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 
-export interface CesiumSceneHandle {
-  viewer: CesiumViewer | null;
-}
-
 interface CesiumSceneProps {
   onReady?: (viewer: CesiumViewer) => void;
+  onError?: (error: Error) => void;
 }
 
-const CesiumScene = forwardRef<CesiumSceneHandle, CesiumSceneProps>(
-  function CesiumScene({ onReady }, ref) {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const viewerRef = useRef<CesiumViewer | null>(null);
+export default function CesiumScene({ onReady, onError }: CesiumSceneProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
 
-    useImperativeHandle(ref, () => ({
-      get viewer() {
-        return viewerRef.current;
-      },
-    }));
+  useEffect(() => {
+    if (!containerRef.current) return;
 
-    useEffect(() => {
-      if (!containerRef.current) return;
+    let viewer: InstanceType<typeof Viewer> | null = null;
 
+    try {
       const token = process.env.NEXT_PUBLIC_CESIUM_ION_TOKEN;
       if (token) {
         Ion.defaultAccessToken = token;
       }
 
-      const viewer = new Viewer(containerRef.current, {
+      viewer = new Viewer(containerRef.current, {
         sceneMode: SceneMode.SCENE3D,
         animation: false,
         timeline: false,
@@ -72,8 +64,6 @@ const CesiumScene = forwardRef<CesiumSceneHandle, CesiumSceneProps>(
         vrButton: false,
         orderIndependentTranslucency: false,
       });
-
-      viewerRef.current = viewer;
 
       // Dark sky
       viewer.scene.backgroundColor = Color.fromCssColorString("#0a0a0f");
@@ -127,16 +117,15 @@ const CesiumScene = forwardRef<CesiumSceneHandle, CesiumSceneProps>(
       if (creditContainer) creditContainer.style.display = "none";
 
       onReady?.(viewer);
+    } catch (err) {
+      onError?.(err instanceof Error ? err : new Error(String(err)));
+    }
 
-      return () => {
-        if (viewer && !viewer.isDestroyed()) viewer.destroy();
-        viewerRef.current = null;
-      };
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    return () => {
+      if (viewer && !viewer.isDestroyed()) viewer.destroy();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    return <div ref={containerRef} className="w-full h-full absolute inset-0" />;
-  }
-);
-
-export default CesiumScene;
+  return <div ref={containerRef} className="w-full h-full absolute inset-0" />;
+}

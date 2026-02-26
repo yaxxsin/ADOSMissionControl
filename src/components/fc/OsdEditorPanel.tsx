@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
 import {
   Monitor, Eye, EyeOff, Save, RotateCcw, Grid3x3,
@@ -85,6 +86,7 @@ const GRID_ROWS = 16;
 export function OsdEditorPanel() {
   const selectedDroneId = useDroneManager((s) => s.selectedDroneId);
   const getSelectedDrone = useDroneManager((s) => s.getSelectedDrone);
+  const { toast } = useToast();
 
   const [elements, setElements] = useState<OsdElement[]>(DEFAULT_ELEMENTS);
   const [activeScreen, setActiveScreen] = useState(1);
@@ -158,14 +160,20 @@ export function OsdEditorPanel() {
 
     setShowCommitButton(true);
     setSaving(false);
-  }, [elements, activeScreen, getSelectedDrone]);
+    toast("OSD layout saved to flight controller", "success");
+  }, [elements, activeScreen, getSelectedDrone, toast]);
 
   const commitToFlash = useCallback(async () => {
     const drone = getSelectedDrone();
     if (!drone) return;
-    await drone.protocol.commitParamsToFlash();
-    setShowCommitButton(false);
-  }, [getSelectedDrone]);
+    try {
+      await drone.protocol.commitParamsToFlash();
+      setShowCommitButton(false);
+      toast("Written to flash — persists after reboot", "success");
+    } catch {
+      toast("Failed to write to flash", "error");
+    }
+  }, [getSelectedDrone, toast]);
 
   const handleReset = () => {
     setElements(DEFAULT_ELEMENTS);

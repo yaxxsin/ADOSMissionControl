@@ -16,9 +16,13 @@ export function useThrottledElapsed(): number {
 
   useEffect(() => {
     if (playbackState !== "playing") {
-      // When not playing, sync immediately on every change
+      // When not playing, sync immediately on elapsed changes only
+      let prevElapsed = useSimulationStore.getState().elapsed;
       return useSimulationStore.subscribe((state) => {
-        setThrottled(state.elapsed);
+        if (state.elapsed !== prevElapsed) {
+          prevElapsed = state.elapsed;
+          setThrottled(state.elapsed);
+        }
       });
     }
 

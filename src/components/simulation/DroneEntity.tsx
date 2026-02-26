@@ -11,6 +11,7 @@
 import { useEffect, useRef } from "react";
 import {
   Cartesian3,
+  HeightReference,
   type Viewer as CesiumViewer,
   type Entity,
   type SampledPositionProperty,
@@ -46,6 +47,7 @@ export function DroneEntity({ viewer, positionProperty, headingProperty }: Drone
         // SampledProperty IS a Property — CesiumJS evaluates it natively
         rotation: headingProperty ?? undefined,
         alignedAxis: Cartesian3.UNIT_Z,
+        heightReference: HeightReference.RELATIVE_TO_GROUND,
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
       },
     });
