@@ -89,6 +89,9 @@ export function WelcomeModal() {
         <div className="text-center mb-6">
           <h2 className="text-lg font-display font-semibold text-text-primary">Welcome</h2>
           <p className="text-sm text-text-secondary mt-1">Configure your environment</p>
+          <span className="inline-block mt-3 px-3 py-1 text-[10px] font-medium uppercase tracking-widest text-text-tertiary border border-border-default rounded-full">
+            Open Beta — some bugs are expected. Help us improve.
+          </span>
         </div>
 
         {/* Form */}
@@ -218,6 +221,14 @@ export function WelcomeModal() {
         >
           Get Started
         </button>
+        <a
+          href="https://discord.gg/uxbvuD4d5q"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block text-center mt-3 text-xs text-text-tertiary hover:text-accent-primary transition-colors"
+        >
+          Join our Discord
+        </a>
       </div>
     </div>
   );
