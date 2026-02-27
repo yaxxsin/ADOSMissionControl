@@ -74,6 +74,7 @@ export default function MissionPlannerPage() {
               waypoints={p.waypoints}
               activeTool={p.activeTool}
               selectedWaypointId={p.selectedWaypointId}
+              hasActivePlan={!!p.activePlanId}
               onMapClick={p.handleMapClick}
               onMapRightClick={p.handleMapRightClick}
               onWaypointClick={p.handleWaypointClick}

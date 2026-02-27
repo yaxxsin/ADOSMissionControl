@@ -79,6 +79,7 @@ interface PlannerMapProps {
   waypoints: Waypoint[];
   activeTool: PlannerTool;
   selectedWaypointId: string | null;
+  hasActivePlan: boolean;
   onMapClick: (lat: number, lon: number) => void;
   onMapRightClick: (lat: number, lon: number, x: number, y: number) => void;
   onWaypointClick: (id: string) => void;
@@ -90,6 +91,7 @@ export function PlannerMap({
   waypoints,
   activeTool,
   selectedWaypointId,
+  hasActivePlan,
   onMapClick,
   onMapRightClick,
   onWaypointClick,
@@ -225,7 +227,9 @@ export function PlannerMap({
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
           <div className="bg-bg-secondary/90 border border-border-default px-3 py-1.5">
             <span className="text-xs text-text-secondary font-mono">
-              Click on map to add waypoints
+              {hasActivePlan
+                ? "Click on map to add waypoints"
+                : "Create or select a flight plan to start"}
             </span>
           </div>
         </div>

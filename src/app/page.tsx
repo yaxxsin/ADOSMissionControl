@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ChevronRight } from "lucide-react";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useFleetStore } from "@/stores/fleet-store";
 import { DroneListPanel } from "@/components/dashboard/DroneListPanel";
@@ -17,6 +17,10 @@ export default function DashboardPage() {
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const [logsCollapsed, setLogsCollapsed] = useState(false);
 
+  useEffect(() => {
+    setPanelCollapsed(selectedDroneId !== null);
+  }, [selectedDroneId]);
+
   if (drones.length === 0) {
     return <EmptyFleetState />;
   }
@@ -28,17 +32,20 @@ export default function DashboardPage() {
         <>
           <DroneDetailPanel droneId={selectedDroneId} onClose={() => selectDrone(null)} />
           {logsCollapsed && (
-            <div className="w-10 shrink-0 flex flex-col items-center h-full border-l border-border-default bg-bg-secondary">
-              <button
-                onClick={() => setLogsCollapsed(false)}
-                className="p-2 mt-2 text-text-tertiary hover:text-text-primary transition-colors"
-                title="Expand logs panel"
+            <button
+              onClick={() => setLogsCollapsed(false)}
+              className="w-10 shrink-0 flex flex-col items-center justify-center h-full border-l border-border-default bg-bg-secondary hover:bg-bg-tertiary transition-colors cursor-pointer group"
+              title="Expand logs panel"
+            >
+              <span
+                className="text-[10px] font-semibold uppercase tracking-widest text-text-tertiary group-hover:text-text-secondary transition-colors"
+                style={{ writingMode: "vertical-rl" }}
               >
-                <ChevronLeft size={14} />
-              </button>
-            </div>
+                Flight Logs
+              </span>
+            </button>
           )}
-          <div className={`w-80 shrink-0 flex flex-col h-full border-l border-border-default bg-bg-secondary ${logsCollapsed ? "hidden" : ""}`}>
+          <div className={`w-[384px] shrink-0 flex flex-col h-full border-l border-border-default bg-bg-secondary ${logsCollapsed ? "hidden" : ""}`}>
             <div className="flex items-center gap-2 px-3 py-2 border-b border-border-default flex-shrink-0">
               <button
                 onClick={() => setLogsCollapsed(true)}

@@ -5,7 +5,7 @@ import { useFleetStore } from "@/stores/fleet-store";
 import { useDroneManager } from "@/stores/drone-manager";
 import { DroneCard } from "@/components/shared/drone-card";
 import { useConnectDialogStore } from "@/stores/connect-dialog-store";
-import { Plus, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Search, ChevronLeft } from "lucide-react";
 
 interface DroneListPanelProps {
   collapsed: boolean;
@@ -33,15 +33,18 @@ export function DroneListPanel({ collapsed, onToggleCollapse }: DroneListPanelPr
 
   if (collapsed) {
     return (
-      <div className="w-10 shrink-0 flex flex-col items-center h-full border-r border-border-default bg-bg-secondary">
-        <button
-          onClick={onToggleCollapse}
-          className="p-2 mt-2 text-text-tertiary hover:text-text-primary transition-colors"
-          title="Expand fleet panel"
+      <button
+        onClick={onToggleCollapse}
+        className="w-10 shrink-0 flex flex-col items-center justify-center h-full border-r border-border-default bg-bg-secondary hover:bg-bg-tertiary transition-colors cursor-pointer group"
+        title="Expand fleet panel"
+      >
+        <span
+          className="text-[10px] font-semibold uppercase tracking-widest text-text-tertiary group-hover:text-text-secondary transition-colors"
+          style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
         >
-          <ChevronRight size={14} />
-        </button>
-      </div>
+          Fleet
+        </span>
+      </button>
     );
   }
 

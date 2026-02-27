@@ -46,7 +46,6 @@ const FLIGHT_MODES: { value: FlightMode; label: string }[] = [
 export function FlightModeSelector({ value, onChange, className }: FlightModeSelectorProps) {
   return (
     <Select
-      label="Flight Mode"
       options={FLIGHT_MODES}
       value={value}
       onChange={(v) => onChange(v as FlightMode)}

@@ -161,6 +161,10 @@ export function usePlanner() {
   // ── Map handlers ──────────────────────────────────────────
   const handleMapClick = useCallback(
     (lat: number, lon: number) => {
+      if (!activePlanId) {
+        toast("Create or select a flight plan first", "info");
+        return;
+      }
       const wp: Waypoint = {
         id: randomId(),
         lat: clampLat(lat),
@@ -171,7 +175,7 @@ export function usePlanner() {
       };
       addWaypoint(wp);
     },
-    [addWaypoint, defaultAlt, defaultSpeed]
+    [activePlanId, addWaypoint, defaultAlt, defaultSpeed, toast]
   );
 
   const handleMapRightClick = useCallback(
@@ -211,6 +215,13 @@ export function usePlanner() {
     (actionId: string) => {
       if (!contextMenu) return;
       const { lat, lon, waypointId } = contextMenu;
+
+      const addActions = ["add-wp", "add-takeoff", "add-land", "add-roi"];
+      if (addActions.includes(actionId) && !activePlanId) {
+        toast("Create or select a flight plan first", "info");
+        setContextMenu(null);
+        return;
+      }
 
       const makeWp = (cmd: Waypoint["command"]): Waypoint => ({
         id: randomId(),
@@ -263,7 +274,7 @@ export function usePlanner() {
       }
       setContextMenu(null);
     },
-    [contextMenu, addWaypoint, insertWaypoint, removeWaypoint, defaultAlt, waypoints, setSelectedWaypoint, setExpandedWaypoint]
+    [contextMenu, activePlanId, addWaypoint, insertWaypoint, removeWaypoint, defaultAlt, waypoints, setSelectedWaypoint, setExpandedWaypoint, toast]
   );
 
   const handleWaypointClick = useCallback(
@@ -389,6 +400,10 @@ export function usePlanner() {
   }, [uploadMission]);
 
   const handleAddManualWaypoint = useCallback(() => {
+    if (!activePlanId) {
+      toast("Create or select a flight plan first", "info");
+      return;
+    }
     const lastWp = waypoints[waypoints.length - 1];
     const wp: Waypoint = {
       id: randomId(),
@@ -398,7 +413,7 @@ export function usePlanner() {
       command: "WAYPOINT",
     };
     addWaypoint(wp);
-  }, [waypoints, addWaypoint, defaultAlt]);
+  }, [activePlanId, waypoints, addWaypoint, defaultAlt, toast]);
 
   return {
     // Store state
