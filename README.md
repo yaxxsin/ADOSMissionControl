@@ -4,7 +4,22 @@
 
 ![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-green.svg) ![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue.svg) ![Next.js 16](https://img.shields.io/badge/Next.js-16-black.svg) ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
 
-<!-- TODO: Add screenshots of dashboard, FC config, mission planner, and demo mode -->
+## Screenshots
+
+<p align="center">
+  <img src="public/screenshots/dashboard.png" alt="Fleet Dashboard" width="100%">
+</p>
+
+<table>
+  <tr>
+    <td><img src="public/screenshots/mission-planner.png" alt="Mission Planner" width="100%"></td>
+    <td><img src="public/screenshots/flight-control.png" alt="Flight Control" width="100%"></td>
+  </tr>
+  <tr>
+    <td><img src="public/screenshots/3d-simulation.png" alt="3D Simulation" width="100%"></td>
+    <td><img src="public/screenshots/parameters.png" alt="FC Parameters" width="100%"></td>
+  </tr>
+</table>
 
 Altnautica Command is a web-based Ground Control Station for real-time drone operations — covering FC configuration, sensor calibration, mission planning, MAVLink protocol communication, and manual flight control. Runs in any browser. Works standalone in the field with zero configuration or connected to cloud infrastructure for fleet-scale operations.
 
