@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { Loader2, CheckCircle, XCircle, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export type CalibrationStatus = "idle" | "in_progress" | "success" | "error";
+export type CalibrationStatus = "idle" | "in_progress" | "waiting_accept" | "cal_warning" | "success" | "error";
 
 export interface CalibrationStep {
   label: string;
@@ -51,15 +51,20 @@ interface CalibrationWizardProps {
   confirmLabel?: string;
   compassProgress?: CompassProgressEntry[];
   compassResults?: CompassResultEntry[];
+  failureFixes?: string[];
   preTips?: string[];
   onStart: () => void;
   onCancel?: () => void;
+  onForceSave?: () => void;
+  unsupportedNotice?: string;
   className?: string;
 }
 
 const statusBadge: Record<CalibrationStatus, { label: string; className: string }> = {
   idle: { label: "Ready", className: "bg-bg-tertiary text-text-tertiary" },
   in_progress: { label: "Calibrating", className: "bg-accent-primary/20 text-accent-primary" },
+  waiting_accept: { label: "Review & Accept", className: "bg-status-warning/20 text-status-warning" },
+  cal_warning: { label: "Review Results", className: "bg-status-warning/20 text-status-warning" },
   success: { label: "Complete", className: "bg-status-success/20 text-status-success" },
   error: { label: "Failed", className: "bg-status-error/20 text-status-error" },
 };
@@ -233,9 +238,12 @@ export function CalibrationWizard({
   confirmLabel = "Confirm Position",
   compassProgress,
   compassResults,
+  failureFixes,
   preTips,
   onStart,
   onCancel,
+  onForceSave,
+  unsupportedNotice,
   className,
 }: CalibrationWizardProps) {
   const badge = statusBadge[status];
@@ -270,7 +278,7 @@ export function CalibrationWizard({
       {steps.length > 0 && (
         <div className="space-y-1.5 mb-4">
           {steps.map((step, i) => {
-            const isComplete = status === "success" || (status === "in_progress" && i < currentStep);
+            const isComplete = status === "success" || status === "waiting_accept" || status === "cal_warning" || (status === "in_progress" && i < currentStep);
             const isCurrent = status === "in_progress" && i === currentStep;
             const isFailed = status === "error" && i === currentStep;
 
@@ -338,6 +346,34 @@ export function CalibrationWizard({
                   </div>
                   {/* Sphere grid */}
                   {completionMask.length > 0 && <SphereGrid mask={completionMask} />}
+                </div>
+                {/* Live magnetometer vector display */}
+                <div className="mt-1.5">
+                  <p className="text-[9px] font-mono text-text-tertiary uppercase tracking-wide mb-1">Angular rate (rad/s)</p>
+                  <div className="space-y-0.5">
+                    {(["x", "y", "z"] as const).map((axis) => {
+                      const val = direction[axis];
+                      const pct = Math.min(100, (Math.abs(val) / 3.0) * 100);
+                      const axisLabel = axis === "x" ? "Roll" : axis === "y" ? "Pitch" : "Yaw";
+                      return (
+                        <div key={axis} className="flex items-center gap-1.5">
+                          <span className="text-[9px] font-mono text-text-tertiary w-7">{axisLabel}</span>
+                          <div className="h-1 bg-bg-tertiary flex-1 relative">
+                            <div
+                              className={cn(
+                                "h-full transition-all duration-150",
+                                val > 0 ? "bg-accent-primary" : "bg-status-warning",
+                              )}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <span className="text-[9px] font-mono text-text-tertiary w-10 text-right">
+                            {val.toFixed(2)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             );
@@ -432,15 +468,46 @@ export function CalibrationWizard({
         <p
           className={cn(
             "text-[10px] font-mono mb-3",
-            status === "error" ? "text-status-error" : "text-text-tertiary",
+            status === "error" ? "text-status-error" : (status === "waiting_accept" || status === "cal_warning") ? "text-status-warning" : "text-text-tertiary",
           )}
         >
           {statusMessage}
         </p>
       )}
 
+      {/* Failure troubleshooting fixes */}
+      {(status === "error" || status === "cal_warning") && failureFixes && failureFixes.length > 0 && (
+        <div className={cn("mb-3 px-3 py-2.5 border", status === "cal_warning" ? "border-status-warning/20 bg-status-warning/5" : "border-status-error/20 bg-status-error/5")}>
+          <p className={cn("text-[10px] font-medium mb-1.5", status === "cal_warning" ? "text-status-warning" : "text-status-error")}>Troubleshooting</p>
+          <ul className="space-y-1">
+            {failureFixes.map((fix, i) => (
+              <li key={i} className="text-[10px] text-text-secondary flex gap-1.5">
+                <span className="text-status-error shrink-0">&bull;</span>
+                {fix}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Unsupported notice */}
+      {unsupportedNotice && status === "idle" && (
+        <div className="mb-3 border border-status-warning/20 bg-status-warning/5 px-3 py-2.5">
+          <p className="text-[10px] text-status-warning">{unsupportedNotice}</p>
+        </div>
+      )}
+
       <div className="flex gap-2">
-        {waitingForConfirm && onConfirm ? (
+        {status === "cal_warning" && onForceSave ? (
+          <>
+            <Button variant="primary" size="sm" onClick={onForceSave}>
+              Force Save Offsets
+            </Button>
+            <Button variant="secondary" size="sm" onClick={onStart}>
+              Retry
+            </Button>
+          </>
+        ) : waitingForConfirm && onConfirm ? (
           <>
             <Button variant="primary" size="sm" onClick={onConfirm}>
               {confirmLabel}
@@ -450,9 +517,6 @@ export function CalibrationWizard({
                 Cancel
               </Button>
             )}
-            <span className="text-[10px] text-text-tertiary self-center ml-1">
-              Press any key or click {confirmLabel}
-            </span>
           </>
         ) : status === "in_progress" && onCancel ? (
           <>
@@ -463,9 +527,13 @@ export function CalibrationWizard({
               Cancel
             </Button>
           </>
+        ) : unsupportedNotice ? (
+          <Button variant="secondary" size="sm" disabled>
+            Not Available
+          </Button>
         ) : (
           <Button variant="primary" size="sm" onClick={onStart}>
-            {status === "success" ? "Re-calibrate" : status === "error" ? "Retry" : "Start"}
+            {status === "success" ? "Re-calibrate" : status === "error" || status === "cal_warning" ? "Retry" : "Start"}
           </Button>
         )}
       </div>

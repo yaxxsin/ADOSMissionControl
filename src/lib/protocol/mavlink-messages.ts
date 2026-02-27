@@ -1441,3 +1441,522 @@ export function decodeGps2Raw(dv: DataView): Gps2RawMsg {
     dgpsNumch: dv.getUint8(34),
   };
 }
+
+// ── SYSTEM_TIME (ID 2) ──────────────────────────────────────
+
+export interface SystemTimeMsg {
+  timeUnixUsec: number;
+  timeBootMs: number;
+}
+
+/**
+ * Decode SYSTEM_TIME (msg ID 2).
+ *
+ * | Offset | Type   | Field         |
+ * |--------|--------|---------------|
+ * | 0      | uint64 | timeUnixUsec  |
+ * | 8      | uint32 | timeBootMs    |
+ */
+export function decodeSystemTime(dv: DataView): SystemTimeMsg {
+  const low = dv.getUint32(0, true);
+  const high = dv.getUint32(4, true);
+  return {
+    timeUnixUsec: high * 0x100000000 + low,
+    timeBootMs: dv.getUint32(8, true),
+  };
+}
+
+// ── LOCAL_POSITION_NED (ID 32) ──────────────────────────────
+
+export interface LocalPositionNedMsg {
+  timeBootMs: number;
+  x: number;
+  y: number;
+  z: number;
+  vx: number;
+  vy: number;
+  vz: number;
+}
+
+/**
+ * Decode LOCAL_POSITION_NED (msg ID 32).
+ *
+ * | Offset | Type    | Field      |
+ * |--------|---------|------------|
+ * | 0      | uint32  | timeBootMs |
+ * | 4      | float32 | x          |
+ * | 8      | float32 | y          |
+ * | 12     | float32 | z          |
+ * | 16     | float32 | vx         |
+ * | 20     | float32 | vy         |
+ * | 24     | float32 | vz         |
+ */
+export function decodeLocalPositionNed(dv: DataView): LocalPositionNedMsg {
+  return {
+    timeBootMs: dv.getUint32(0, true),
+    x: dv.getFloat32(4, true),
+    y: dv.getFloat32(8, true),
+    z: dv.getFloat32(12, true),
+    vx: dv.getFloat32(16, true),
+    vy: dv.getFloat32(20, true),
+    vz: dv.getFloat32(24, true),
+  };
+}
+
+// ── SET_ATTITUDE_TARGET (ID 82) ─────────────────────────────
+
+export interface SetAttitudeTargetMsg {
+  timeBootMs: number;
+  q: [number, number, number, number];
+  bodyRollRate: number;
+  bodyPitchRate: number;
+  bodyYawRate: number;
+  thrust: number;
+  targetSystem: number;
+  targetComponent: number;
+  typeMask: number;
+}
+
+/**
+ * Decode SET_ATTITUDE_TARGET (msg ID 82).
+ *
+ * Wire order (uint32/float32 → uint8):
+ * | Offset | Type       | Field          |
+ * |--------|------------|----------------|
+ * | 0      | uint32     | timeBootMs     |
+ * | 4      | float32[4] | q              |
+ * | 20     | float32    | bodyRollRate   |
+ * | 24     | float32    | bodyPitchRate  |
+ * | 28     | float32    | bodyYawRate    |
+ * | 32     | float32    | thrust         |
+ * | 36     | uint8      | targetSystem   |
+ * | 37     | uint8      | targetComponent|
+ * | 38     | uint8      | typeMask       |
+ */
+export function decodeSetAttitudeTarget(dv: DataView): SetAttitudeTargetMsg {
+  return {
+    timeBootMs: dv.getUint32(0, true),
+    q: [
+      dv.getFloat32(4, true),
+      dv.getFloat32(8, true),
+      dv.getFloat32(12, true),
+      dv.getFloat32(16, true),
+    ],
+    bodyRollRate: dv.getFloat32(20, true),
+    bodyPitchRate: dv.getFloat32(24, true),
+    bodyYawRate: dv.getFloat32(28, true),
+    thrust: dv.getFloat32(32, true),
+    targetSystem: dv.getUint8(36),
+    targetComponent: dv.getUint8(37),
+    typeMask: dv.getUint8(38),
+  };
+}
+
+// ── SET_POSITION_TARGET_GLOBAL_INT (ID 86) ──────────────────
+
+export interface SetPositionTargetGlobalIntMsg {
+  timeBootMs: number;
+  latInt: number;
+  lonInt: number;
+  alt: number;
+  vx: number;
+  vy: number;
+  vz: number;
+  afx: number;
+  afy: number;
+  afz: number;
+  yaw: number;
+  yawRate: number;
+  typeMask: number;
+  targetSystem: number;
+  targetComponent: number;
+  coordinateFrame: number;
+}
+
+/**
+ * Decode SET_POSITION_TARGET_GLOBAL_INT (msg ID 86).
+ *
+ * Wire order (uint32/int32/float32 → uint16 → uint8):
+ * | Offset | Type    | Field           |
+ * |--------|---------|-----------------|
+ * | 0      | uint32  | timeBootMs      |
+ * | 4      | int32   | latInt          |
+ * | 8      | int32   | lonInt          |
+ * | 12     | float32 | alt             |
+ * | 16     | float32 | vx              |
+ * | 20     | float32 | vy              |
+ * | 24     | float32 | vz              |
+ * | 28     | float32 | afx             |
+ * | 32     | float32 | afy             |
+ * | 36     | float32 | afz             |
+ * | 40     | float32 | yaw             |
+ * | 44     | float32 | yawRate         |
+ * | 48     | uint16  | typeMask        |
+ * | 50     | uint8   | targetSystem    |
+ * | 51     | uint8   | targetComponent |
+ * | 52     | uint8   | coordinateFrame |
+ */
+export function decodeSetPositionTargetGlobalInt(dv: DataView): SetPositionTargetGlobalIntMsg {
+  return {
+    timeBootMs: dv.getUint32(0, true),
+    latInt: dv.getInt32(4, true),
+    lonInt: dv.getInt32(8, true),
+    alt: dv.getFloat32(12, true),
+    vx: dv.getFloat32(16, true),
+    vy: dv.getFloat32(20, true),
+    vz: dv.getFloat32(24, true),
+    afx: dv.getFloat32(28, true),
+    afy: dv.getFloat32(32, true),
+    afz: dv.getFloat32(36, true),
+    yaw: dv.getFloat32(40, true),
+    yawRate: dv.getFloat32(44, true),
+    typeMask: dv.getUint16(48, true),
+    targetSystem: dv.getUint8(50),
+    targetComponent: dv.getUint8(51),
+    coordinateFrame: dv.getUint8(52),
+  };
+}
+
+// ── TIMESYNC (ID 111) ───────────────────────────────────────
+
+export interface TimesyncMsg {
+  tc1: number;
+  ts1: number;
+  targetSystem: number;
+}
+
+/**
+ * Decode TIMESYNC (msg ID 111).
+ *
+ * | Offset | Type  | Field        |
+ * |--------|-------|--------------|
+ * | 0      | int64 | tc1          |
+ * | 8      | int64 | ts1          |
+ * | 16     | uint8 | targetSystem |
+ */
+export function decodeTimesync(dv: DataView): TimesyncMsg {
+  const tc1Lo = dv.getUint32(0, true);
+  const tc1Hi = dv.getInt32(4, true);
+  const ts1Lo = dv.getUint32(8, true);
+  const ts1Hi = dv.getInt32(12, true);
+  return {
+    tc1: tc1Hi * 0x100000000 + tc1Lo,
+    ts1: ts1Hi * 0x100000000 + ts1Lo,
+    targetSystem: dv.byteLength > 16 ? dv.getUint8(16) : 0,
+  };
+}
+
+// ── EXTENDED_SYS_STATE (ID 245) ─────────────────────────────
+
+export interface ExtendedSysStateMsg {
+  vtolState: number;
+  landedState: number;
+}
+
+/**
+ * Decode EXTENDED_SYS_STATE (msg ID 245).
+ *
+ * | Offset | Type  | Field       |
+ * |--------|-------|-------------|
+ * | 0      | uint8 | vtolState   |
+ * | 1      | uint8 | landedState |
+ */
+export function decodeExtendedSysState(dv: DataView): ExtendedSysStateMsg {
+  return {
+    vtolState: dv.getUint8(0),
+    landedState: dv.getUint8(1),
+  };
+}
+
+// ── NAMED_VALUE_FLOAT (ID 251) ──────────────────────────────
+
+export interface NamedValueFloatMsg {
+  timeBootMs: number;
+  value: number;
+  name: string;
+}
+
+/**
+ * Decode NAMED_VALUE_FLOAT (msg ID 251).
+ *
+ * Wire order (uint32/float32 → char[10]):
+ * | Offset | Type      | Field      |
+ * |--------|-----------|------------|
+ * | 0      | uint32    | timeBootMs |
+ * | 4      | float32   | value      |
+ * | 8      | char[10]  | name       |
+ */
+export function decodeNamedValueFloat(dv: DataView): NamedValueFloatMsg {
+  const nameBytes = new Uint8Array(dv.buffer, dv.byteOffset + 8, 10);
+  let name = "";
+  for (let i = 0; i < 10; i++) {
+    if (nameBytes[i] === 0) break;
+    name += String.fromCharCode(nameBytes[i]);
+  }
+  return {
+    timeBootMs: dv.getUint32(0, true),
+    value: dv.getFloat32(4, true),
+    name,
+  };
+}
+
+// ── NAMED_VALUE_INT (ID 252) ────────────────────────────────
+
+export interface NamedValueIntMsg {
+  timeBootMs: number;
+  value: number;
+  name: string;
+}
+
+/**
+ * Decode NAMED_VALUE_INT (msg ID 252).
+ *
+ * Wire order (uint32/int32 → char[10]):
+ * | Offset | Type     | Field      |
+ * |--------|----------|------------|
+ * | 0      | uint32   | timeBootMs |
+ * | 4      | int32    | value      |
+ * | 8      | char[10] | name       |
+ */
+export function decodeNamedValueInt(dv: DataView): NamedValueIntMsg {
+  const nameBytes = new Uint8Array(dv.buffer, dv.byteOffset + 8, 10);
+  let name = "";
+  for (let i = 0; i < 10; i++) {
+    if (nameBytes[i] === 0) break;
+    name += String.fromCharCode(nameBytes[i]);
+  }
+  return {
+    timeBootMs: dv.getUint32(0, true),
+    value: dv.getInt32(4, true),
+    name,
+  };
+}
+
+// ── DEBUG (ID 254) ──────────────────────────────────────────
+
+export interface DebugMsg {
+  timeBootMs: number;
+  value: number;
+  ind: number;
+}
+
+/**
+ * Decode DEBUG (msg ID 254).
+ *
+ * Wire order (uint32/float32 → uint8):
+ * | Offset | Type    | Field      |
+ * |--------|---------|------------|
+ * | 0      | uint32  | timeBootMs |
+ * | 4      | float32 | value      |
+ * | 8      | uint8   | ind        |
+ */
+export function decodeDebug(dv: DataView): DebugMsg {
+  return {
+    timeBootMs: dv.getUint32(0, true),
+    value: dv.getFloat32(4, true),
+    ind: dv.getUint8(8),
+  };
+}
+
+// ── CAMERA_IMAGE_CAPTURED (ID 263) ──────────────────────────
+
+export interface CameraImageCapturedMsg {
+  timeBootMs: number;
+  timeUtcUs: number;
+  lat: number;
+  lon: number;
+  alt: number;
+  relativeAlt: number;
+  q: [number, number, number, number];
+  imageIndex: number;
+  captureResult: number;
+}
+
+/**
+ * Decode CAMERA_IMAGE_CAPTURED (msg ID 263).
+ *
+ * Wire order (uint64/uint32/int32/float32 → int32 → uint8):
+ * | Offset | Type       | Field         |
+ * |--------|------------|---------------|
+ * | 0      | uint64     | timeUtcUs     |
+ * | 8      | float32[4] | q             |
+ * | 24     | int32      | lat (degE7)   |
+ * | 28     | int32      | lon (degE7)   |
+ * | 32     | int32      | alt (mm)      |
+ * | 36     | int32      | relativeAlt   |
+ * | 40     | uint32     | timeBootMs    |
+ * | 44     | int32      | imageIndex    |
+ * | 48     | uint8      | cameraId      |
+ * | 49     | int8       | captureResult |
+ * | 50     | char[205]  | fileUrl       |
+ */
+export function decodeCameraImageCaptured(dv: DataView): CameraImageCapturedMsg {
+  const low = dv.getUint32(0, true);
+  const high = dv.getUint32(4, true);
+  return {
+    timeUtcUs: high * 0x100000000 + low,
+    q: [
+      dv.getFloat32(8, true),
+      dv.getFloat32(12, true),
+      dv.getFloat32(16, true),
+      dv.getFloat32(20, true),
+    ],
+    lat: dv.getInt32(24, true) / 1e7,
+    lon: dv.getInt32(28, true) / 1e7,
+    alt: dv.getInt32(32, true) / 1000,
+    relativeAlt: dv.getInt32(36, true) / 1000,
+    timeBootMs: dv.getUint32(40, true),
+    imageIndex: dv.getInt32(44, true),
+    captureResult: dv.getInt8(49),
+  };
+}
+
+// ── GIMBAL_DEVICE_ATTITUDE_STATUS (ID 284) ──────────────────
+
+export interface GimbalDeviceAttitudeStatusMsg {
+  timeBootMs: number;
+  flags: number;
+  q: [number, number, number, number];
+  angularVelocityX: number;
+  angularVelocityY: number;
+  angularVelocityZ: number;
+  failureFlags: number;
+  targetSystem: number;
+  targetComponent: number;
+}
+
+/**
+ * Decode GIMBAL_DEVICE_ATTITUDE_STATUS (msg ID 284).
+ *
+ * Wire order (uint32/float32 → uint16 → uint8):
+ * | Offset | Type       | Field            |
+ * |--------|------------|------------------|
+ * | 0      | uint32     | timeBootMs       |
+ * | 4      | float32[4] | q                |
+ * | 20     | float32    | angularVelocityX |
+ * | 24     | float32    | angularVelocityY |
+ * | 28     | float32    | angularVelocityZ |
+ * | 32     | uint32     | failureFlags     |
+ * | 36     | uint16     | flags            |
+ * | 38     | uint8      | targetSystem     |
+ * | 39     | uint8      | targetComponent  |
+ */
+export function decodeGimbalDeviceAttitudeStatus(dv: DataView): GimbalDeviceAttitudeStatusMsg {
+  return {
+    timeBootMs: dv.getUint32(0, true),
+    q: [
+      dv.getFloat32(4, true),
+      dv.getFloat32(8, true),
+      dv.getFloat32(12, true),
+      dv.getFloat32(16, true),
+    ],
+    angularVelocityX: dv.getFloat32(20, true),
+    angularVelocityY: dv.getFloat32(24, true),
+    angularVelocityZ: dv.getFloat32(28, true),
+    failureFlags: dv.getUint32(32, true),
+    flags: dv.getUint16(36, true),
+    targetSystem: dv.getUint8(38),
+    targetComponent: dv.getUint8(39),
+  };
+}
+
+// ── OBSTACLE_DISTANCE (ID 330) ──────────────────────────────
+
+export interface ObstacleDistanceMsg {
+  timeUsec: number;
+  distances: number[];
+  minDistance: number;
+  maxDistance: number;
+  sensorType: number;
+  increment: number;
+}
+
+/**
+ * Decode OBSTACLE_DISTANCE (msg ID 330).
+ *
+ * Wire order (uint64 → uint16[72] → uint16 → uint8):
+ * | Offset | Type       | Field        |
+ * |--------|------------|--------------|
+ * | 0      | uint64     | timeUsec     |
+ * | 8      | uint16[72] | distances    |
+ * | 152    | uint16     | minDistance   |
+ * | 154    | uint16     | maxDistance   |
+ * | 156    | uint8      | sensorType   |
+ * | 157    | uint8      | increment    |
+ */
+export function decodeObstacleDistance(dv: DataView): ObstacleDistanceMsg {
+  const low = dv.getUint32(0, true);
+  const high = dv.getUint32(4, true);
+  const distances: number[] = [];
+  for (let i = 0; i < 72; i++) {
+    distances.push(dv.getUint16(8 + i * 2, true));
+  }
+  return {
+    timeUsec: high * 0x100000000 + low,
+    distances,
+    minDistance: dv.getUint16(152, true),
+    maxDistance: dv.getUint16(154, true),
+    sensorType: dv.getUint8(156),
+    increment: dv.getUint8(157),
+  };
+}
+
+// ── FENCE_POINT (ID 160) ────────────────────────────────────
+
+export interface FencePointMsg {
+  lat: number;
+  lon: number;
+  targetSystem: number;
+  targetComponent: number;
+  idx: number;
+  count: number;
+}
+
+/**
+ * Decode FENCE_POINT (msg ID 160).
+ *
+ * Wire order (float32 → uint8):
+ * | Offset | Type    | Field           |
+ * |--------|---------|-----------------|
+ * | 0      | float32 | lat             |
+ * | 4      | float32 | lon             |
+ * | 8      | uint8   | targetSystem    |
+ * | 9      | uint8   | targetComponent |
+ * | 10     | uint8   | idx             |
+ * | 11     | uint8   | count           |
+ */
+export function decodeFencePoint(dv: DataView): FencePointMsg {
+  return {
+    lat: dv.getFloat32(0, true),
+    lon: dv.getFloat32(4, true),
+    targetSystem: dv.getUint8(8),
+    targetComponent: dv.getUint8(9),
+    idx: dv.getUint8(10),
+    count: dv.getUint8(11),
+  };
+}
+
+// ── FENCE_FETCH_POINT (ID 161) ──────────────────────────────
+
+export interface FenceFetchPointMsg {
+  targetSystem: number;
+  targetComponent: number;
+  idx: number;
+}
+
+/**
+ * Decode FENCE_FETCH_POINT (msg ID 161).
+ *
+ * | Offset | Type  | Field           |
+ * |--------|-------|-----------------|
+ * | 0      | uint8 | targetSystem    |
+ * | 1      | uint8 | targetComponent |
+ * | 2      | uint8 | idx             |
+ */
+export function decodeFenceFetchPoint(dv: DataView): FenceFetchPointMsg {
+  return {
+    targetSystem: dv.getUint8(0),
+    targetComponent: dv.getUint8(1),
+    idx: dv.getUint8(2),
+  };
+}

@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Search, LayoutDashboard, Route, History, BarChart3, Settings, Zap, Battery, Home, HeartPulse, Plug } from "lucide-react";
+import { Search, LayoutDashboard, Route, History, BarChart3, Settings, Zap, Battery, Home, HeartPulse, Plug, SlidersHorizontal } from "lucide-react";
 import { useFleetStore } from "@/stores/fleet-store";
 import { useDroneStore } from "@/stores/drone-store";
+import { useDroneManager } from "@/stores/drone-manager";
 import { useConnectDialogStore } from "@/stores/connect-dialog-store";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+
 
 interface CommandAction {
   id: string;
@@ -64,8 +66,45 @@ export function CommandPalette() {
     },
   ];
 
+  // Build parameter search results when connected and query looks like a param name
+  const paramActions: CommandAction[] = (() => {
+    if (!query || query.length < 2) return [];
+    const protocol = useDroneManager.getState().getSelectedProtocol();
+    if (!protocol) return [];
+    // Simple fuzzy match: split query by spaces, all parts must match
+    const parts = query.toLowerCase().split(/\s+/);
+    // Use param names from vehicle info if available (limited set for perf)
+    const commonParams = [
+      "BATT_MONITOR", "BATT_CAPACITY", "BATT_LOW_VOLT", "BATT_CRT_VOLT",
+      "FS_SHORT_ACTN", "FS_LONG_ACTN", "FS_THR_ENABLE", "FS_GCS_ENABLE",
+      "FENCE_ENABLE", "FENCE_TYPE", "FENCE_RADIUS", "FENCE_ALT_MAX",
+      "ATC_RAT_RLL_P", "ATC_RAT_RLL_I", "ATC_RAT_RLL_D",
+      "ATC_RAT_PIT_P", "ATC_RAT_PIT_I", "ATC_RAT_PIT_D",
+      "ATC_RAT_YAW_P", "ATC_RAT_YAW_I", "ATC_RAT_YAW_D",
+      "FRAME_CLASS", "FRAME_TYPE", "ARMING_CHECK",
+      "RC_MAP_ROLL", "RC_MAP_PITCH", "RC_MAP_THROTTLE", "RC_MAP_YAW",
+      "SERVO1_FUNCTION", "SERVO2_FUNCTION", "SERVO3_FUNCTION", "SERVO4_FUNCTION",
+      "MNT1_TYPE", "CAM1_TYPE", "NTF_LED_TYPES",
+      "INS_GYRO_FILTER", "INS_ACCEL_FILTER",
+    ];
+    return commonParams
+      .filter(p => parts.every(part => p.toLowerCase().includes(part)))
+      .slice(0, 5)
+      .map(p => ({
+        id: `param-${p}`,
+        label: p,
+        category: "Parameters",
+        icon: <SlidersHorizontal size={14} />,
+        action: () => {
+          router.push("/");
+          toast(`Navigate to parameter: ${p}`);
+        },
+      }));
+  })();
+
+  const allActions = [...actions, ...paramActions];
   const filtered = query
-    ? actions.filter((a) => a.label.toLowerCase().includes(query.toLowerCase()))
+    ? allActions.filter((a) => a.label.toLowerCase().includes(query.toLowerCase()))
     : actions;
 
   const handleKeyDown = useCallback(

@@ -162,6 +162,28 @@ export interface ProtocolCapabilities {
   supportsGeoFence: boolean;
   supportsRally: boolean;
   supportsLogDownload: boolean;
+  // Panel-specific capabilities
+  supportsOsd: boolean;
+  supportsPidTuning: boolean;
+  supportsPorts: boolean;
+  supportsFailsafe: boolean;
+  supportsPowerConfig: boolean;
+  supportsReceiver: boolean;
+  supportsFirmwareFlash: boolean;
+  supportsCliShell: boolean;
+  supportsMavlinkInspector: boolean;
+  // Peripheral capabilities
+  supportsGimbal: boolean;
+  supportsCamera: boolean;
+  supportsLed: boolean;
+  supportsBattery2: boolean;
+  supportsRangefinder: boolean;
+  supportsOpticalFlow: boolean;
+  supportsObstacleAvoidance: boolean;
+  supportsDebugValues: boolean;
+  // Metadata
+  manualControlHz: number;
+  parameterCount: number;
 }
 
 // ── PID ─────────────────────────────────────────────────────
@@ -429,6 +451,74 @@ export type ScaledImuCallback = (data: {
 
 export type LinkStateCallback = () => void;
 
+export type LocalPositionCallback = (data: {
+  timestamp: number;
+  x: number;
+  y: number;
+  z: number;
+  vx: number;
+  vy: number;
+  vz: number;
+}) => void;
+
+export type DebugCallback = (data: {
+  timestamp: number;
+  name: string;
+  value: number;
+  type: "float" | "int" | "debug";
+}) => void;
+
+export type GimbalAttitudeCallback = (data: {
+  timestamp: number;
+  roll: number;
+  pitch: number;
+  yaw: number;
+  angularVelocityX: number;
+  angularVelocityY: number;
+  angularVelocityZ: number;
+}) => void;
+
+export type ObstacleDistanceCallback = (data: {
+  timestamp: number;
+  distances: number[];
+  minDistance: number;
+  maxDistance: number;
+  increment: number;
+  incrementF: number;
+  angleOffset: number;
+  frame: number;
+}) => void;
+
+export type CameraImageCapturedCallback = (data: {
+  timestamp: number;
+  lat: number;
+  lon: number;
+  alt: number;
+  imageIndex: number;
+  captureResult: number;
+  fileUrl: string;
+}) => void;
+
+export type ExtendedSysStateCallback = (data: {
+  timestamp: number;
+  vtolState: number;
+  landedState: number;
+}) => void;
+
+export type FencePointCallback = (data: {
+  timestamp: number;
+  idx: number;
+  count: number;
+  lat: number;
+  lon: number;
+}) => void;
+
+export type SystemTimeCallback = (data: {
+  timestamp: number;
+  timeUnixUsec: number;
+  timeBootMs: number;
+}) => void;
+
 // ── Log Download ────────────────────────────────────────────
 
 /** On-board log entry received from LOG_ENTRY (msg 118). */
@@ -497,6 +587,9 @@ export interface FirmwareHandler {
 
   /** Human-readable firmware version string (may read from params). */
   getFirmwareVersion(params?: Map<string, number>): string;
+
+  /** Map a canonical param name to the firmware-specific name (e.g., ArduPilot ATC_RAT_RLL_P → PX4 MC_ROLLRATE_P). */
+  mapParameterName?(canonical: string): string;
 }
 
 // ── Main Protocol Interface ─────────────────────────────────
@@ -541,6 +634,23 @@ export interface DroneProtocol {
   setGimbalAngle(pitch: number, roll: number, yaw: number): Promise<CommandResult>;
   doPreArmCheck(): Promise<CommandResult>;
 
+  // ── Fence Operations ──────────────────────────────────────
+  uploadFence?(points: Array<{ lat: number; lon: number }>): Promise<CommandResult>;
+  downloadFence?(): Promise<Array<{ idx: number; lat: number; lon: number }>>;
+
+  // ── Guided Flight ─────────────────────────────────────────
+  sendPositionTarget?(lat: number, lon: number, alt: number): void;
+  sendAttitudeTarget?(roll: number, pitch: number, yaw: number, thrust: number): void;
+
+  // ── Camera/Gimbal ─────────────────────────────────────────
+  setCameraTriggerDistance?(distance: number): Promise<CommandResult>;
+  setGimbalMode?(mode: number): Promise<CommandResult>;
+  setGimbalROI?(lat: number, lon: number, alt: number): Promise<CommandResult>;
+
+  // ── Advanced Calibration ──────────────────────────────────
+  startEscCalibration?(): Promise<CommandResult>;
+  startCompassMotCal?(): Promise<CommandResult>;
+
   // ── Manual Control ──────────────────────────────────────
   /** Send MANUAL_CONTROL at up to 50 Hz. Fire-and-forget (no ACK). */
   sendManualControl(
@@ -574,7 +684,7 @@ export interface DroneProtocol {
 
   // ── Calibration ─────────────────────────────────────────
   startCalibration(
-    type: "accel" | "gyro" | "compass" | "level" | "airspeed",
+    type: "accel" | "gyro" | "compass" | "level" | "airspeed" | "baro" | "rc" | "esc" | "compassmot",
   ): Promise<CommandResult>;
   /** Send COMMAND_LONG(42429) to confirm accel cal position (fire-and-forget). */
   confirmAccelCalPos?(position: number): void;
@@ -582,6 +692,8 @@ export interface DroneProtocol {
   acceptCompassCal?(compassMask?: number): Promise<CommandResult>;
   /** Send DO_CANCEL_MAG_CAL (42426). compassMask=0 means all. */
   cancelCompassCal?(compassMask?: number): Promise<CommandResult>;
+  /** Send PREFLIGHT_CALIBRATION with all zeros to cancel any active non-compass calibration. */
+  cancelCalibration?(): Promise<CommandResult>;
 
   // ── Motor Test ──────────────────────────────────────────
   motorTest(motor: number, throttle: number, duration: number): Promise<CommandResult>;
@@ -622,6 +734,14 @@ export interface DroneProtocol {
   onScaledImu?(callback: ScaledImuCallback): () => void;
   onLinkLost?(callback: LinkStateCallback): () => void;
   onLinkRestored?(callback: LinkStateCallback): () => void;
+  onLocalPosition?(callback: LocalPositionCallback): () => void;
+  onDebug?(callback: DebugCallback): () => void;
+  onGimbalAttitude?(callback: GimbalAttitudeCallback): () => void;
+  onObstacleDistance?(callback: ObstacleDistanceCallback): () => void;
+  onCameraImageCaptured?(callback: CameraImageCapturedCallback): () => void;
+  onExtendedSysState?(callback: ExtendedSysStateCallback): () => void;
+  onFencePoint?(callback: FencePointCallback): () => void;
+  onSystemTime?(callback: SystemTimeCallback): () => void;
 
   // ── Serial Passthrough ──────────────────────────────────
   /** Send a string as SERIAL_CONTROL data to the FC shell. */

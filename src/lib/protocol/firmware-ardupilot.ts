@@ -14,6 +14,9 @@ import type {
   VehicleClass,
   ProtocolCapabilities,
 } from './types'
+import { px4Handler } from './firmware-px4'
+import { betaflightHandler } from './firmware-betaflight'
+import { inavHandler } from './firmware-inav'
 
 // ---------------------------------------------------------------------------
 // MAVLink enum constants
@@ -139,6 +142,25 @@ const ARDUPILOT_CAPABILITIES: ProtocolCapabilities = {
   supportsGeoFence: true,
   supportsRally: true,
   supportsLogDownload: true,
+  supportsOsd: true,
+  supportsPidTuning: true,
+  supportsPorts: true,
+  supportsFailsafe: true,
+  supportsPowerConfig: true,
+  supportsReceiver: true,
+  supportsFirmwareFlash: true,
+  supportsCliShell: true,
+  supportsMavlinkInspector: true,
+  supportsGimbal: true,
+  supportsCamera: true,
+  supportsLed: true,
+  supportsBattery2: true,
+  supportsRangefinder: true,
+  supportsOpticalFlow: true,
+  supportsObstacleAvoidance: true,
+  supportsDebugValues: true,
+  manualControlHz: 50,
+  parameterCount: 1500,
 }
 
 /**
@@ -198,6 +220,11 @@ export class ArduPlaneHandler implements FirmwareHandler {
   /** Return a human-readable firmware identifier. */
   getFirmwareVersion(_params?: Map<string, number>): string {
     return 'ArduPlane'
+  }
+
+  /** ArduPilot uses canonical parameter names. */
+  mapParameterName(canonical: string): string {
+    return canonical
   }
 }
 
@@ -261,6 +288,11 @@ export class ArduCopterHandler implements FirmwareHandler {
   getFirmwareVersion(_params?: Map<string, number>): string {
     return 'ArduCopter'
   }
+
+  /** ArduPilot uses canonical parameter names. */
+  mapParameterName(canonical: string): string {
+    return canonical
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -306,6 +338,25 @@ class GenericHandler implements FirmwareHandler {
       supportsGeoFence: false,
       supportsRally: false,
       supportsLogDownload: false,
+      supportsOsd: false,
+      supportsPidTuning: false,
+      supportsPorts: false,
+      supportsFailsafe: false,
+      supportsPowerConfig: false,
+      supportsReceiver: false,
+      supportsFirmwareFlash: false,
+      supportsCliShell: false,
+      supportsMavlinkInspector: false,
+      supportsGimbal: false,
+      supportsCamera: false,
+      supportsLed: false,
+      supportsBattery2: false,
+      supportsRangefinder: false,
+      supportsOpticalFlow: false,
+      supportsObstacleAvoidance: false,
+      supportsDebugValues: false,
+      manualControlHz: 0,
+      parameterCount: 0,
     }
   }
 
@@ -326,25 +377,57 @@ class GenericHandler implements FirmwareHandler {
  * @returns A `FirmwareHandler` for the detected firmware/vehicle combination
  */
 export function createFirmwareHandler(autopilot: number, vehicleType: number): FirmwareHandler {
-  if (autopilot !== MAV_AUTOPILOT.ARDUPILOTMEGA) {
-    return new GenericHandler()
+  // PX4 autopilot
+  if (autopilot === MAV_AUTOPILOT.PX4) {
+    return px4Handler
   }
 
-  switch (vehicleType) {
-    case MAV_TYPE.FIXED_WING:
-    case MAV_TYPE.VTOL_FIXEDROTOR:
+  // ArduPilot — select by vehicle type
+  if (autopilot === MAV_AUTOPILOT.ARDUPILOTMEGA) {
+    switch (vehicleType) {
+      case MAV_TYPE.FIXED_WING:
+      case MAV_TYPE.VTOL_FIXEDROTOR:
+        return new ArduPlaneHandler()
+
+      case MAV_TYPE.QUADROTOR:
+      case MAV_TYPE.COAXIAL:
+      case MAV_TYPE.HELICOPTER:
+      case MAV_TYPE.HEXAROTOR:
+      case MAV_TYPE.OCTOROTOR:
+      case MAV_TYPE.TRICOPTER:
+        return new ArduCopterHandler()
+
+      // Ground rover, submarine, etc. — fall back to copter handler for now
+      default:
+        return new ArduCopterHandler()
+    }
+  }
+
+  // Unknown autopilot
+  return new GenericHandler()
+}
+
+/**
+ * Create a firmware handler by FirmwareType string.
+ * Useful when firmware type is known from protocol detection
+ * rather than HEARTBEAT parsing.
+ */
+export function createFirmwareHandlerByType(firmwareType: FirmwareType): FirmwareHandler {
+  switch (firmwareType) {
+    case 'ardupilot-copter':
+      return new ArduCopterHandler()
+    case 'ardupilot-plane':
       return new ArduPlaneHandler()
-
-    case MAV_TYPE.QUADROTOR:
-    case MAV_TYPE.COAXIAL:
-    case MAV_TYPE.HELICOPTER:
-    case MAV_TYPE.HEXAROTOR:
-    case MAV_TYPE.OCTOROTOR:
-    case MAV_TYPE.TRICOPTER:
-      return new ArduCopterHandler()
-
-    // Ground rover, submarine, etc. — fall back to copter handler for now
+    case 'ardupilot-rover':
+    case 'ardupilot-sub':
+      return new ArduCopterHandler() // Fallback for now
+    case 'px4':
+      return px4Handler
+    case 'betaflight':
+      return betaflightHandler
+    case 'inav':
+      return inavHandler
     default:
-      return new ArduCopterHandler()
+      return new GenericHandler()
   }
 }

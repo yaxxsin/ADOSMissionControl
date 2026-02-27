@@ -81,6 +81,21 @@ export const CRC_EXTRA: ReadonlyMap<number, number> = new Map([
   [120, 134], // LOG_DATA
   [121, 237], // LOG_ERASE
   [122, 203], // LOG_REQUEST_END
+  [2, 137],     // SYSTEM_TIME
+  [32, 185],    // LOCAL_POSITION_NED
+  [82, 49],     // SET_ATTITUDE_TARGET
+  [86, 5],      // SET_POSITION_TARGET_GLOBAL_INT
+  [111, 34],    // TIMESYNC
+  [245, 130],   // EXTENDED_SYS_STATE
+  [251, 170],   // NAMED_VALUE_FLOAT
+  [252, 44],    // NAMED_VALUE_INT
+  [254, 46],    // DEBUG
+  [263, 133],   // CAMERA_IMAGE_CAPTURED
+  [284, 227],   // GIMBAL_DEVICE_ATTITUDE_STATUS
+  [330, 23],    // OBSTACLE_DISTANCE
+  [160, 78],    // FENCE_POINT
+  [161, 68],    // FENCE_FETCH_POINT
+  [70, 124],    // RC_CHANNELS_OVERRIDE
 ]);
 
 /**
@@ -139,6 +154,21 @@ const PAYLOAD_LENGTHS: ReadonlyMap<number, number> = new Map([
   [120, 97],  // LOG_DATA
   [121, 2],   // LOG_ERASE
   [122, 2],   // LOG_REQUEST_END
+  [2, 12],      // SYSTEM_TIME
+  [32, 28],     // LOCAL_POSITION_NED
+  [82, 39],     // SET_ATTITUDE_TARGET
+  [86, 53],     // SET_POSITION_TARGET_GLOBAL_INT
+  [111, 17],    // TIMESYNC
+  [245, 2],     // EXTENDED_SYS_STATE
+  [251, 18],    // NAMED_VALUE_FLOAT
+  [252, 18],    // NAMED_VALUE_INT
+  [254, 9],     // DEBUG
+  [263, 255],   // CAMERA_IMAGE_CAPTURED
+  [284, 40],    // GIMBAL_DEVICE_ATTITUDE_STATUS
+  [330, 158],   // OBSTACLE_DISTANCE
+  [160, 12],    // FENCE_POINT
+  [161, 6],     // FENCE_FETCH_POINT
+  [70, 18],     // RC_CHANNELS_OVERRIDE
 ]);
 
 // ── CRC-16/MCRF4XX ─────────────────────────────────────────

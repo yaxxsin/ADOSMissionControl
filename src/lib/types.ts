@@ -176,6 +176,49 @@ export interface TerrainData {
   loaded: number;
 }
 
+// ── Local Position ─────────────────────────────────────────
+
+export interface LocalPositionData {
+  timestamp: number;
+  x: number;
+  y: number;
+  z: number;
+  vx: number;
+  vy: number;
+  vz: number;
+}
+
+// ── Debug Values ───────────────────────────────────────────
+
+export interface DebugData {
+  timestamp: number;
+  name: string;
+  value: number;
+  type: "float" | "int" | "debug";
+}
+
+// ── Gimbal ─────────────────────────────────────────────────
+
+export interface GimbalData {
+  timestamp: number;
+  roll: number;
+  pitch: number;
+  yaw: number;
+  angularVelocityX: number;
+  angularVelocityY: number;
+  angularVelocityZ: number;
+}
+
+// ── Obstacle Distance ──────────────────────────────────────
+
+export interface ObstacleData {
+  timestamp: number;
+  distances: number[];
+  minDistance: number;
+  maxDistance: number;
+  increment: number;
+}
+
 // ── Fleet ────────────────────────────────────────────────────
 
 export interface FleetDrone extends DroneInfo {

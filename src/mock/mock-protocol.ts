@@ -56,6 +56,14 @@ import type {
   NavControllerCallback,
   ScaledImuCallback,
   LinkStateCallback,
+  LocalPositionCallback,
+  DebugCallback,
+  GimbalAttitudeCallback,
+  ObstacleDistanceCallback,
+  CameraImageCapturedCallback,
+  ExtendedSysStateCallback,
+  FencePointCallback,
+  SystemTimeCallback,
 } from "@/lib/protocol/types";
 import { ArduCopterHandler } from "@/lib/protocol/firmware-ardupilot";
 import { MOCK_PARAMS, type MockParam } from "./mock-params";
@@ -73,6 +81,20 @@ function sub<T>(arr: T[], cb: T): () => void {
     if (idx >= 0) arr.splice(idx, 1);
   };
 }
+
+// ── Mock fence polygon (~200m radius around Bangalore mock home) ────
+
+const MOCK_HOME_LAT = 12.9716;
+const MOCK_HOME_LON = 77.5946;
+
+/** 5-point polygon fence centered on mock home, ~200m radius. */
+export const MOCK_FENCE_POLYGON: Array<{ idx: number; lat: number; lon: number }> = [
+  { idx: 0, lat: MOCK_HOME_LAT + 0.0018,  lon: MOCK_HOME_LON },          // North
+  { idx: 1, lat: MOCK_HOME_LAT + 0.00056, lon: MOCK_HOME_LON + 0.00171 }, // NE
+  { idx: 2, lat: MOCK_HOME_LAT - 0.00145, lon: MOCK_HOME_LON + 0.00106 }, // SE
+  { idx: 3, lat: MOCK_HOME_LAT - 0.00145, lon: MOCK_HOME_LON - 0.00106 }, // SW
+  { idx: 4, lat: MOCK_HOME_LAT + 0.00056, lon: MOCK_HOME_LON - 0.00171 }, // NW
+];
 
 // ── Vehicle identity ────────────────────────────────────────
 
@@ -127,6 +149,14 @@ export class MockProtocol implements DroneProtocol {
   private scaledImuCbs: ScaledImuCallback[] = [];
   private linkLostCbs: LinkStateCallback[] = [];
   private linkRestoredCbs: LinkStateCallback[] = [];
+  private localPositionCbs: LocalPositionCallback[] = [];
+  private debugCbs: DebugCallback[] = [];
+  private gimbalAttitudeCbs: GimbalAttitudeCallback[] = [];
+  private obstacleDistanceCbs: ObstacleDistanceCallback[] = [];
+  private cameraImageCapturedCbs: CameraImageCapturedCallback[] = [];
+  private extendedSysStateCbs: ExtendedSysStateCallback[] = [];
+  private fencePointCbs: FencePointCallback[] = [];
+  private systemTimeCbs: SystemTimeCallback[] = [];
   private accelCalTimers: ReturnType<typeof setTimeout>[] = [];
   private compassCalTimers: ReturnType<typeof setTimeout | typeof setInterval>[] = [];
 
@@ -177,6 +207,38 @@ export class MockProtocol implements DroneProtocol {
 
   emitWind(data: Parameters<WindCallback>[0]): void {
     for (const cb of this.windCbs) cb(data);
+  }
+
+  emitLocalPosition(data: Parameters<LocalPositionCallback>[0]): void {
+    for (const cb of this.localPositionCbs) cb(data);
+  }
+
+  emitDebug(data: Parameters<DebugCallback>[0]): void {
+    for (const cb of this.debugCbs) cb(data);
+  }
+
+  emitGimbalAttitude(data: Parameters<GimbalAttitudeCallback>[0]): void {
+    for (const cb of this.gimbalAttitudeCbs) cb(data);
+  }
+
+  emitObstacleDistance(data: Parameters<ObstacleDistanceCallback>[0]): void {
+    for (const cb of this.obstacleDistanceCbs) cb(data);
+  }
+
+  emitCameraImageCaptured(data: Parameters<CameraImageCapturedCallback>[0]): void {
+    for (const cb of this.cameraImageCapturedCbs) cb(data);
+  }
+
+  emitExtendedSysState(data: Parameters<ExtendedSysStateCallback>[0]): void {
+    for (const cb of this.extendedSysStateCbs) cb(data);
+  }
+
+  emitFencePoint(data: Parameters<FencePointCallback>[0]): void {
+    for (const cb of this.fencePointCbs) cb(data);
+  }
+
+  emitSystemTime(data: Parameters<SystemTimeCallback>[0]): void {
+    for (const cb of this.systemTimeCbs) cb(data);
   }
 
   // ── Connection ──────────────────────────────────────────
@@ -261,6 +323,54 @@ export class MockProtocol implements DroneProtocol {
   async cameraTrigger(): Promise<CommandResult> { return ok("Camera triggered"); }
   async setGimbalAngle(): Promise<CommandResult> { return ok("Gimbal set"); }
   async doPreArmCheck(): Promise<CommandResult> { return ok("Pre-arm: Ready"); }
+
+  // ── Fence Operations ────────────────────────────────────
+
+  async uploadFence(_points: Array<{ lat: number; lon: number }>): Promise<CommandResult> {
+    await new Promise((r) => setTimeout(r, 500));
+    this.emitStatusText(6, "Fence uploaded");
+    return ok("Fence uploaded");
+  }
+
+  async downloadFence(): Promise<Array<{ idx: number; lat: number; lon: number }>> {
+    return MOCK_FENCE_POLYGON;
+  }
+
+  // ── Guided Flight ──────────────────────────────────────
+
+  sendPositionTarget(_lat: number, _lon: number, _alt: number): void {
+    // no-op — guided mode position target
+  }
+
+  sendAttitudeTarget(_roll: number, _pitch: number, _yaw: number, _thrust: number): void {
+    // no-op — guided mode attitude target
+  }
+
+  // ── Camera/Gimbal ──────────────────────────────────────
+
+  async setCameraTriggerDistance(_distance: number): Promise<CommandResult> {
+    return ok("Camera trigger distance set");
+  }
+
+  async setGimbalMode(_mode: number): Promise<CommandResult> {
+    return ok("Gimbal mode set");
+  }
+
+  async setGimbalROI(_lat: number, _lon: number, _alt: number): Promise<CommandResult> {
+    return ok("Gimbal ROI set");
+  }
+
+  // ── Advanced Calibration ───────────────────────────────
+
+  async startEscCalibration(): Promise<CommandResult> {
+    this.emitStatusText(3, "WARNING: ESC calibration will spin motors! Remove props!");
+    return ok("ESC calibration started");
+  }
+
+  async startCompassMotCal(): Promise<CommandResult> {
+    this.emitStatusText(6, "CompassMot calibration started — increase throttle slowly");
+    return ok("CompassMot calibration started");
+  }
 
   // ── Manual Control ──────────────────────────────────────
 
@@ -358,7 +468,7 @@ export class MockProtocol implements DroneProtocol {
 
   // ── Calibration ─────────────────────────────────────────
 
-  async startCalibration(type: "accel" | "gyro" | "compass" | "level" | "airspeed"): Promise<CommandResult> {
+  async startCalibration(type: "accel" | "gyro" | "compass" | "level" | "airspeed" | "baro" | "rc" | "esc" | "compassmot"): Promise<CommandResult> {
     this.emitStatusText(6, `${type} calibration started`);
 
     if (type === "accel") {
@@ -422,11 +532,11 @@ export class MockProtocol implements DroneProtocol {
         // Both done
         if (pct0 >= 100 && pct1 >= 100) {
           clearInterval(iv);
-          // Report compass 0 (excellent fitness)
+          // Report compass 0 (excellent fitness, autosaved=0 — requires manual accept)
           const t0 = setTimeout(() => {
             for (const cb of this.magCalReportCbs) {
               cb({
-                compassId: 0, calStatus: 4, autosaved: 1,
+                compassId: 0, calStatus: 4, autosaved: 0,
                 ofsX: 42.3, ofsY: -18.7, ofsZ: 105.1, fitness: 6.2,
                 diagX: 1.02, diagY: 0.98, diagZ: 1.01,
                 offdiagX: 0.005, offdiagY: -0.012, offdiagZ: 0.008,
@@ -435,11 +545,13 @@ export class MockProtocol implements DroneProtocol {
               });
             }
           }, 300);
-          // Report compass 1 (acceptable fitness, slight delay)
+          // Report compass 1 — randomly succeeds (calStatus=4) or fails with warning (calStatus=6)
+          // to test both the accept and force-save flows
+          const compass1Fails = Math.random() < 0.3; // 30% chance of cal_warning
           const t1 = setTimeout(() => {
             for (const cb of this.magCalReportCbs) {
               cb({
-                compassId: 1, calStatus: 4, autosaved: 1,
+                compassId: 1, calStatus: compass1Fails ? 6 : 4, autosaved: 0,
                 ofsX: -87.5, ofsY: 134.2, ofsZ: -62.8, fitness: 18.5,
                 diagX: 0.95, diagY: 1.08, diagZ: 0.97,
                 offdiagX: 0.042, offdiagY: -0.031, offdiagZ: 0.015,
@@ -452,8 +564,22 @@ export class MockProtocol implements DroneProtocol {
         }
       }, 250);
       this.compassCalTimers.push(iv);
+    } else if (type === "rc") {
+      // RC calibration not supported via single command — return error
+      return { success: false, resultCode: -1, message: "RC calibration requires the Receiver panel (channel bars + manual stick movement)" };
+    } else if (type === "esc") {
+      // ESC cal simulation — longer with motor warning
+      this.emitStatusText(3, "WARNING: ESC calibration will spin motors! Remove props!");
+      setTimeout(() => this.emitStatusText(6, "ESC calibration: Set throttle to maximum"), 1000);
+      setTimeout(() => this.emitStatusText(6, "ESC calibration: 50%"), 2000);
+      setTimeout(() => this.emitStatusText(5, "ESC calibration successful"), 3500);
+    } else if (type === "compassmot") {
+      // CompassMot simulation
+      setTimeout(() => this.emitStatusText(6, "CompassMot: Increasing throttle..."), 1000);
+      setTimeout(() => this.emitStatusText(6, "CompassMot interference: 12% — Good"), 3000);
+      setTimeout(() => this.emitStatusText(5, "CompassMot calibration successful"), 4000);
     } else {
-      // Gyro/level/airspeed: simple progress → success
+      // Gyro/level/airspeed/baro: simple progress → success
       setTimeout(() => this.emitStatusText(6, `${type} calibration: 50%`), 1000);
       setTimeout(() => this.emitStatusText(5, `${type} calibration successful`), 2000);
     }
@@ -483,6 +609,11 @@ export class MockProtocol implements DroneProtocol {
   async cancelCompassCal(_compassMask?: number): Promise<CommandResult> {
     this.clearCompassTimers();
     return ok("Compass calibration cancelled");
+  }
+
+  async cancelCalibration(): Promise<CommandResult> {
+    this.clearAccelTimers();
+    return ok("Calibration cancelled");
   }
 
   private emitAccelCalPos(position: AccelCalPosition): void {
@@ -598,8 +729,114 @@ export class MockProtocol implements DroneProtocol {
   onScaledImu(cb: ScaledImuCallback): () => void { return sub(this.scaledImuCbs, cb); }
   onLinkLost(cb: LinkStateCallback): () => void { return sub(this.linkLostCbs, cb); }
   onLinkRestored(cb: LinkStateCallback): () => void { return sub(this.linkRestoredCbs, cb); }
+  onLocalPosition(cb: LocalPositionCallback): () => void { return sub(this.localPositionCbs, cb); }
+  onDebug(cb: DebugCallback): () => void { return sub(this.debugCbs, cb); }
+  onGimbalAttitude(cb: GimbalAttitudeCallback): () => void { return sub(this.gimbalAttitudeCbs, cb); }
+  onObstacleDistance(cb: ObstacleDistanceCallback): () => void { return sub(this.obstacleDistanceCbs, cb); }
+  onCameraImageCaptured(cb: CameraImageCapturedCallback): () => void { return sub(this.cameraImageCapturedCbs, cb); }
+  onExtendedSysState(cb: ExtendedSysStateCallback): () => void { return sub(this.extendedSysStateCbs, cb); }
+  onFencePoint(cb: FencePointCallback): () => void { return sub(this.fencePointCbs, cb); }
+  onSystemTime(cb: SystemTimeCallback): () => void { return sub(this.systemTimeCbs, cb); }
   async requestMessage(): Promise<CommandResult> { return ok("Message requested"); }
   async setMessageInterval(): Promise<CommandResult> { return ok("Interval set"); }
+
+  // ── Mock Telemetry Tick ─────────────────────────────────
+  // Emits debug, gimbal, obstacle, localPosition, and cameraImageCaptured
+  // on realistic intervals. Call startMockTelemetryTick() after connect.
+
+  private tickTimers: ReturnType<typeof setInterval>[] = [];
+  private imageIndex = 0;
+
+  startMockTelemetryTick(): void {
+    this.stopMockTelemetryTick();
+
+    // Debug values: 3 named floats every 2 seconds
+    this.tickTimers.push(
+      setInterval(() => {
+        const now = Date.now();
+        this.emitDebug({ timestamp: now, name: "BaroAlt", value: 10 + Math.random() * 2, type: "float" });
+        this.emitDebug({ timestamp: now, name: "RangefinderDist", value: 8 + Math.random() * 4, type: "float" });
+        this.emitDebug({ timestamp: now, name: "OptFlowQual", value: 180 + Math.random() * 75, type: "float" });
+      }, 2000),
+    );
+
+    // Gimbal attitude: oscillating pitch/roll, yaw follows heading, every 500ms
+    let gimbalTick = 0;
+    this.tickTimers.push(
+      setInterval(() => {
+        gimbalTick++;
+        const t = gimbalTick * 0.05;
+        this.emitGimbalAttitude({
+          timestamp: Date.now(),
+          pitch: -15 + -15 * Math.sin(t),          // oscillates -30 to 0
+          roll: 5 * Math.sin(t * 1.3),              // oscillates ±5
+          yaw: (gimbalTick * 2) % 360,              // slow rotation following heading
+          angularVelocityX: 0,
+          angularVelocityY: 0,
+          angularVelocityZ: 0,
+        });
+      }, 500),
+    );
+
+    // Obstacle distances: 12 sectors, mostly far, 2 closer, every 1 second
+    this.tickTimers.push(
+      setInterval(() => {
+        const distances = new Array(12).fill(1000);
+        // Two sectors have closer obstacles (200-800cm range)
+        distances[3] = 200 + Math.random() * 600;
+        distances[9] = 200 + Math.random() * 600;
+        this.emitObstacleDistance({
+          timestamp: Date.now(),
+          distances,
+          minDistance: 20,
+          maxDistance: 1200,
+          increment: 30,       // 360/12
+          incrementF: 30,
+          angleOffset: 0,
+          frame: 12,           // MAV_FRAME_BODY_FRD
+        });
+      }, 1000),
+    );
+
+    // Local position NED: derived from mock home, every 200ms
+    let localTick = 0;
+    this.tickTimers.push(
+      setInterval(() => {
+        localTick++;
+        const t = localTick * 0.1;
+        this.emitLocalPosition({
+          timestamp: Date.now(),
+          x: 10 * Math.sin(t * 0.3),    // North/South drift
+          y: 10 * Math.cos(t * 0.2),    // East/West drift
+          z: -(10 + Math.sin(t * 0.15)), // NED: negative = up
+          vx: 0.3 * Math.cos(t * 0.3),
+          vy: -0.2 * Math.sin(t * 0.2),
+          vz: -0.1 * Math.cos(t * 0.15),
+        });
+      }, 200),
+    );
+
+    // Camera image captured: every 10 seconds
+    this.tickTimers.push(
+      setInterval(() => {
+        this.imageIndex++;
+        this.emitCameraImageCaptured({
+          timestamp: Date.now(),
+          lat: MOCK_HOME_LAT + (Math.random() - 0.5) * 0.001,
+          lon: MOCK_HOME_LON + (Math.random() - 0.5) * 0.001,
+          alt: 50 + Math.random() * 10,
+          imageIndex: this.imageIndex,
+          captureResult: 1,
+          fileUrl: `IMG_${String(this.imageIndex).padStart(4, "0")}.jpg`,
+        });
+      }, 10000),
+    );
+  }
+
+  stopMockTelemetryTick(): void {
+    for (const t of this.tickTimers) clearInterval(t);
+    this.tickTimers = [];
+  }
 
   // ── Info ────────────────────────────────────────────────
 

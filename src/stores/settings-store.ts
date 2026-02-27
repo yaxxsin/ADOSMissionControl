@@ -73,6 +73,8 @@ interface SettingsStoreState {
   autoConnectOnLoad: boolean;
   /** Whether GCS location sharing is enabled. */
   locationEnabled: boolean;
+  /** Last active FC configure panel ID (persisted for QoL). */
+  lastActivePanel: string;
 
   setMapTileSource: (source: MapTileSource) => void;
   setUnits: (units: UnitSystem) => void;
@@ -93,6 +95,7 @@ interface SettingsStoreState {
   setAutoReconnect: (enabled: boolean) => void;
   setAutoConnectOnLoad: (enabled: boolean) => void;
   setLocationEnabled: (enabled: boolean) => void;
+  setLastActivePanel: (panelId: string) => void;
 }
 
 export const useSettingsStore = create<SettingsStoreState>()(
@@ -123,6 +126,7 @@ export const useSettingsStore = create<SettingsStoreState>()(
       autoReconnect: true,
       autoConnectOnLoad: true,
       locationEnabled: false,
+      lastActivePanel: "outputs",
 
       setMapTileSource: (mapTileSource) => set({ mapTileSource }),
       setUnits: (units) => set({ units }),
@@ -149,11 +153,12 @@ export const useSettingsStore = create<SettingsStoreState>()(
       setAutoReconnect: (autoReconnect) => set({ autoReconnect }),
       setAutoConnectOnLoad: (autoConnectOnLoad) => set({ autoConnectOnLoad }),
       setLocationEnabled: (locationEnabled) => set({ locationEnabled }),
+      setLastActivePanel: (lastActivePanel) => set({ lastActivePanel }),
     }),
     {
       name: "altcmd:settings",
       storage: createJSONStorage(indexedDBStorage.storage),
-      version: 9,
+      version: 10,
       migrate: (persisted, version) => {
         const state = persisted as Record<string, unknown>;
         if (version < 2) {
@@ -191,6 +196,10 @@ export const useSettingsStore = create<SettingsStoreState>()(
         if (version < 9) {
           // v9: GCS location sharing
           state.locationEnabled = false;
+        }
+        if (version < 10) {
+          // v10: last active FC panel persistence
+          state.lastActivePanel = "outputs";
         }
         return state as unknown as SettingsStoreState;
       },

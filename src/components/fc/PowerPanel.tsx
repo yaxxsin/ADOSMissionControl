@@ -1,21 +1,16 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useTelemetryStore } from "@/stores/telemetry-store";
-import { Battery, Zap, Save, HardDrive } from "lucide-react";
+import { usePanelParams } from "@/hooks/use-panel-params";
+import { PanelHeader } from "./PanelHeader";
+import { Battery, Zap, ShieldAlert, Save, HardDrive } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-interface ParamState {
-  value: string;
-  dirty: boolean;
-}
-
-type PowerParams = Record<string, ParamState>;
 
 const BATT_MONITOR_OPTIONS = [
   { value: "0", label: "0 — Disabled" },
@@ -29,16 +24,23 @@ const BATT_MONITOR_OPTIONS = [
   { value: "16", label: "16 — Analog VCC" },
 ];
 
-const DEFAULT_PARAMS: PowerParams = {
-  BATT_MONITOR: { value: "0", dirty: false },
-  BATT_CAPACITY: { value: "0", dirty: false },
-  BATT_AMP_PERVLT: { value: "17.0", dirty: false },
-  BATT_AMP_OFFSET: { value: "0.0", dirty: false },
-  BATT2_MONITOR: { value: "0", dirty: false },
-  BATT2_CAPACITY: { value: "0", dirty: false },
-  BATT2_AMP_PERVLT: { value: "17.0", dirty: false },
-  BATT2_AMP_OFFSET: { value: "0.0", dirty: false },
-};
+const BATT_FS_ACTION_OPTIONS = [
+  { value: "0", label: "0 — None" },
+  { value: "1", label: "1 — Land" },
+  { value: "2", label: "2 — RTL" },
+  { value: "3", label: "3 — SmartRTL or RTL" },
+  { value: "4", label: "4 — SmartRTL or Land" },
+  { value: "5", label: "5 — Terminate" },
+];
+
+const POWER_PARAMS = [
+  "BATT_MONITOR", "BATT_CAPACITY", "BATT_AMP_PERVLT", "BATT_AMP_OFFSET",
+  "BATT_FS_LOW_VOLT", "BATT_FS_LOW_ACT", "BATT_FS_CRT_VOLT", "BATT_FS_CRT_ACT",
+  "BATT_FS_LOW_MAH", "BATT_FS_CRT_MAH",
+  "BATT2_MONITOR", "BATT2_CAPACITY", "BATT2_AMP_PERVLT", "BATT2_AMP_OFFSET",
+  "BATT2_FS_LOW_VOLT", "BATT2_FS_LOW_ACT", "BATT2_FS_CRT_VOLT", "BATT2_FS_CRT_ACT",
+  "BATT2_FS_LOW_MAH", "BATT2_FS_CRT_MAH",
+];
 
 function cellVoltageColor(v: number): string {
   if (v >= 3.7) return "text-status-success";
@@ -56,10 +58,16 @@ export function PowerPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const { toast } = useToast();
   const batteryBuffer = useTelemetryStore((s) => s.battery);
-  const [params, setParams] = useState<PowerParams>(DEFAULT_PARAMS);
   const [saving, setSaving] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  const [showCommitButton, setShowCommitButton] = useState(false);
+
+  const {
+    params, loading, error, dirtyParams, hasRamWrites,
+    loadProgress, hasLoaded,
+    refresh, setLocalValue, saveAllToRam, commitToFlash,
+  } = usePanelParams({ paramNames: POWER_PARAMS, panelId: "power" });
+
+  const connected = !!getSelectedProtocol();
+  const hasDirty = dirtyParams.size > 0;
 
   const latestBattery = batteryBuffer.latest();
   const voltage = latestBattery?.voltage ?? 0;
@@ -77,77 +85,39 @@ export function PowerPanel() {
     return voltage / cellCount;
   }, [voltage, cellCount]);
 
-  const updateParam = useCallback((name: string, value: string) => {
-    setParams((prev) => ({
-      ...prev,
-      [name]: { value, dirty: true },
-    }));
-  }, []);
+  /** Get param as string for Select/Input display */
+  const p = (name: string, fallback = "0") => String(params.get(name) ?? fallback);
+  /** Set param from string input */
+  const set = (name: string, v: string) => setLocalValue(name, Number(v) || 0);
 
-  const loadParams = useCallback(async () => {
-    const protocol = getSelectedProtocol();
-    if (!protocol) return;
-    const updated = { ...params };
-    for (const name of Object.keys(DEFAULT_PARAMS)) {
-      try {
-        const pv = await protocol.getParameter(name);
-        updated[name] = { value: String(pv.value), dirty: false };
-      } catch {
-        // not available
-      }
-    }
-    setParams(updated);
-    setLoaded(true);
-    toast("Loaded power parameters", "success");
-  }, [getSelectedProtocol, params, toast]);
-
-  const saveParams = useCallback(async () => {
-    const protocol = getSelectedProtocol();
-    if (!protocol) return;
+  async function handleSave() {
     setSaving(true);
-    for (const [name, p] of Object.entries(params)) {
-      if (!p.dirty) continue;
-      try {
-        await protocol.setParameter(name, parseFloat(p.value));
-        setParams((prev) => ({ ...prev, [name]: { ...prev[name], dirty: false } }));
-      } catch {
-        toast(`Failed to write ${name}`, "error");
-      }
-    }
-    setShowCommitButton(true);
+    const ok = await saveAllToRam();
     setSaving(false);
-    toast("Saved to flight controller", "success");
-  }, [getSelectedProtocol, params, toast]);
+    if (ok) toast("Saved to flight controller", "success");
+    else toast("Some parameters failed to save", "warning");
+  }
 
-  const commitToFlash = useCallback(async () => {
-    const protocol = getSelectedProtocol();
-    if (!protocol) return;
-    try {
-      await protocol.commitParamsToFlash();
-      setShowCommitButton(false);
-      toast("Written to flash — persists after reboot", "success");
-    } catch {
-      toast("Failed to write to flash", "error");
-    }
-  }, [getSelectedProtocol, toast]);
-
-  const hasDirty = Object.values(params).some((p) => p.dirty);
-  const connected = !!getSelectedProtocol();
+  async function handleFlash() {
+    const ok = await commitToFlash();
+    if (ok) toast("Written to flash — persists after reboot", "success");
+    else toast("Failed to write to flash", "error");
+  }
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-2xl space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-display font-semibold text-text-primary">Power / Battery</h1>
-            <p className="text-xs text-text-tertiary mt-0.5">Battery capacity, current sensor calibration, live cell monitoring</p>
-          </div>
-          {connected && !loaded && (
-            <Button variant="secondary" size="sm" onClick={loadParams}>
-              Load from FC
-            </Button>
-          )}
-        </div>
+        <PanelHeader
+          title="Power / Battery"
+          subtitle="Battery capacity, current sensor calibration, live cell monitoring"
+          icon={<Battery size={16} />}
+          loading={loading}
+          loadProgress={loadProgress}
+          hasLoaded={hasLoaded}
+          onRead={refresh}
+          connected={connected}
+          error={error}
+        />
 
         {/* Live Battery Status */}
         <div className="border border-border-default bg-bg-secondary p-4">
@@ -205,8 +175,8 @@ export function PowerPanel() {
           <Select
             label="BATT_MONITOR — Battery Monitor Type"
             options={BATT_MONITOR_OPTIONS}
-            value={params.BATT_MONITOR.value}
-            onChange={(v) => updateParam("BATT_MONITOR", v)}
+            value={p("BATT_MONITOR")}
+            onChange={(v) => set("BATT_MONITOR", v)}
           />
           <Input
             label="BATT_CAPACITY — Battery Capacity"
@@ -214,8 +184,8 @@ export function PowerPanel() {
             step="100"
             min="0"
             unit="mAh"
-            value={params.BATT_CAPACITY.value}
-            onChange={(e) => updateParam("BATT_CAPACITY", e.target.value)}
+            value={p("BATT_CAPACITY")}
+            onChange={(e) => set("BATT_CAPACITY", e.target.value)}
           />
         </div>
 
@@ -230,58 +200,176 @@ export function PowerPanel() {
             type="number"
             step="0.1"
             unit="A/V"
-            value={params.BATT_AMP_PERVLT.value}
-            onChange={(e) => updateParam("BATT_AMP_PERVLT", e.target.value)}
+            value={p("BATT_AMP_PERVLT", "17.0")}
+            onChange={(e) => set("BATT_AMP_PERVLT", e.target.value)}
           />
           <Input
             label="BATT_AMP_OFFSET — Current Offset"
             type="number"
             step="0.01"
             unit="A"
-            value={params.BATT_AMP_OFFSET.value}
-            onChange={(e) => updateParam("BATT_AMP_OFFSET", e.target.value)}
+            value={p("BATT_AMP_OFFSET", "0.0")}
+            onChange={(e) => set("BATT_AMP_OFFSET", e.target.value)}
           />
         </div>
 
-        {/* Battery 2 */}
-        {params.BATT2_MONITOR.value !== "0" && (
-          <div className="border border-border-default bg-bg-secondary p-4 space-y-3">
-            <div className="flex items-center gap-2 mb-1">
-              <Battery size={14} className="text-accent-primary" />
-              <h2 className="text-sm font-medium text-text-primary">Battery 2</h2>
-            </div>
-            <Select
-              label="BATT2_MONITOR — Battery 2 Monitor Type"
-              options={BATT_MONITOR_OPTIONS}
-              value={params.BATT2_MONITOR.value}
-              onChange={(v) => updateParam("BATT2_MONITOR", v)}
-            />
+        {/* Battery 1 Failsafe */}
+        <div className="border border-border-default bg-bg-secondary p-4 space-y-3">
+          <div className="flex items-center gap-2 mb-1">
+            <ShieldAlert size={14} className="text-accent-primary" />
+            <h2 className="text-sm font-medium text-text-primary">Battery 1 Failsafe</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <Input
-              label="BATT2_CAPACITY — Battery 2 Capacity"
-              type="number"
-              step="100"
-              min="0"
-              unit="mAh"
-              value={params.BATT2_CAPACITY.value}
-              onChange={(e) => updateParam("BATT2_CAPACITY", e.target.value)}
-            />
-            <Input
-              label="BATT2_AMP_PERVLT — Battery 2 Amps Per Volt"
+              label="BATT_FS_LOW_VOLT — Low Voltage"
               type="number"
               step="0.1"
-              unit="A/V"
-              value={params.BATT2_AMP_PERVLT.value}
-              onChange={(e) => updateParam("BATT2_AMP_PERVLT", e.target.value)}
+              min="0"
+              unit="V"
+              value={p("BATT_FS_LOW_VOLT")}
+              onChange={(e) => set("BATT_FS_LOW_VOLT", e.target.value)}
+            />
+            <Select
+              label="BATT_FS_LOW_ACT — Low Action"
+              options={BATT_FS_ACTION_OPTIONS}
+              value={p("BATT_FS_LOW_ACT")}
+              onChange={(v) => set("BATT_FS_LOW_ACT", v)}
             />
             <Input
-              label="BATT2_AMP_OFFSET — Battery 2 Current Offset"
+              label="BATT_FS_CRT_VOLT — Critical Voltage"
               type="number"
-              step="0.01"
-              unit="A"
-              value={params.BATT2_AMP_OFFSET.value}
-              onChange={(e) => updateParam("BATT2_AMP_OFFSET", e.target.value)}
+              step="0.1"
+              min="0"
+              unit="V"
+              value={p("BATT_FS_CRT_VOLT")}
+              onChange={(e) => set("BATT_FS_CRT_VOLT", e.target.value)}
+            />
+            <Select
+              label="BATT_FS_CRT_ACT — Critical Action"
+              options={BATT_FS_ACTION_OPTIONS}
+              value={p("BATT_FS_CRT_ACT")}
+              onChange={(v) => set("BATT_FS_CRT_ACT", v)}
+            />
+            <Input
+              label="BATT_FS_LOW_MAH — Low mAh Remaining"
+              type="number"
+              step="50"
+              min="0"
+              unit="mAh"
+              value={p("BATT_FS_LOW_MAH")}
+              onChange={(e) => set("BATT_FS_LOW_MAH", e.target.value)}
+            />
+            <Input
+              label="BATT_FS_CRT_MAH — Critical mAh Remaining"
+              type="number"
+              step="50"
+              min="0"
+              unit="mAh"
+              value={p("BATT_FS_CRT_MAH")}
+              onChange={(e) => set("BATT_FS_CRT_MAH", e.target.value)}
             />
           </div>
+        </div>
+
+        {/* Battery 2 */}
+        {p("BATT2_MONITOR") !== "0" && (
+          <>
+            <div className="border border-border-default bg-bg-secondary p-4 space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Battery size={14} className="text-accent-primary" />
+                <h2 className="text-sm font-medium text-text-primary">Battery 2 Settings</h2>
+              </div>
+              <Select
+                label="BATT2_MONITOR — Battery 2 Monitor Type"
+                options={BATT_MONITOR_OPTIONS}
+                value={p("BATT2_MONITOR")}
+                onChange={(v) => set("BATT2_MONITOR", v)}
+              />
+              <Input
+                label="BATT2_CAPACITY — Battery 2 Capacity"
+                type="number"
+                step="100"
+                min="0"
+                unit="mAh"
+                value={p("BATT2_CAPACITY")}
+                onChange={(e) => set("BATT2_CAPACITY", e.target.value)}
+              />
+              <Input
+                label="BATT2_AMP_PERVLT — Battery 2 Amps Per Volt"
+                type="number"
+                step="0.1"
+                unit="A/V"
+                value={p("BATT2_AMP_PERVLT", "17.0")}
+                onChange={(e) => set("BATT2_AMP_PERVLT", e.target.value)}
+              />
+              <Input
+                label="BATT2_AMP_OFFSET — Battery 2 Current Offset"
+                type="number"
+                step="0.01"
+                unit="A"
+                value={p("BATT2_AMP_OFFSET", "0.0")}
+                onChange={(e) => set("BATT2_AMP_OFFSET", e.target.value)}
+              />
+            </div>
+
+            {/* Battery 2 Failsafe */}
+            <div className="border border-border-default bg-bg-secondary p-4 space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <ShieldAlert size={14} className="text-accent-primary" />
+                <h2 className="text-sm font-medium text-text-primary">Battery 2 Failsafe</h2>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  label="BATT2_FS_LOW_VOLT — Low Voltage"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  unit="V"
+                  value={p("BATT2_FS_LOW_VOLT")}
+                  onChange={(e) => set("BATT2_FS_LOW_VOLT", e.target.value)}
+                />
+                <Select
+                  label="BATT2_FS_LOW_ACT — Low Action"
+                  options={BATT_FS_ACTION_OPTIONS}
+                  value={p("BATT2_FS_LOW_ACT")}
+                  onChange={(v) => set("BATT2_FS_LOW_ACT", v)}
+                />
+                <Input
+                  label="BATT2_FS_CRT_VOLT — Critical Voltage"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  unit="V"
+                  value={p("BATT2_FS_CRT_VOLT")}
+                  onChange={(e) => set("BATT2_FS_CRT_VOLT", e.target.value)}
+                />
+                <Select
+                  label="BATT2_FS_CRT_ACT — Critical Action"
+                  options={BATT_FS_ACTION_OPTIONS}
+                  value={p("BATT2_FS_CRT_ACT")}
+                  onChange={(v) => set("BATT2_FS_CRT_ACT", v)}
+                />
+                <Input
+                  label="BATT2_FS_LOW_MAH — Low mAh Remaining"
+                  type="number"
+                  step="50"
+                  min="0"
+                  unit="mAh"
+                  value={p("BATT2_FS_LOW_MAH")}
+                  onChange={(e) => set("BATT2_FS_LOW_MAH", e.target.value)}
+                />
+                <Input
+                  label="BATT2_FS_CRT_MAH — Critical mAh Remaining"
+                  type="number"
+                  step="50"
+                  min="0"
+                  unit="mAh"
+                  value={p("BATT2_FS_CRT_MAH")}
+                  onChange={(e) => set("BATT2_FS_CRT_MAH", e.target.value)}
+                />
+              </div>
+            </div>
+          </>
         )}
 
         {/* Save */}
@@ -292,16 +380,16 @@ export function PowerPanel() {
             icon={<Save size={14} />}
             disabled={!hasDirty || !connected}
             loading={saving}
-            onClick={saveParams}
+            onClick={handleSave}
           >
             Save to Flight Controller
           </Button>
-          {showCommitButton && (
+          {hasRamWrites && (
             <Button
               variant="secondary"
               size="lg"
               icon={<HardDrive size={14} />}
-              onClick={commitToFlash}
+              onClick={handleFlash}
             >
               Write to Flash
             </Button>

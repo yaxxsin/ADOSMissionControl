@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
+import { useTelemetryStore } from "@/stores/telemetry-store";
 import {
   Monitor, Eye, EyeOff, Save, RotateCcw, Grid3x3,
-  Layers, Upload, Download, HardDrive,
+  Layers, Upload, Download, HardDrive, Copy, ClipboardPaste,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface OsdElement {
   id: string;
@@ -80,20 +82,91 @@ const PRESETS: Record<string, Partial<Record<string, { enabled: boolean; row: nu
   },
 };
 
+type VideoFormat = "PAL" | "NTSC";
+const FORMAT_ROWS: Record<VideoFormat, number> = { PAL: 16, NTSC: 13 };
 const GRID_COLS = 30;
-const GRID_ROWS = 16;
+
+// Live telemetry preview values for OSD elements
+function useLiveTelemetryPreview(): Record<string, string> {
+  const vfr = useTelemetryStore((s) => s.vfr);
+  const battery = useTelemetryStore((s) => s.battery);
+  const gps = useTelemetryStore((s) => s.gps);
+  const position = useTelemetryStore((s) => s.position);
+
+  return useMemo(() => {
+    const v = vfr.latest();
+    const b = battery.latest();
+    const g = gps.latest();
+    const p = position.latest();
+    return {
+      ALTITUDE: v ? `${v.alt.toFixed(0)}m` : "ALT",
+      BATTVOLT: b ? `${b.voltage.toFixed(1)}V` : "BATT",
+      RSSI: "RSSI",
+      CURRENT: b ? `${b.current.toFixed(1)}A` : "AMP",
+      SATS: g ? `${g.satellites}` : "SAT",
+      FLTMODE: "MODE",
+      MESSAGES: "MSG",
+      GSPEED: v ? `${v.groundspeed.toFixed(1)}` : "GS",
+      HORIZON: "HOR",
+      COMPASS: p ? `${p.heading.toFixed(0)}°` : "CMP",
+      WIND: "WND",
+      ASPEED: v ? `${v.airspeed.toFixed(1)}` : "AS",
+      VSPEED: v ? `${v.climb.toFixed(1)}` : "VS",
+      THROTTLE: v ? `${v.throttle}%` : "THR",
+      HEADING: p ? `${p.heading.toFixed(0)}°` : "HDG",
+      HOMEDIST: "DIST",
+      HOMEDIR: "DIR",
+      POWER: b ? `${(b.voltage * b.current).toFixed(0)}W` : "PWR",
+      CELLVOLT: "CELL",
+      BATBAR: b ? `${b.remaining}%` : "BAR",
+      ARMING: "ARM",
+      CLIMBEFF: "CE",
+      EFF: "EFF",
+      BATUSED: b ? `${b.consumed.toFixed(0)}` : "mAh",
+      CLK: new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" }),
+      ROLL_ANGLE: "ROLL",
+      PITCH_ANGLE: "PTCH",
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vfr.length, battery.length, gps.length, position.length]);
+}
 
 export function OsdEditorPanel() {
   const selectedDroneId = useDroneManager((s) => s.selectedDroneId);
   const getSelectedDrone = useDroneManager((s) => s.getSelectedDrone);
   const { toast } = useToast();
 
-  const [elements, setElements] = useState<OsdElement[]>(DEFAULT_ELEMENTS);
+  // Per-screen element layouts (screens 1-4)
+  const [screenLayouts, setScreenLayouts] = useState<Record<number, OsdElement[]>>({
+    1: DEFAULT_ELEMENTS,
+    2: DEFAULT_ELEMENTS.map((el) => ({ ...el, enabled: false })),
+    3: DEFAULT_ELEMENTS.map((el) => ({ ...el, enabled: false })),
+    4: DEFAULT_ELEMENTS.map((el) => ({ ...el, enabled: false })),
+  });
   const [activeScreen, setActiveScreen] = useState(1);
   const [dragElement, setDragElement] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
   const [showCommitButton, setShowCommitButton] = useState(false);
+  const [videoFormat, setVideoFormat] = useState<VideoFormat>("PAL");
+  const [clipboard, setClipboard] = useState<OsdElement[] | null>(null);
+  const [livePreview, setLivePreview] = useState(false);
+
+  const GRID_ROWS = FORMAT_ROWS[videoFormat];
+
+  // Current screen's elements
+  const elements = screenLayouts[activeScreen];
+  const setElements = useCallback(
+    (updater: OsdElement[] | ((prev: OsdElement[]) => OsdElement[])) => {
+      setScreenLayouts((prev) => ({
+        ...prev,
+        [activeScreen]: typeof updater === "function" ? updater(prev[activeScreen]) : updater,
+      }));
+    },
+    [activeScreen],
+  );
+
+  const liveTelemetry = useLiveTelemetryPreview();
 
   const gridRef = useRef<HTMLDivElement>(null);
 
@@ -124,7 +197,7 @@ export function OsdEditorPanel() {
         prev.map((el) => el.id === dragElement ? { ...el, row, col } : el)
       );
     },
-    [dragElement]
+    [dragElement, GRID_ROWS, setElements]
   );
 
   const loadPreset = (presetName: string) => {
@@ -139,6 +212,21 @@ export function OsdEditorPanel() {
       })
     );
   };
+
+  const copyScreen = useCallback(() => {
+    setClipboard(elements.map((el) => ({ ...el })));
+    toast(`Screen ${activeScreen} copied`, "info");
+  }, [elements, activeScreen, toast]);
+
+  const pasteScreen = useCallback(() => {
+    if (!clipboard) return;
+    // Clamp rows to current format
+    const maxRow = FORMAT_ROWS[videoFormat] - 1;
+    setElements(
+      clipboard.map((el) => ({ ...el, row: Math.min(el.row, maxRow) })),
+    );
+    toast(`Pasted to screen ${activeScreen}`, "success");
+  }, [clipboard, activeScreen, videoFormat, setElements, toast]);
 
   const handleSave = useCallback(async () => {
     const drone = getSelectedDrone();
@@ -167,10 +255,15 @@ export function OsdEditorPanel() {
     const drone = getSelectedDrone();
     if (!drone) return;
     try {
-      await drone.protocol.commitParamsToFlash();
-      setShowCommitButton(false);
-      toast("Written to flash — persists after reboot", "success");
-    } catch {
+      const result = await drone.protocol.commitParamsToFlash();
+      if (result.success) {
+        setShowCommitButton(false);
+        toast("Written to flash — persists after reboot", "success");
+      } else {
+        toast("Failed to write to flash", "error");
+      }
+    } catch (err) {
+      console.error("[OSD] commitParamsToFlash error:", err);
       toast("Failed to write to flash", "error");
     }
   }, [getSelectedDrone, toast]);
@@ -204,9 +297,45 @@ export function OsdEditorPanel() {
                   : "text-text-tertiary hover:text-text-secondary"
               }`}
             >
-              Screen {screen}
+              OSD {screen}
             </button>
           ))}
+        </div>
+
+        {/* Copy/Paste + Format */}
+        <div className="flex items-center gap-1 p-2 border-b border-border-default">
+          <button
+            onClick={copyScreen}
+            className="flex items-center gap-1 px-2 py-1 text-[10px] text-text-secondary hover:text-text-primary border border-border-default cursor-pointer"
+          >
+            <Copy size={10} />
+            Copy
+          </button>
+          <button
+            onClick={pasteScreen}
+            disabled={!clipboard}
+            className="flex items-center gap-1 px-2 py-1 text-[10px] text-text-secondary hover:text-text-primary border border-border-default cursor-pointer disabled:opacity-40"
+          >
+            <ClipboardPaste size={10} />
+            Paste
+          </button>
+          <div className="flex-1" />
+          <div className="flex items-center gap-0.5 bg-bg-tertiary p-0.5 rounded">
+            {(["PAL", "NTSC"] as VideoFormat[]).map((fmt) => (
+              <button
+                key={fmt}
+                onClick={() => setVideoFormat(fmt)}
+                className={cn(
+                  "px-2 py-0.5 text-[10px] cursor-pointer rounded transition-colors",
+                  videoFormat === fmt
+                    ? "bg-bg-secondary text-text-primary font-medium"
+                    : "text-text-tertiary hover:text-text-secondary",
+                )}
+              >
+                {fmt}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Preset buttons */}
@@ -282,13 +411,22 @@ export function OsdEditorPanel() {
         <div className="flex items-center gap-3 mb-4">
           <Monitor size={14} className="text-text-secondary" />
           <span className="text-xs font-semibold text-text-primary">OSD Preview — Screen {activeScreen}</span>
-          <span className="text-[10px] text-text-tertiary">{enabledElements.length} elements active</span>
+          <span className="text-[10px] text-text-tertiary">
+            {enabledElements.length} elements · {videoFormat} {GRID_COLS}×{GRID_ROWS}
+          </span>
           <button
             onClick={() => setShowGrid((p) => !p)}
             className={`flex items-center gap-1 px-2 py-1 text-[10px] cursor-pointer ${showGrid ? "text-accent-primary" : "text-text-tertiary"}`}
           >
             <Grid3x3 size={10} />
             Grid
+          </button>
+          <button
+            onClick={() => setLivePreview((p) => !p)}
+            className={`flex items-center gap-1 px-2 py-1 text-[10px] cursor-pointer ${livePreview ? "text-accent-primary" : "text-text-tertiary"}`}
+          >
+            <Eye size={10} />
+            Live
           </button>
         </div>
 
@@ -336,7 +474,7 @@ export function OsdEditorPanel() {
               }}
               onMouseDown={() => handleGridMouseDown(el.id)}
             >
-              {el.shortLabel}
+              {livePreview ? (liveTelemetry[el.id] ?? el.shortLabel) : el.shortLabel}
             </div>
           ))}
 

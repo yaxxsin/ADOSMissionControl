@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { RingBuffer } from "@/lib/ring-buffer";
-import type { AttitudeData, PositionData, BatteryData, GpsData, VfrData, RcData, SysStatusData, RadioData, EkfData, VibrationData, ServoOutputData, WindData, TerrainData } from "@/lib/types";
+import type { AttitudeData, PositionData, BatteryData, GpsData, VfrData, RcData, SysStatusData, RadioData, EkfData, VibrationData, ServoOutputData, WindData, TerrainData, LocalPositionData, DebugData, GimbalData, ObstacleData } from "@/lib/types";
 
 interface TelemetryStoreState {
   attitude: RingBuffer<AttitudeData>;
@@ -16,6 +16,10 @@ interface TelemetryStoreState {
   servoOutput: RingBuffer<ServoOutputData>;
   wind: RingBuffer<WindData>;
   terrain: RingBuffer<TerrainData>;
+  localPosition: RingBuffer<LocalPositionData>;
+  debug: RingBuffer<DebugData>;
+  gimbal: RingBuffer<GimbalData>;
+  obstacle: RingBuffer<ObstacleData>;
 
   pushAttitude: (data: AttitudeData) => void;
   pushPosition: (data: PositionData) => void;
@@ -30,6 +34,10 @@ interface TelemetryStoreState {
   pushServoOutput: (data: ServoOutputData) => void;
   pushWind: (data: WindData) => void;
   pushTerrain: (data: TerrainData) => void;
+  pushLocalPosition: (data: LocalPositionData) => void;
+  pushDebug: (data: DebugData) => void;
+  pushGimbal: (data: GimbalData) => void;
+  pushObstacle: (data: ObstacleData) => void;
   pushBatch: (batch: Partial<{
     attitude: AttitudeData;
     position: PositionData;
@@ -44,6 +52,10 @@ interface TelemetryStoreState {
     servoOutput: ServoOutputData;
     wind: WindData;
     terrain: TerrainData;
+    localPosition: LocalPositionData;
+    debug: DebugData;
+    gimbal: GimbalData;
+    obstacle: ObstacleData;
   }>) => void;
   clear: () => void;
 }
@@ -62,6 +74,10 @@ export const useTelemetryStore = create<TelemetryStoreState>((set, get) => ({
   servoOutput: new RingBuffer<ServoOutputData>(300),
   wind: new RingBuffer<WindData>(60),
   terrain: new RingBuffer<TerrainData>(60),
+  localPosition: new RingBuffer<LocalPositionData>(300),  // 5Hz x 60s
+  debug: new RingBuffer<DebugData>(300),                  // variable
+  gimbal: new RingBuffer<GimbalData>(60),                 // 1Hz x 60s
+  obstacle: new RingBuffer<ObstacleData>(30),             // 0.5Hz x 60s
 
   pushAttitude: (data) => {
     get().attitude.push(data);
@@ -100,6 +116,10 @@ export const useTelemetryStore = create<TelemetryStoreState>((set, get) => ({
   pushServoOutput: (data) => { get().servoOutput.push(data); set({}); },
   pushWind: (data) => { get().wind.push(data); set({}); },
   pushTerrain: (data) => { get().terrain.push(data); set({}); },
+  pushLocalPosition: (data) => { get().localPosition.push(data); set({}); },
+  pushDebug: (data) => { get().debug.push(data); set({}); },
+  pushGimbal: (data) => { get().gimbal.push(data); set({}); },
+  pushObstacle: (data) => { get().obstacle.push(data); set({}); },
   pushBatch: (batch) => {
     const s = get();
     if (batch.attitude) s.attitude.push(batch.attitude);
@@ -115,6 +135,10 @@ export const useTelemetryStore = create<TelemetryStoreState>((set, get) => ({
     if (batch.servoOutput) s.servoOutput.push(batch.servoOutput);
     if (batch.wind) s.wind.push(batch.wind);
     if (batch.terrain) s.terrain.push(batch.terrain);
+    if (batch.localPosition) s.localPosition.push(batch.localPosition);
+    if (batch.debug) s.debug.push(batch.debug);
+    if (batch.gimbal) s.gimbal.push(batch.gimbal);
+    if (batch.obstacle) s.obstacle.push(batch.obstacle);
     set({});
   },
   clear: () =>
@@ -132,5 +156,9 @@ export const useTelemetryStore = create<TelemetryStoreState>((set, get) => ({
       servoOutput: new RingBuffer<ServoOutputData>(300),
       wind: new RingBuffer<WindData>(60),
       terrain: new RingBuffer<TerrainData>(60),
+      localPosition: new RingBuffer<LocalPositionData>(300),
+      debug: new RingBuffer<DebugData>(300),
+      gimbal: new RingBuffer<GimbalData>(60),
+      obstacle: new RingBuffer<ObstacleData>(30),
     }),
 }));

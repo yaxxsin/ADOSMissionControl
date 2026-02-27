@@ -103,10 +103,10 @@ export const MOCK_PARAMS: MockParam[] = [
   { name: "RC16_REVERSED", value: 0, type: 9 },
 
   // ── RC Channel Mapping ─────────────────────────────────────
-  { name: "RC_MAP_ROLL", value: 1, type: 9 },
-  { name: "RC_MAP_PITCH", value: 2, type: 9 },
-  { name: "RC_MAP_THROTTLE", value: 3, type: 9 },
-  { name: "RC_MAP_YAW", value: 4, type: 9 },
+  { name: "RCMAP_ROLL", value: 1, type: 9 },
+  { name: "RCMAP_PITCH", value: 2, type: 9 },
+  { name: "RCMAP_THROTTLE", value: 3, type: 9 },
+  { name: "RCMAP_YAW", value: 4, type: 9 },
 
   // ── RC Per-Channel Deadzone ────────────────────────────────
   { name: "RC1_DZ", value: 30, type: 9 },
@@ -242,6 +242,16 @@ export const MOCK_PARAMS: MockParam[] = [
   { name: "BATT_CRT_VOLT", value: 9.6, type: 9 },
 
   // ── Failsafes ────────────────────────────────────────
+  { name: "FS_SHORT_ACTN", value: 1, type: 9 },
+  { name: "FS_SHORT_TIMEOUT", value: 1.5, type: 9 },
+  { name: "FS_LONG_ACTN", value: 1, type: 9 },
+  { name: "FS_LONG_TIMEOUT", value: 5.0, type: 9 },
+  { name: "FS_GCS_ENABL", value: 1, type: 9 },
+  { name: "BATT_FS_VOLTSRC", value: 0, type: 9 },
+  { name: "BATT_FS_LOW_VOLT", value: 10.5, type: 9 },
+  { name: "BATT_FS_LOW_ACT", value: 2, type: 9 },
+  { name: "THR_FAILSAFE", value: 1, type: 9 },
+  { name: "THR_FS_VALUE", value: 950, type: 9 },
   { name: "FS_BATT_ENABLE", value: 1, type: 9 },
   { name: "FS_BATT_VOLTAGE", value: 10.5, type: 9 },
   { name: "FS_BATT_MAH", value: 0, type: 9 },
@@ -254,7 +264,8 @@ export const MOCK_PARAMS: MockParam[] = [
   { name: "FS_OPTIONS", value: 0, type: 9 },
 
   // ── GPS / EKF / AHRS ────────────────────────────────
-  { name: "GPS_TYPE", value: 1, type: 9 },
+  { name: "GPS1_TYPE", value: 1, type: 9 },   // 4.6+ naming
+  { name: "GPS_TYPE", value: 1, type: 9 },    // Pre-4.6 compat
   { name: "GPS_TYPE2", value: 0, type: 9 },
   { name: "GPS_AUTO_SWITCH", value: 1, type: 9 },
   { name: "GPS_GNSS_MODE", value: 0, type: 9 },
@@ -402,4 +413,85 @@ export const MOCK_PARAMS: MockParam[] = [
   { name: "OSD1_SATS", value: 1, type: 9 },
   { name: "OSD1_FLTMODE", value: 1, type: 9 },
   { name: "OSD1_MESSAGE", value: 1, type: 9 },
+
+  // ── Geofence ───────────────────────────────────────
+  { name: "FENCE_ENABLE", value: 0, type: 9 },
+  { name: "FENCE_TYPE", value: 7, type: 9 },       // bitmask: alt+circle+polygon
+  { name: "FENCE_ALT_MAX", value: 100, type: 9 },  // meters
+  { name: "FENCE_ALT_MIN", value: -10, type: 9 },
+  { name: "FENCE_RADIUS", value: 300, type: 9 },   // meters
+  { name: "FENCE_MARGIN", value: 2, type: 9 },
+  { name: "FENCE_ACTION", value: 1, type: 9 },     // RTL
+  { name: "FENCE_TOTAL", value: 5, type: 9 },
+
+  // ── Frame ──────────────────────────────────────────
+  { name: "FRAME_CLASS", value: 1, type: 9 },      // Quad
+  { name: "FRAME_TYPE", value: 1, type: 9 },       // X
+
+  // ── Rangefinder ────────────────────────────────────
+  { name: "RNGFND1_TYPE", value: 0, type: 9 },     // None
+  { name: "RNGFND1_PIN", value: -1, type: 9 },
+  { name: "RNGFND1_MIN_CM", value: 20, type: 9 },
+  { name: "RNGFND1_MAX_CM", value: 700, type: 9 },
+  { name: "RNGFND1_ORIENT", value: 25, type: 9 },  // Down
+
+  // ── Optical Flow ───────────────────────────────────
+  { name: "FLOW_TYPE", value: 0, type: 9 },
+  { name: "FLOW_FXSCALER", value: 0, type: 9 },
+  { name: "FLOW_FYSCALER", value: 0, type: 9 },
+  { name: "FLOW_ORIENT_YAW", value: 0, type: 9 },
+
+  // ── Airspeed ───────────────────────────────────────
+  { name: "ARSPD_TYPE", value: 0, type: 9 },
+  { name: "ARSPD_USE", value: 1, type: 9 },
+  { name: "ARSPD_OFFSET", value: 0, type: 9 },
+  { name: "ARSPD_RATIO", value: 1.9936, type: 9 },
+
+  // ── Barometer ──────────────────────────────────────
+  { name: "GND_ABS_PRESS", value: 101325, type: 9 },
+  { name: "GND_TEMP", value: 25, type: 9 },
+  { name: "BARO_PRIMARY", value: 0, type: 9 },
+
+  // ── Gimbal / Mount ─────────────────────────────────
+  { name: "MNT1_TYPE", value: 0, type: 9 },        // None
+  { name: "MNT1_PITCH_MIN", value: -90, type: 9 },
+  { name: "MNT1_PITCH_MAX", value: 0, type: 9 },
+  { name: "MNT1_ROLL_MIN", value: -45, type: 9 },
+  { name: "MNT1_ROLL_MAX", value: 45, type: 9 },
+  { name: "MNT1_YAW_MIN", value: -180, type: 9 },
+  { name: "MNT1_YAW_MAX", value: 180, type: 9 },
+  { name: "MNT1_RC_RATE", value: 90, type: 9 },
+  { name: "MNT1_DEFLT_MODE", value: 3, type: 9 },  // RC Targeting
+
+  // ── Camera ─────────────────────────────────────────
+  { name: "CAM1_TYPE", value: 0, type: 9 },
+  { name: "CAM1_DURATION", value: 10, type: 9 },   // ms
+  { name: "CAM1_SERVO_OFF", value: 1100, type: 9 },
+  { name: "CAM1_SERVO_ON", value: 1300, type: 9 },
+  { name: "CAM1_TRIGG_DIST", value: 0, type: 9 },
+
+  // ── LED ────────────────────────────────────────────
+  { name: "NTF_LED_TYPES", value: 257, type: 9 },  // Board + NeoPixel
+  { name: "NTF_LED_LEN", value: 4, type: 9 },
+  { name: "NTF_LED_BRIGHT", value: 3, type: 9 },
+  { name: "NTF_LED_OVERRIDE", value: 0, type: 9 },
+
+  // ── Filter / Notch ─────────────────────────────────
+  { name: "INS_GYRO_FILTER", value: 20, type: 9 },
+  { name: "INS_ACCEL_FILTER", value: 20, type: 9 },
+  { name: "INS_HNTCH_ENABLE", value: 0, type: 9 },
+  { name: "INS_HNTCH_FREQ", value: 80, type: 9 },
+  { name: "INS_HNTCH_BW", value: 40, type: 9 },
+  { name: "INS_HNTCH_ATT", value: 40, type: 9 },
+  { name: "INS_HNTCH_REF", value: 0.1, type: 9 },
+  { name: "INS_HNTCH_MODE", value: 0, type: 9 },
+
+  // ── PID Filter ─────────────────────────────────────
+  { name: "ATC_RAT_RLL_FLTT", value: 20, type: 9 },
+  { name: "ATC_RAT_RLL_FLTD", value: 20, type: 9 },
+  { name: "ATC_RAT_PIT_FLTT", value: 20, type: 9 },
+  { name: "ATC_RAT_PIT_FLTD", value: 20, type: 9 },
+  { name: "ATC_RAT_YAW_FLTT", value: 2, type: 9 },
+  { name: "ATC_RAT_YAW_FLTD", value: 0, type: 9 },
+
 ];

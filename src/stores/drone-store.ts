@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { ConnectionState, FlightMode, ArmState } from "@/lib/types";
+import type { FirmwareType } from "@/lib/protocol/types";
 
 interface DroneStoreState {
   selectedId: string | null;
@@ -11,6 +12,7 @@ interface DroneStoreState {
   firmwareVersion: string;
   frameType: string;
   systemStatus: number;
+  firmwareType: FirmwareType | null;
 
   selectDrone: (id: string | null) => void;
   setConnectionState: (state: ConnectionState) => void;
@@ -19,6 +21,7 @@ interface DroneStoreState {
   heartbeat: () => void;
   setFirmwareInfo: (version: string, frame: string) => void;
   setSystemStatus: (status: number) => void;
+  setFirmwareType: (type: FirmwareType | null) => void;
 }
 
 export const useDroneStore = create<DroneStoreState>((set) => ({
@@ -31,6 +34,7 @@ export const useDroneStore = create<DroneStoreState>((set) => ({
   firmwareVersion: "",
   frameType: "",
   systemStatus: 0,
+  firmwareType: null,
 
   selectDrone: (id) => set({ selectedId: id }),
   setConnectionState: (connectionState) => set({ connectionState }),
@@ -39,4 +43,5 @@ export const useDroneStore = create<DroneStoreState>((set) => ({
   heartbeat: () => set({ lastHeartbeat: Date.now() }),
   setFirmwareInfo: (firmwareVersion, frameType) => set({ firmwareVersion, frameType }),
   setSystemStatus: (systemStatus) => set({ systemStatus }),
+  setFirmwareType: (firmwareType) => set({ firmwareType }),
 }));

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -8,7 +8,9 @@ import { Toggle } from "@/components/ui/toggle";
 import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useTelemetryStore } from "@/stores/telemetry-store";
-import { RotateCcw, Save, Radio, HardDrive } from "lucide-react";
+import { usePanelParams } from "@/hooks/use-panel-params";
+import { PanelHeader } from "./PanelHeader";
+import { Save, Radio, HardDrive } from "lucide-react";
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -19,16 +21,14 @@ const CHANNEL_OPTIONS = Array.from({ length: RC_CHANNEL_COUNT }, (_, i) => ({
   label: `Channel ${i + 1}`,
 }));
 
-interface ChannelConfig {
-  min: number;
-  max: number;
-  trim: number;
-  reversed: boolean;
-}
-
-function defaultChannelConfig(): ChannelConfig {
-  return { min: 1000, max: 2000, trim: 1500, reversed: false };
-}
+// Build param name list: 4 mapping + 16 channels * 4 props = 68 params
+const RECEIVER_PARAMS: string[] = [
+  "RCMAP_ROLL", "RCMAP_PITCH", "RCMAP_THROTTLE", "RCMAP_YAW",
+  ...Array.from({ length: RC_CHANNEL_COUNT }, (_, i) => {
+    const n = i + 1;
+    return [`RC${n}_MIN`, `RC${n}_MAX`, `RC${n}_TRIM`, `RC${n}_REVERSED`];
+  }).flat(),
+];
 
 // ── RC Channel Bar ───────────────────────────────────────────
 
@@ -70,6 +70,7 @@ export function ReceiverPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const protocol = getSelectedProtocol();
   const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
 
   // Live RC data from telemetry store
   const rcBuffer = useTelemetryStore((s) => s.rc);
@@ -77,29 +78,19 @@ export function ReceiverPanel() {
   const channels = latestRc?.channels ?? Array.from({ length: RC_CHANNEL_COUNT }, () => 0);
   const rssi = latestRc?.rssi ?? 0;
 
-  // ── Channel mapping state ──────────────────────────────────
-  const [mapRoll, setMapRoll] = useState("1");
-  const [mapPitch, setMapPitch] = useState("2");
-  const [mapThrottle, setMapThrottle] = useState("3");
-  const [mapYaw, setMapYaw] = useState("4");
-
-  // ── Per-channel config state ───────────────────────────────
-  const [channelConfigs, setChannelConfigs] = useState<ChannelConfig[]>(
-    () => Array.from({ length: RC_CHANNEL_COUNT }, defaultChannelConfig),
-  );
-
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [dirty, setDirty] = useState(false);
-  const [showCommitButton, setShowCommitButton] = useState(false);
+  const {
+    params, loading, error, dirtyParams, hasRamWrites,
+    loadProgress, hasLoaded,
+    refresh, setLocalValue, saveAllToRam, commitToFlash,
+  } = usePanelParams({ paramNames: RECEIVER_PARAMS, panelId: "receiver", autoLoad: true });
 
   // ── Calibration state ──────────────────────────────────────
   const [calibrating, setCalibrating] = useState(false);
   const [calMins, setCalMins] = useState<number[]>(() => Array(RC_CHANNEL_COUNT).fill(2000));
   const [calMaxs, setCalMaxs] = useState<number[]>(() => Array(RC_CHANNEL_COUNT).fill(1000));
 
-  // Update calibration extremes from live data
-  const updateCalibration = useCallback(() => {
+  // Update calibration extremes from live channel data
+  useEffect(() => {
     if (!calibrating) return;
     setCalMins((prev) =>
       prev.map((v, i) => (channels[i] > 0 ? Math.min(v, channels[i]) : v)),
@@ -109,128 +100,51 @@ export function ReceiverPanel() {
     );
   }, [calibrating, channels]);
 
-  // Call on each render during calibration
-  if (calibrating) {
-    // eslint-disable-next-line react-hooks/rules-of-hooks -- intentional per-render update
-    updateCalibration();
+  // ── Helpers to read/write params from flat Map ──────────────
+
+  const getMapping = (role: string) => String(params.get(`RCMAP_${role}`) ?? { ROLL: 1, PITCH: 2, THROTTLE: 3, YAW: 4 }[role] ?? 1);
+  const getChannelMin = (i: number) => params.get(`RC${i + 1}_MIN`) ?? 1000;
+  const getChannelMax = (i: number) => params.get(`RC${i + 1}_MAX`) ?? 2000;
+  const getChannelTrim = (i: number) => params.get(`RC${i + 1}_TRIM`) ?? 1500;
+  const getChannelReversed = (i: number) => (params.get(`RC${i + 1}_REVERSED`) ?? 0) !== 0;
+
+  // ── Save / Flash ───────────────────────────────────────────
+
+  async function handleSave() {
+    setSaving(true);
+    const ok = await saveAllToRam();
+    setSaving(false);
+    if (ok) toast("Receiver parameters saved to RAM", "success");
+    else toast("Some parameters failed to save", "warning");
   }
 
-  // ── Fetch params ───────────────────────────────────────────
+  async function handleFlash() {
+    const ok = await commitToFlash();
+    if (ok) toast("Parameters written to flash", "success");
+    else toast("Failed to write to flash", "error");
+  }
 
-  const fetchParams = useCallback(async () => {
-    if (!protocol) return;
-    setLoading(true);
-    try {
-      const [roll, pitch, throttle, yaw] = await Promise.all([
-        protocol.getParameter("RC_MAP_ROLL"),
-        protocol.getParameter("RC_MAP_PITCH"),
-        protocol.getParameter("RC_MAP_THROTTLE"),
-        protocol.getParameter("RC_MAP_YAW"),
-      ]);
-      setMapRoll(String(roll.value));
-      setMapPitch(String(pitch.value));
-      setMapThrottle(String(throttle.value));
-      setMapYaw(String(yaw.value));
-
-      const configs: ChannelConfig[] = [];
-      for (let i = 1; i <= RC_CHANNEL_COUNT; i++) {
-        const [min, max, trim, rev] = await Promise.all([
-          protocol.getParameter(`RC${i}_MIN`),
-          protocol.getParameter(`RC${i}_MAX`),
-          protocol.getParameter(`RC${i}_TRIM`),
-          protocol.getParameter(`RC${i}_REVERSED`),
-        ]);
-        configs.push({
-          min: min.value,
-          max: max.value,
-          trim: trim.value,
-          reversed: rev.value !== 0,
-        });
-      }
-      setChannelConfigs(configs);
-      setDirty(false);
-      setShowCommitButton(false);
-      toast("Receiver parameters loaded", "success");
-    } catch {
-      toast("Failed to read receiver parameters", "error");
-    } finally {
-      setLoading(false);
-    }
-  }, [protocol, toast]);
-
-  // ── Save params ────────────────────────────────────────────
-
-  const saveParams = useCallback(async () => {
-    if (!protocol) return;
-    setSaving(true);
-    try {
-      await Promise.all([
-        protocol.setParameter("RC_MAP_ROLL", Number(mapRoll)),
-        protocol.setParameter("RC_MAP_PITCH", Number(mapPitch)),
-        protocol.setParameter("RC_MAP_THROTTLE", Number(mapThrottle)),
-        protocol.setParameter("RC_MAP_YAW", Number(mapYaw)),
-      ]);
-      for (let i = 0; i < RC_CHANNEL_COUNT; i++) {
-        const cfg = channelConfigs[i];
-        const n = i + 1;
-        await protocol.setParameter(`RC${n}_MIN`, cfg.min);
-        await protocol.setParameter(`RC${n}_MAX`, cfg.max);
-        await protocol.setParameter(`RC${n}_TRIM`, cfg.trim);
-        await protocol.setParameter(`RC${n}_REVERSED`, cfg.reversed ? 1 : 0);
-      }
-      setDirty(false);
-      setShowCommitButton(true);
-      toast("Receiver parameters saved to RAM", "success");
-    } catch {
-      toast("Failed to save receiver parameters", "error");
-    } finally {
-      setSaving(false);
-    }
-  }, [protocol, mapRoll, mapPitch, mapThrottle, mapYaw, channelConfigs, toast]);
-
-  // ── Flash commit ───────────────────────────────────────────
-
-  const commitToFlash = useCallback(async () => {
-    const proto = getSelectedProtocol();
-    if (!proto) return;
-    try {
-      await proto.commitParamsToFlash();
-      setShowCommitButton(false);
-      toast("Parameters written to flash", "success");
-    } catch {
-      toast("Failed to write to flash", "error");
-    }
-  }, [getSelectedProtocol, toast]);
-
-  // ── Channel config updater ─────────────────────────────────
-
-  const updateChannel = useCallback((idx: number, partial: Partial<ChannelConfig>) => {
-    setChannelConfigs((prev) => {
-      const next = [...prev];
-      next[idx] = { ...next[idx], ...partial };
-      return next;
-    });
-    setDirty(true);
-  }, []);
+  // ── RC data guard ─────────────────────────────────────────
+  const hasRcData = latestRc != null && channels.some((c) => c > 0);
 
   // ── Save calibration ──────────────────────────────────────
 
   const saveCalibration = useCallback(() => {
-    setChannelConfigs((prev) =>
-      prev.map((cfg, i) => ({
-        ...cfg,
-        min: calMins[i] < 1500 ? calMins[i] : cfg.min,
-        max: calMaxs[i] > 1500 ? calMaxs[i] : cfg.max,
-      })),
-    );
+    for (let i = 0; i < RC_CHANNEL_COUNT; i++) {
+      if (calMins[i] < 1500) setLocalValue(`RC${i + 1}_MIN`, calMins[i]);
+      if (calMaxs[i] > 1500) setLocalValue(`RC${i + 1}_MAX`, calMaxs[i]);
+      // Set trim to current channel value (sticks centered at this point)
+      if (channels[i] > 0) setLocalValue(`RC${i + 1}_TRIM`, channels[i]);
+    }
     setCalibrating(false);
-    setDirty(true);
     toast("Calibration applied — save to write to FC", "info");
-  }, [calMins, calMaxs, toast]);
+  }, [calMins, calMaxs, channels, setLocalValue, toast]);
 
   // ── RSSI percentage ────────────────────────────────────────
 
   const rssiPct = useMemo(() => Math.round((rssi / 255) * 100), [rssi]);
+
+  const hasDirty = dirtyParams.size > 0;
 
   if (!protocol) {
     return (
@@ -248,47 +162,42 @@ export function ReceiverPanel() {
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-3xl space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-text-primary">RC Receiver</h2>
-            {dirty && (
-              <span className="text-[10px] font-mono text-status-warning px-1.5 py-0.5 bg-status-warning/10 border border-status-warning/20">
-                UNSAVED
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
+        <PanelHeader
+          title="RC Receiver"
+          subtitle="Channel mapping, calibration, and per-channel settings"
+          loading={loading}
+          loadProgress={loadProgress}
+          hasLoaded={hasLoaded}
+          onRead={refresh}
+          connected={!!protocol}
+          error={error}
+        >
+          {hasDirty && (
+            <span className="text-[10px] font-mono text-status-warning px-1.5 py-0.5 bg-status-warning/10 border border-status-warning/20">
+              UNSAVED
+            </span>
+          )}
+          <Button
+            variant="primary"
+            size="sm"
+            icon={<Save size={12} />}
+            loading={saving}
+            disabled={!hasDirty}
+            onClick={handleSave}
+          >
+            Save
+          </Button>
+          {hasRamWrites && (
             <Button
               variant="secondary"
               size="sm"
-              icon={<RotateCcw size={12} />}
-              loading={loading}
-              onClick={fetchParams}
+              icon={<HardDrive size={12} />}
+              onClick={handleFlash}
             >
-              Read
+              Write to Flash
             </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              icon={<Save size={12} />}
-              loading={saving}
-              disabled={!dirty}
-              onClick={saveParams}
-            >
-              Save
-            </Button>
-            {showCommitButton && (
-              <Button
-                variant="secondary"
-                size="sm"
-                icon={<HardDrive size={12} />}
-                onClick={commitToFlash}
-              >
-                Write to Flash
-              </Button>
-            )}
-          </div>
-        </div>
+          )}
+        </PanelHeader>
 
         {/* ── Live RC Channels ──────────────────────────────── */}
 
@@ -299,8 +208,8 @@ export function ReceiverPanel() {
                 key={i}
                 index={i}
                 value={val}
-                min={channelConfigs[i]?.min ?? 1000}
-                max={channelConfigs[i]?.max ?? 2000}
+                min={getChannelMin(i)}
+                max={getChannelMax(i)}
               />
             ))}
           </div>
@@ -318,26 +227,26 @@ export function ReceiverPanel() {
           <div className="grid grid-cols-2 gap-3">
             <Select
               label="Roll"
-              value={mapRoll}
-              onChange={(v) => { setMapRoll(v); setDirty(true); }}
+              value={getMapping("ROLL")}
+              onChange={(v) => setLocalValue("RCMAP_ROLL", Number(v))}
               options={CHANNEL_OPTIONS}
             />
             <Select
               label="Pitch"
-              value={mapPitch}
-              onChange={(v) => { setMapPitch(v); setDirty(true); }}
+              value={getMapping("PITCH")}
+              onChange={(v) => setLocalValue("RCMAP_PITCH", Number(v))}
               options={CHANNEL_OPTIONS}
             />
             <Select
               label="Throttle"
-              value={mapThrottle}
-              onChange={(v) => { setMapThrottle(v); setDirty(true); }}
+              value={getMapping("THROTTLE")}
+              onChange={(v) => setLocalValue("RCMAP_THROTTLE", Number(v))}
               options={CHANNEL_OPTIONS}
             />
             <Select
               label="Yaw"
-              value={mapYaw}
-              onChange={(v) => { setMapYaw(v); setDirty(true); }}
+              value={getMapping("YAW")}
+              onChange={(v) => setLocalValue("RCMAP_YAW", Number(v))}
               options={CHANNEL_OPTIONS}
             />
           </div>
@@ -358,38 +267,38 @@ export function ReceiverPanel() {
                 </tr>
               </thead>
               <tbody>
-                {channelConfigs.map((cfg, i) => (
+                {Array.from({ length: RC_CHANNEL_COUNT }, (_, i) => (
                   <tr key={i} className="border-b border-border-default last:border-0 hover:bg-bg-tertiary/50">
                     <td className="px-3 py-1.5 font-mono text-text-secondary">{i + 1}</td>
                     <td className="px-3 py-1.5">
                       <input
                         type="number"
-                        value={cfg.min}
-                        onChange={(e) => updateChannel(i, { min: Number(e.target.value) })}
+                        value={getChannelMin(i)}
+                        onChange={(e) => setLocalValue(`RC${i + 1}_MIN`, Number(e.target.value))}
                         className="w-16 h-7 px-1.5 bg-bg-tertiary border border-border-default text-xs font-mono text-text-primary focus:outline-none focus:border-accent-primary"
                       />
                     </td>
                     <td className="px-3 py-1.5">
                       <input
                         type="number"
-                        value={cfg.max}
-                        onChange={(e) => updateChannel(i, { max: Number(e.target.value) })}
+                        value={getChannelMax(i)}
+                        onChange={(e) => setLocalValue(`RC${i + 1}_MAX`, Number(e.target.value))}
                         className="w-16 h-7 px-1.5 bg-bg-tertiary border border-border-default text-xs font-mono text-text-primary focus:outline-none focus:border-accent-primary"
                       />
                     </td>
                     <td className="px-3 py-1.5">
                       <input
                         type="number"
-                        value={cfg.trim}
-                        onChange={(e) => updateChannel(i, { trim: Number(e.target.value) })}
+                        value={getChannelTrim(i)}
+                        onChange={(e) => setLocalValue(`RC${i + 1}_TRIM`, Number(e.target.value))}
                         className="w-16 h-7 px-1.5 bg-bg-tertiary border border-border-default text-xs font-mono text-text-primary focus:outline-none focus:border-accent-primary"
                       />
                     </td>
                     <td className="px-3 py-1.5">
                       <Toggle
                         label=""
-                        checked={cfg.reversed}
-                        onChange={(v) => updateChannel(i, { reversed: v })}
+                        checked={getChannelReversed(i)}
+                        onChange={(v) => setLocalValue(`RC${i + 1}_REVERSED`, v ? 1 : 0)}
                       />
                     </td>
                   </tr>
@@ -408,9 +317,15 @@ export function ReceiverPanel() {
                 <p className="text-[10px] text-text-tertiary">
                   Move all sticks and switches to their extreme positions, then save calibration to record min/max values.
                 </p>
+                {!hasRcData && (
+                  <p className="text-[10px] text-status-warning">
+                    No RC data received — ensure transmitter is on and bound.
+                  </p>
+                )}
                 <Button
                   variant="secondary"
                   size="sm"
+                  disabled={!hasRcData}
                   onClick={() => {
                     setCalMins(Array(RC_CHANNEL_COUNT).fill(2000));
                     setCalMaxs(Array(RC_CHANNEL_COUNT).fill(1000));

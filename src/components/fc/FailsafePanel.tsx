@@ -1,136 +1,128 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
-import { ShieldAlert, Battery, Radio, Gauge, Save, HardDrive, MapPin } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { usePanelParams } from "@/hooks/use-panel-params";
+import { PanelHeader } from "./PanelHeader";
+import { ShieldAlert, Battery, Radio, Gauge, Save, HardDrive, MapPin, SlidersHorizontal } from "lucide-react";
 
-interface FailsafeParam {
-  name: string;
-  value: string;
-  dirty: boolean;
-}
+const RC_CHANNEL_COUNT = 8;
 
-type Params = Record<string, FailsafeParam>;
+const RC_OPTION_VALUES = [
+  { value: "0", label: "0 — Do Nothing" },
+  { value: "2", label: "2 — Flip" },
+  { value: "3", label: "3 — Simple Mode" },
+  { value: "4", label: "4 — RTL" },
+  { value: "7", label: "7 — Save WP" },
+  { value: "9", label: "9 — Camera Trigger" },
+  { value: "10", label: "10 — RangeFinder" },
+  { value: "11", label: "11 — Fence" },
+  { value: "16", label: "16 — Auto" },
+  { value: "17", label: "17 — AutoTune" },
+  { value: "18", label: "18 — Land" },
+  { value: "21", label: "21 — Parachute Enable" },
+  { value: "22", label: "22 — Parachute Release" },
+  { value: "28", label: "28 — Relay1 On/Off" },
+  { value: "39", label: "39 — Motor Emergency Stop" },
+  { value: "40", label: "40 — Motor Interlock" },
+  { value: "41", label: "41 — Brake" },
+  { value: "55", label: "55 — Guided" },
+  { value: "56", label: "56 — Loiter" },
+  { value: "57", label: "57 — Follow" },
+];
 
-const DEFAULT_PARAMS: Params = {
-  FS_SHORT_ACTN: { name: "FS_SHORT_ACTN", value: "0", dirty: false },
-  FS_SHORT_TIMEOUT: { name: "FS_SHORT_TIMEOUT", value: "1.5", dirty: false },
-  FS_LONG_ACTN: { name: "FS_LONG_ACTN", value: "0", dirty: false },
-  FS_LONG_TIMEOUT: { name: "FS_LONG_TIMEOUT", value: "5.0", dirty: false },
-  BATT_FS_VOLTSRC: { name: "BATT_FS_VOLTSRC", value: "0", dirty: false },
-  BATT_FS_LOW_VOLT: { name: "BATT_FS_LOW_VOLT", value: "0", dirty: false },
-  BATT_FS_LOW_ACT: { name: "BATT_FS_LOW_ACT", value: "0", dirty: false },
-  FS_GCS_ENABL: { name: "FS_GCS_ENABL", value: "0", dirty: false },
-  THR_FAILSAFE: { name: "THR_FAILSAFE", value: "0", dirty: false },
-  THR_FS_VALUE: { name: "THR_FS_VALUE", value: "950", dirty: false },
-  FENCE_ENABLE: { name: "FENCE_ENABLE", value: "0", dirty: false },
-  FENCE_ACTION: { name: "FENCE_ACTION", value: "0", dirty: false },
-  FENCE_ALT_MAX: { name: "FENCE_ALT_MAX", value: "100", dirty: false },
-  FENCE_RADIUS: { name: "FENCE_RADIUS", value: "300", dirty: false },
-  FENCE_ALT_MIN: { name: "FENCE_ALT_MIN", value: "0", dirty: false },
-};
+// Vehicle-specific failsafe params
+const COPTER_FS_PARAMS = [
+  "FS_SHORT_ACTN", "FS_SHORT_TIMEOUT", "FS_LONG_ACTN", "FS_LONG_TIMEOUT", "FS_GCS_ENABL",
+];
+const PLANE_FS_PARAMS = [
+  "THR_FAILSAFE", "THR_FS_VALUE",
+];
+const SHARED_FS_PARAMS = [
+  "BATT_FS_VOLTSRC", "BATT_FS_LOW_VOLT", "BATT_FS_LOW_ACT",
+  "FENCE_ENABLE", "FENCE_ACTION", "FENCE_ALT_MAX", "FENCE_RADIUS", "FENCE_ALT_MIN",
+  ...Array.from({ length: RC_CHANNEL_COUNT }, (_, i) => `RC${i + 1}_OPTION`),
+];
 
 export function FailsafePanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
+  const getSelectedDrone = useDroneManager((s) => s.getSelectedDrone);
   const { toast } = useToast();
-  const [params, setParams] = useState<Params>(DEFAULT_PARAMS);
   const [saving, setSaving] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  const [showCommitButton, setShowCommitButton] = useState(false);
 
-  const updateParam = useCallback((name: string, value: string) => {
-    setParams((prev) => ({
-      ...prev,
-      [name]: { ...prev[name], value, dirty: true },
-    }));
-  }, []);
+  // Detect vehicle type for vehicle-specific param loading
+  const drone = getSelectedDrone();
+  const isPlane = useMemo(() => {
+    const vc = drone?.vehicleInfo?.vehicleClass;
+    return vc === "plane" || vc === "vtol";
+  }, [drone?.vehicleInfo?.vehicleClass]);
 
-  const loadParams = useCallback(async () => {
-    const protocol = getSelectedProtocol();
-    if (!protocol) return;
-    const names = Object.keys(DEFAULT_PARAMS);
-    const updated = { ...params };
-    for (const name of names) {
-      try {
-        const pv = await protocol.getParameter(name);
-        updated[name] = { name, value: String(pv.value), dirty: false };
-      } catch {
-        // param not available on this firmware
-      }
-    }
-    setParams(updated);
-    setLoaded(true);
-    toast("Loaded failsafe parameters", "success");
-  }, [getSelectedProtocol, params, toast]);
+  const paramNames = useMemo(
+    () => [...SHARED_FS_PARAMS, ...(isPlane ? PLANE_FS_PARAMS : COPTER_FS_PARAMS)],
+    [isPlane],
+  );
+  const optionalParams = useMemo(
+    () => isPlane ? COPTER_FS_PARAMS : PLANE_FS_PARAMS,
+    [isPlane],
+  );
 
-  const saveParams = useCallback(async () => {
-    const protocol = getSelectedProtocol();
-    if (!protocol) return;
-    setSaving(true);
-    const dirty = Object.values(params).filter((p) => p.dirty);
-    for (const p of dirty) {
-      try {
-        await protocol.setParameter(p.name, parseFloat(p.value));
-        setParams((prev) => ({
-          ...prev,
-          [p.name]: { ...prev[p.name], dirty: false },
-        }));
-      } catch (err) {
-        toast(`Failed to write ${p.name}`, "error");
-      }
-    }
-    setShowCommitButton(true);
-    setSaving(false);
-    toast("Saved to flight controller", "success");
-  }, [getSelectedProtocol, params, toast]);
+  const {
+    params, loading, error, dirtyParams, hasRamWrites,
+    loadProgress, hasLoaded, missingOptional,
+    refresh, setLocalValue, saveAllToRam, commitToFlash,
+  } = usePanelParams({ paramNames, optionalParams, panelId: "failsafe" });
 
-  const commitToFlash = useCallback(async () => {
-    const protocol = getSelectedProtocol();
-    if (!protocol) return;
-    try {
-      await protocol.commitParamsToFlash();
-      setShowCommitButton(false);
-      toast("Written to flash — persists after reboot", "success");
-    } catch {
-      toast("Failed to write to flash", "error");
-    }
-  }, [getSelectedProtocol, toast]);
-
-  const hasDirty = Object.values(params).some((p) => p.dirty);
   const connected = !!getSelectedProtocol();
+  const hasDirty = dirtyParams.size > 0;
+
+  /** Get param as string for Select/Input display */
+  const p = (name: string, fallback = "0") => String(params.get(name) ?? fallback);
+  /** Set param from string input */
+  const set = (name: string, v: string) => setLocalValue(name, Number(v) || 0);
+
+  async function handleSave() {
+    setSaving(true);
+    const ok = await saveAllToRam();
+    setSaving(false);
+    if (ok) toast("Saved to flight controller", "success");
+    else toast("Some parameters failed to save", "warning");
+  }
+
+  async function handleFlash() {
+    const ok = await commitToFlash();
+    if (ok) toast("Written to flash — persists after reboot", "success");
+    else toast("Failed to write to flash", "error");
+  }
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-2xl space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-display font-semibold text-text-primary">Failsafe Configuration</h1>
-            <p className="text-xs text-text-tertiary mt-0.5">
-              Configure failsafe actions for loss of control, battery, and GCS link
-            </p>
-          </div>
-          {connected && !loaded && (
-            <Button variant="secondary" size="sm" onClick={loadParams}>
-              Load from FC
-            </Button>
-          )}
-        </div>
+        <PanelHeader
+          title="Failsafe Configuration"
+          subtitle="Configure failsafe actions for loss of control, battery, and GCS link"
+          loading={loading}
+          loadProgress={loadProgress}
+          hasLoaded={hasLoaded}
+          onRead={refresh}
+          connected={connected}
+          error={error}
+          missingOptional={missingOptional}
+        />
 
-        {/* Short Failsafe */}
-        <Card icon={<ShieldAlert size={14} />} title="Short Failsafe" description="Triggered on brief signal loss">
+        {/* Short Failsafe (Copter only) */}
+        {!isPlane && <Card icon={<ShieldAlert size={14} />} title="Short Failsafe" description="Triggered on brief signal loss">
           <Select
             label="FS_SHORT_ACTN — Action"
             options={[
               { value: "0", label: "0 — Disabled" },
               { value: "1", label: "1 — Enabled (Circle)" },
             ]}
-            value={params.FS_SHORT_ACTN.value}
-            onChange={(v) => updateParam("FS_SHORT_ACTN", v)}
+            value={p("FS_SHORT_ACTN")}
+            onChange={(v) => set("FS_SHORT_ACTN", v)}
           />
           <Input
             label="FS_SHORT_TIMEOUT — Timeout (s)"
@@ -138,13 +130,13 @@ export function FailsafePanel() {
             step="0.1"
             min="0"
             unit="s"
-            value={params.FS_SHORT_TIMEOUT.value}
-            onChange={(e) => updateParam("FS_SHORT_TIMEOUT", e.target.value)}
+            value={p("FS_SHORT_TIMEOUT", "1.5")}
+            onChange={(e) => set("FS_SHORT_TIMEOUT", e.target.value)}
           />
-        </Card>
+        </Card>}
 
-        {/* Long Failsafe */}
-        <Card icon={<ShieldAlert size={14} />} title="Long Failsafe" description="Triggered on extended signal loss">
+        {/* Long Failsafe (Copter only) */}
+        {!isPlane && <Card icon={<ShieldAlert size={14} />} title="Long Failsafe" description="Triggered on extended signal loss">
           <Select
             label="FS_LONG_ACTN — Action"
             options={[
@@ -152,8 +144,8 @@ export function FailsafePanel() {
               { value: "1", label: "1 — RTL" },
               { value: "2", label: "2 — Glide" },
             ]}
-            value={params.FS_LONG_ACTN.value}
-            onChange={(v) => updateParam("FS_LONG_ACTN", v)}
+            value={p("FS_LONG_ACTN")}
+            onChange={(v) => set("FS_LONG_ACTN", v)}
           />
           <Input
             label="FS_LONG_TIMEOUT — Timeout (s)"
@@ -161,10 +153,10 @@ export function FailsafePanel() {
             step="0.1"
             min="0"
             unit="s"
-            value={params.FS_LONG_TIMEOUT.value}
-            onChange={(e) => updateParam("FS_LONG_TIMEOUT", e.target.value)}
+            value={p("FS_LONG_TIMEOUT", "5.0")}
+            onChange={(e) => set("FS_LONG_TIMEOUT", e.target.value)}
           />
-        </Card>
+        </Card>}
 
         {/* Battery Failsafe */}
         <Card icon={<Battery size={14} />} title="Battery Failsafe" description="Triggered on low battery voltage">
@@ -174,8 +166,8 @@ export function FailsafePanel() {
               { value: "0", label: "0 — Raw Voltage" },
               { value: "1", label: "1 — Sag Compensated" },
             ]}
-            value={params.BATT_FS_VOLTSRC.value}
-            onChange={(v) => updateParam("BATT_FS_VOLTSRC", v)}
+            value={p("BATT_FS_VOLTSRC")}
+            onChange={(v) => set("BATT_FS_VOLTSRC", v)}
           />
           <Input
             label="BATT_FS_LOW_VOLT — Low Voltage Threshold"
@@ -183,8 +175,8 @@ export function FailsafePanel() {
             step="0.1"
             min="0"
             unit="V"
-            value={params.BATT_FS_LOW_VOLT.value}
-            onChange={(e) => updateParam("BATT_FS_LOW_VOLT", e.target.value)}
+            value={p("BATT_FS_LOW_VOLT")}
+            onChange={(e) => set("BATT_FS_LOW_VOLT", e.target.value)}
           />
           <Select
             label="BATT_FS_LOW_ACT — Low Voltage Action"
@@ -194,13 +186,13 @@ export function FailsafePanel() {
               { value: "2", label: "2 — RTL" },
               { value: "3", label: "3 — SmartRTL or RTL" },
             ]}
-            value={params.BATT_FS_LOW_ACT.value}
-            onChange={(v) => updateParam("BATT_FS_LOW_ACT", v)}
+            value={p("BATT_FS_LOW_ACT")}
+            onChange={(v) => set("BATT_FS_LOW_ACT", v)}
           />
         </Card>
 
-        {/* GCS Failsafe */}
-        <Card icon={<Radio size={14} />} title="GCS Failsafe" description="Triggered on GCS link loss">
+        {/* GCS Failsafe (Copter only) */}
+        {!isPlane && <Card icon={<Radio size={14} />} title="GCS Failsafe" description="Triggered on GCS link loss">
           <Select
             label="FS_GCS_ENABL — GCS Failsafe"
             options={[
@@ -208,21 +200,21 @@ export function FailsafePanel() {
               { value: "1", label: "1 — Enabled (RTL)" },
               { value: "2", label: "2 — Enabled (continue in auto)" },
             ]}
-            value={params.FS_GCS_ENABL.value}
-            onChange={(v) => updateParam("FS_GCS_ENABL", v)}
+            value={p("FS_GCS_ENABL")}
+            onChange={(v) => set("FS_GCS_ENABL", v)}
           />
-        </Card>
+        </Card>}
 
-        {/* Throttle Failsafe */}
-        <Card icon={<Gauge size={14} />} title="Throttle Failsafe" description="Triggered on RC throttle loss">
+        {/* Throttle Failsafe (Plane only) */}
+        {isPlane && <Card icon={<Gauge size={14} />} title="Throttle Failsafe" description="Triggered on RC throttle loss">
           <Select
             label="THR_FAILSAFE — Throttle Failsafe"
             options={[
               { value: "0", label: "0 — Disabled" },
               { value: "1", label: "1 — Enabled" },
             ]}
-            value={params.THR_FAILSAFE.value}
-            onChange={(v) => updateParam("THR_FAILSAFE", v)}
+            value={p("THR_FAILSAFE")}
+            onChange={(v) => set("THR_FAILSAFE", v)}
           />
           <Input
             label="THR_FS_VALUE — Throttle PWM value"
@@ -231,9 +223,33 @@ export function FailsafePanel() {
             min="800"
             max="1200"
             unit="μs"
-            value={params.THR_FS_VALUE.value}
-            onChange={(e) => updateParam("THR_FS_VALUE", e.target.value)}
+            value={p("THR_FS_VALUE", "950")}
+            onChange={(e) => set("THR_FS_VALUE", e.target.value)}
           />
+        </Card>}
+
+        {/* Per-Channel RC Options */}
+        <Card icon={<SlidersHorizontal size={14} />} title="RC Channel Options" description="Per-channel RC switch functions (RCn_OPTION)">
+          <div className="space-y-2">
+            {Array.from({ length: RC_CHANNEL_COUNT }, (_, i) => {
+              const ch = i + 1;
+              const paramName = `RC${ch}_OPTION`;
+              return (
+                <div key={ch} className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono text-text-secondary w-6 text-right">CH{ch}</span>
+                  <select
+                    value={p(paramName)}
+                    onChange={(e) => set(paramName, e.target.value)}
+                    className="flex-1 h-7 px-1.5 bg-bg-tertiary border border-border-default text-xs text-text-primary appearance-none focus:outline-none focus:border-accent-primary"
+                  >
+                    {RC_OPTION_VALUES.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })}
+          </div>
         </Card>
 
         {/* Geofence */}
@@ -250,8 +266,8 @@ export function FailsafePanel() {
               { value: "6", label: "6 — Circle + Polygon" },
               { value: "7", label: "7 — All" },
             ]}
-            value={params.FENCE_ENABLE.value}
-            onChange={(v) => updateParam("FENCE_ENABLE", v)}
+            value={p("FENCE_ENABLE")}
+            onChange={(v) => set("FENCE_ENABLE", v)}
           />
           <Select
             label="FENCE_ACTION — Breach Action"
@@ -263,12 +279,12 @@ export function FailsafePanel() {
               { value: "4", label: "4 — Brake or Land" },
               { value: "5", label: "5 — SmartRTL or Land" },
             ]}
-            value={params.FENCE_ACTION.value}
-            onChange={(v) => updateParam("FENCE_ACTION", v)}
+            value={p("FENCE_ACTION")}
+            onChange={(v) => set("FENCE_ACTION", v)}
           />
-          <Input label="FENCE_ALT_MAX — Max Altitude" type="number" step="1" min="0" unit="m" value={params.FENCE_ALT_MAX.value} onChange={(e) => updateParam("FENCE_ALT_MAX", e.target.value)} />
-          <Input label="FENCE_RADIUS — Max Radius" type="number" step="1" min="0" unit="m" value={params.FENCE_RADIUS.value} onChange={(e) => updateParam("FENCE_RADIUS", e.target.value)} />
-          <Input label="FENCE_ALT_MIN — Min Altitude" type="number" step="0.5" min="-100" unit="m" value={params.FENCE_ALT_MIN.value} onChange={(e) => updateParam("FENCE_ALT_MIN", e.target.value)} />
+          <Input label="FENCE_ALT_MAX — Max Altitude" type="number" step="1" min="0" unit="m" value={p("FENCE_ALT_MAX", "100")} onChange={(e) => set("FENCE_ALT_MAX", e.target.value)} />
+          <Input label="FENCE_RADIUS — Max Radius" type="number" step="1" min="0" unit="m" value={p("FENCE_RADIUS", "300")} onChange={(e) => set("FENCE_RADIUS", e.target.value)} />
+          <Input label="FENCE_ALT_MIN — Min Altitude" type="number" step="0.5" min="-100" unit="m" value={p("FENCE_ALT_MIN")} onChange={(e) => set("FENCE_ALT_MIN", e.target.value)} />
         </Card>
 
         {/* Save */}
@@ -279,16 +295,16 @@ export function FailsafePanel() {
             icon={<Save size={14} />}
             disabled={!hasDirty || !connected}
             loading={saving}
-            onClick={saveParams}
+            onClick={handleSave}
           >
             Save to Flight Controller
           </Button>
-          {showCommitButton && (
+          {hasRamWrites && (
             <Button
               variant="secondary"
               size="lg"
               icon={<HardDrive size={14} />}
-              onClick={commitToFlash}
+              onClick={handleFlash}
             >
               Write to Flash
             </Button>

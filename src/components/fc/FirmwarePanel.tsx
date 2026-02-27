@@ -323,9 +323,13 @@ export function FirmwarePanel() {
     const protocol = drone?.protocol;
     if (!protocol) return;
     try {
-      await protocol.commitParamsToFlash();
-      setShowCommitButton(false);
-      toast("Written to flash — persists after reboot", "success");
+      const result = await protocol.commitParamsToFlash();
+      if (result.success) {
+        setShowCommitButton(false);
+        toast("Written to flash — persists after reboot", "success");
+      } else {
+        toast("Failed to write to flash", "error");
+      }
     } catch {
       toast("Failed to write to flash", "error");
     }
