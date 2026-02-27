@@ -17,7 +17,11 @@
   </tr>
   <tr>
     <td><img src="public/screenshots/3d-simulation.png" alt="3D Simulation" width="100%"></td>
+    <td><img src="public/screenshots/configure.png" alt="FC Configuration" width="100%"></td>
+  </tr>
+  <tr>
     <td><img src="public/screenshots/parameters.png" alt="FC Parameters" width="100%"></td>
+    <td></td>
   </tr>
 </table>
 
