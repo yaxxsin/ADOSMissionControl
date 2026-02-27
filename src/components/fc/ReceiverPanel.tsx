@@ -10,7 +10,8 @@ import { useDroneManager } from "@/stores/drone-manager";
 import { useTelemetryStore } from "@/stores/telemetry-store";
 import { usePanelParams } from "@/hooks/use-panel-params";
 import { PanelHeader } from "./PanelHeader";
-import { Save, Radio, HardDrive } from "lucide-react";
+import { Save, Radio, HardDrive, Crosshair } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -21,40 +22,57 @@ const CHANNEL_OPTIONS = Array.from({ length: RC_CHANNEL_COUNT }, (_, i) => ({
   label: `Channel ${i + 1}`,
 }));
 
-// Build param name list: 4 mapping + 16 channels * 4 props = 68 params
+// Build param name list: 4 mapping + 16 channels * 5 props = 84 params
 const RECEIVER_PARAMS: string[] = [
   "RCMAP_ROLL", "RCMAP_PITCH", "RCMAP_THROTTLE", "RCMAP_YAW",
   ...Array.from({ length: RC_CHANNEL_COUNT }, (_, i) => {
     const n = i + 1;
-    return [`RC${n}_MIN`, `RC${n}_MAX`, `RC${n}_TRIM`, `RC${n}_REVERSED`];
+    return [`RC${n}_MIN`, `RC${n}_MAX`, `RC${n}_TRIM`, `RC${n}_REVERSED`, `RC${n}_DZ`];
   }).flat(),
 ];
 
 // ── RC Channel Bar ───────────────────────────────────────────
 
-function RcChannelBar({ index, value, min, max }: {
+function RcChannelBar({ index, value, min, max, trim, dz }: {
   index: number;
   value: number;
   min: number;
   max: number;
+  trim: number;
+  dz: number;
 }) {
   const range = max - min || 1;
   const pct = Math.max(0, Math.min(100, ((value - min) / range) * 100));
+  const trimPct = ((trim - min) / range) * 100;
+  const dzPct = (dz / range) * 100;
+  const dzLeft = Math.max(0, trimPct - dzPct);
+  const dzWidth = Math.min(100, dzPct * 2);
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[10px] font-mono text-text-secondary w-6 text-right shrink-0">
+      <span className={cn(
+        "text-[10px] font-mono w-6 text-right shrink-0",
+        value === 0 ? "text-text-secondary" :
+        Math.abs(value - trim) > dz ? "text-status-error" : "text-status-success"
+      )}>
         CH{index + 1}
       </span>
       <div className="flex-1 h-4 bg-bg-tertiary border border-border-default relative overflow-hidden">
+        {/* Deadzone band around trim */}
+        {dz > 0 && (
+          <div
+            className="absolute top-0 bottom-0 bg-accent-primary/10 border-l border-r border-accent-primary/20"
+            style={{ left: `${dzLeft}%`, width: `${dzWidth}%` }}
+          />
+        )}
         <div
           className="h-full bg-status-success/60 transition-all duration-75"
           style={{ width: `${pct}%` }}
         />
-        {/* Center mark at 1500 */}
+        {/* Trim mark */}
         <div
-          className="absolute top-0 bottom-0 w-px bg-text-tertiary/30"
-          style={{ left: `${((1500 - min) / range) * 100}%` }}
+          className="absolute top-0 bottom-0 w-px bg-accent-primary/50"
+          style={{ left: `${trimPct}%` }}
         />
       </div>
       <span className="text-[10px] font-mono text-text-primary tabular-nums w-10 text-right shrink-0">
@@ -86,6 +104,9 @@ export function ReceiverPanel() {
 
   // ── Calibration state ──────────────────────────────────────
   const [calibrating, setCalibrating] = useState(false);
+  const [calStep, setCalStep] = useState<1 | 2>(1);
+  const [showTrimPreview, setShowTrimPreview] = useState(false);
+  const [settingTrims, setSettingTrims] = useState(false);
   const [calMins, setCalMins] = useState<number[]>(() => Array(RC_CHANNEL_COUNT).fill(2000));
   const [calMaxs, setCalMaxs] = useState<number[]>(() => Array(RC_CHANNEL_COUNT).fill(1000));
 
@@ -107,6 +128,7 @@ export function ReceiverPanel() {
   const getChannelMax = (i: number) => params.get(`RC${i + 1}_MAX`) ?? 2000;
   const getChannelTrim = (i: number) => params.get(`RC${i + 1}_TRIM`) ?? 1500;
   const getChannelReversed = (i: number) => (params.get(`RC${i + 1}_REVERSED`) ?? 0) !== 0;
+  const getChannelDz = (i: number) => params.get(`RC${i + 1}_DZ`) ?? 30;
 
   // ── Save / Flash ───────────────────────────────────────────
 
@@ -127,18 +149,58 @@ export function ReceiverPanel() {
   // ── RC data guard ─────────────────────────────────────────
   const hasRcData = latestRc != null && channels.some((c) => c > 0);
 
+  // Primary axis channels from RCMAP (skip throttle — its neutral varies by mode)
+  const rollCh = Number(params.get("RCMAP_ROLL") ?? 1);
+  const pitchCh = Number(params.get("RCMAP_PITCH") ?? 2);
+  const yawCh = Number(params.get("RCMAP_YAW") ?? 4);
+
+  const trimTargets = useMemo(() => [
+    { role: "Roll", ch: rollCh },
+    { role: "Pitch", ch: pitchCh },
+    { role: "Yaw", ch: yawCh },
+  ], [rollCh, pitchCh, yawCh]);
+
+  async function handleSetTrims() {
+    if (!protocol) return;
+    setSettingTrims(true);
+    for (const { ch } of trimTargets) {
+      const current = channels[ch - 1] ?? 0;
+      if (current > 0) {
+        await protocol.setParameter(`RC${ch}_TRIM`, current);
+        setLocalValue(`RC${ch}_TRIM`, current);
+      }
+    }
+    setSettingTrims(false);
+    setShowTrimPreview(false);
+    toast("Trims set to current stick positions", "success");
+  }
+
   // ── Save calibration ──────────────────────────────────────
 
-  const saveCalibration = useCallback(() => {
+  const saveCalibration = useCallback(async () => {
+    if (!protocol) {
+      toast("No protocol connection", "error");
+      return;
+    }
     for (let i = 0; i < RC_CHANNEL_COUNT; i++) {
-      if (calMins[i] < 1500) setLocalValue(`RC${i + 1}_MIN`, calMins[i]);
-      if (calMaxs[i] > 1500) setLocalValue(`RC${i + 1}_MAX`, calMaxs[i]);
-      // Set trim to current channel value (sticks centered at this point)
-      if (channels[i] > 0) setLocalValue(`RC${i + 1}_TRIM`, channels[i]);
+      const ch = i + 1;
+      if (calMins[i] < 1500) {
+        await protocol.setParameter(`RC${ch}_MIN`, calMins[i]);
+        setLocalValue(`RC${ch}_MIN`, calMins[i]);
+      }
+      if (calMaxs[i] > 1500) {
+        await protocol.setParameter(`RC${ch}_MAX`, calMaxs[i]);
+        setLocalValue(`RC${ch}_MAX`, calMaxs[i]);
+      }
+      if (channels[i] > 0) {
+        await protocol.setParameter(`RC${ch}_TRIM`, channels[i]);
+        setLocalValue(`RC${ch}_TRIM`, channels[i]);
+      }
     }
     setCalibrating(false);
-    toast("Calibration applied — save to write to FC", "info");
-  }, [calMins, calMaxs, channels, setLocalValue, toast]);
+    setCalStep(1);
+    toast("Calibration saved to FC — trims set to current stick positions", "success");
+  }, [calMins, calMaxs, channels, protocol, setLocalValue, toast]);
 
   // ── RSSI percentage ────────────────────────────────────────
 
@@ -210,6 +272,8 @@ export function ReceiverPanel() {
                 value={val}
                 min={getChannelMin(i)}
                 max={getChannelMax(i)}
+                trim={getChannelTrim(i)}
+                dz={getChannelDz(i)}
               />
             ))}
           </div>
@@ -263,6 +327,7 @@ export function ReceiverPanel() {
                   <th className="px-3 py-2 text-left font-medium">Min</th>
                   <th className="px-3 py-2 text-left font-medium">Max</th>
                   <th className="px-3 py-2 text-left font-medium">Trim</th>
+                  <th className="px-3 py-2 text-left font-medium">DZ</th>
                   <th className="px-3 py-2 text-left font-medium">Rev</th>
                 </tr>
               </thead>
@@ -295,6 +360,14 @@ export function ReceiverPanel() {
                       />
                     </td>
                     <td className="px-3 py-1.5">
+                      <input
+                        type="number"
+                        value={getChannelDz(i)}
+                        onChange={(e) => setLocalValue(`RC${i + 1}_DZ`, Number(e.target.value))}
+                        className="w-14 h-7 px-1.5 bg-bg-tertiary border border-border-default text-xs font-mono text-text-primary focus:outline-none focus:border-accent-primary"
+                      />
+                    </td>
+                    <td className="px-3 py-1.5">
                       <Toggle
                         label=""
                         checked={getChannelReversed(i)}
@@ -312,10 +385,67 @@ export function ReceiverPanel() {
 
         <Card title="Radio Calibration">
           <div className="space-y-3">
+            {/* ── Set Trims to Current (standalone, outside calibration) ── */}
+            {!calibrating && (
+              <>
+                {showTrimPreview ? (
+                  <div className="p-2 bg-bg-tertiary border border-border-default space-y-2">
+                    <p className="text-[10px] font-medium text-text-secondary">Trim Preview (Roll, Pitch, Yaw):</p>
+                    <div className="space-y-0.5">
+                      {trimTargets.map(({ role, ch }) => {
+                        const current = channels[ch - 1] ?? 0;
+                        const oldTrim = getChannelTrim(ch - 1);
+                        return (
+                          <div key={ch} className="flex items-center gap-2 text-[10px] font-mono">
+                            <span className="text-text-secondary w-10">{role}</span>
+                            <span className="text-text-tertiary">RC{ch}_TRIM:</span>
+                            <span className="text-text-tertiary">{oldTrim}</span>
+                            <span className="text-text-secondary">→</span>
+                            <span className="text-text-primary">{current || "—"}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        icon={<Crosshair size={12} />}
+                        loading={settingTrims}
+                        onClick={handleSetTrims}
+                      >
+                        Confirm
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setShowTrimPreview(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={<Crosshair size={12} />}
+                      disabled={!hasRcData}
+                      onClick={() => setShowTrimPreview(true)}
+                    >
+                      Set Trims to Current
+                    </Button>
+                    <span className="text-[10px] text-text-tertiary">
+                      Sets Roll/Pitch/Yaw trims to live stick positions
+                    </span>
+                  </div>
+                )}
+                <div className="border-t border-border-default" />
+              </>
+            )}
+
+            {/* ── Calibration Flow (2-step) ── */}
             {!calibrating ? (
               <>
                 <p className="text-[10px] text-text-tertiary">
-                  Move all sticks and switches to their extreme positions, then save calibration to record min/max values.
+                  2-step calibration: (1) move sticks to extremes, (2) center sticks to set trims.
                 </p>
                 {!hasRcData && (
                   <p className="text-[10px] text-status-warning">
@@ -329,17 +459,18 @@ export function ReceiverPanel() {
                   onClick={() => {
                     setCalMins(Array(RC_CHANNEL_COUNT).fill(2000));
                     setCalMaxs(Array(RC_CHANNEL_COUNT).fill(1000));
+                    setCalStep(1);
                     setCalibrating(true);
                   }}
                 >
                   Start Calibration
                 </Button>
               </>
-            ) : (
+            ) : calStep === 1 ? (
               <>
                 <div className="p-2 bg-status-warning/10 border border-status-warning/20">
                   <p className="text-[10px] text-status-warning font-medium">
-                    Calibrating — Move all sticks and switches to their extreme positions now.
+                    Step 1/2 — Move all sticks and switches to their extreme positions now.
                   </p>
                 </div>
 
@@ -368,6 +499,48 @@ export function ReceiverPanel() {
                   <Button
                     variant="primary"
                     size="sm"
+                    onClick={() => setCalStep(2)}
+                  >
+                    Next: Set Center
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setCalibrating(false); setCalStep(1); }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="p-2 bg-accent-primary/10 border border-accent-primary/20">
+                  <p className="text-[10px] text-accent-primary font-medium">
+                    Step 2/2 — Return all sticks to center (neutral) position, then click Save.
+                  </p>
+                </div>
+
+                <div className="space-y-0.5">
+                  {channels.slice(0, Math.min(8, RC_CHANNEL_COUNT)).map((val, i) => {
+                    const currentTrim = getChannelTrim(i);
+                    const offset = val > 0 ? Math.abs(val - currentTrim) : 0;
+                    return (
+                      <div key={i} className="flex items-center gap-2 text-[10px] font-mono">
+                        <span className="text-text-secondary w-6 text-right">CH{i + 1}</span>
+                        <span className="text-text-primary w-10 text-right">{val}</span>
+                        <span className="text-text-tertiary">offset:</span>
+                        <span className={offset > (getChannelDz(i)) ? "text-status-warning" : "text-status-success"}>
+                          {offset}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
                     icon={<Save size={12} />}
                     onClick={saveCalibration}
                   >
@@ -376,7 +549,14 @@ export function ReceiverPanel() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setCalibrating(false)}
+                    onClick={() => setCalStep(1)}
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setCalibrating(false); setCalStep(1); }}
                   >
                     Cancel
                   </Button>

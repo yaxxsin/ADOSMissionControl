@@ -326,7 +326,34 @@ export class MockProtocol implements DroneProtocol {
   async setServo(): Promise<CommandResult> { return ok("Servo set"); }
   async cameraTrigger(): Promise<CommandResult> { return ok("Camera triggered"); }
   async setGimbalAngle(): Promise<CommandResult> { return ok("Gimbal set"); }
-  async doPreArmCheck(): Promise<CommandResult> { return ok("Pre-arm: Ready"); }
+  async doPreArmCheck(): Promise<CommandResult> {
+    // Check RC channels against trim ± DZ (like real ArduPilot)
+    const channelNames = ["Roll", "Pitch", "Throttle", "Yaw"];
+    let hasFailure = false;
+    for (let ch = 1; ch <= 4; ch++) {
+      const trim = this.params.get(`RC${ch}_TRIM`)?.value ?? 1500;
+      const dz = this.params.get(`RC${ch}_DZ`)?.value ?? 30;
+      const live = this._rcChannelValues[ch - 1] ?? 1500;
+      if (Math.abs(live - trim) > dz) {
+        hasFailure = true;
+        const name = channelNames[ch - 1] ?? `CH${ch}`;
+        setTimeout(() => {
+          this.emitStatusText(4, `Arm: ${name} (RC${ch}) is not neutral`);
+        }, 100 * ch);
+      }
+    }
+    if (!hasFailure) {
+      setTimeout(() => this.emitStatusText(6, "PreArm: Ready to arm"), 200);
+    }
+    return ok("Pre-arm check");
+  }
+
+  /** Live RC channel values — set by mock engine for pre-arm checks */
+  private _rcChannelValues: number[] = Array(16).fill(1500);
+
+  setRcChannelValues(channels: number[]): void {
+    this._rcChannelValues = channels;
+  }
 
   // ── Fence Operations ────────────────────────────────────
 
@@ -582,8 +609,19 @@ export class MockProtocol implements DroneProtocol {
       setTimeout(() => this.emitStatusText(6, "CompassMot: Increasing throttle..."), 1000);
       setTimeout(() => this.emitStatusText(6, "CompassMot interference: 12% — Good"), 3000);
       setTimeout(() => this.emitStatusText(5, "CompassMot calibration successful"), 4000);
+    } else if (type === "gyro") {
+      // Match real ArduPilot phrasing
+      setTimeout(() => this.emitStatusText(6, "Gyro calibration started"), 200);
+      setTimeout(() => this.emitStatusText(6, "Gyro calibration: 50%"), 1000);
+      setTimeout(() => this.emitStatusText(5, "Gyro cal done"), 1800);
+      setTimeout(() => this.emitStatusText(5, "gyro calibration successful"), 2000);
+    } else if (type === "level") {
+      // Match real ArduPilot phrasing — "Trim OK: roll=X pitch=Y yaw=Z"
+      setTimeout(() => this.emitStatusText(6, "Level calibration started"), 200);
+      setTimeout(() => this.emitStatusText(5, "Trim OK: roll=0.00 pitch=0.00 yaw=0.00"), 1500);
+      setTimeout(() => this.emitStatusText(5, "level calibration successful"), 2000);
     } else {
-      // Gyro/level/airspeed/baro: simple progress → success
+      // Airspeed/baro: simple progress → success
       setTimeout(() => this.emitStatusText(6, `${type} calibration: 50%`), 1000);
       setTimeout(() => this.emitStatusText(5, `${type} calibration successful`), 2000);
     }

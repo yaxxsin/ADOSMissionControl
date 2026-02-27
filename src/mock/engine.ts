@@ -322,10 +322,13 @@ class MockFlightEngine {
           },
           rc: {
             timestamp: now,
-            channels: [1500, 1500, 1500, 1500, ch5Pwm, 1000, 1000, 1000, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500],
+            channels: [1500, 1538, 1500, 1500, ch5Pwm, 1000, 1000, 1000, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500],
             rssi: 200 + Math.floor(Math.random() * 55),
           },
         });
+
+        // Feed RC channel values to protocol for pre-arm checks
+        state.protocol.setRcChannelValues([1500, 1538, 1500, 1500, ch5Pwm, 1000, 1000, 1000, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500]);
 
         // ── Protocol-emitted telemetry (via callbacks → bridgeTelemetry) ──
 

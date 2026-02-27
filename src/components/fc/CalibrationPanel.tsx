@@ -107,9 +107,9 @@ const COMPASSMOT_STEPS: CalibrationStep[] = [
 /** Keywords per calibration type — only messages containing these are shown */
 const TYPE_KEYWORDS: Record<string, string[]> = {
   accel: ["accel", "place vehicle"],
-  gyro: ["gyro"],
+  gyro: ["gyro", "imu"],
   compass: ["compass", "mag"],
-  level: ["level", "horizon"],
+  level: ["level", "horizon", "trim"],
   airspeed: ["airspeed", "pitot"],
   baro: ["baro", "ground pressure"],
   rc: ["radio", "rc ", "trim", "calibrat"],
@@ -152,7 +152,7 @@ const LOG_KEYWORDS = [
   "calibrat", "accel", "gyro", "compass", "mag", "level",
   "place vehicle", "baro", "airspeed", "pitot", "horizon",
   "radio", "rc ", "esc", "motor", "throttle", "compassmot",
-  "interference", "compensation",
+  "interference", "compensation", "trim", "imu", "offsets",
 ];
 
 /** Per-type calibration timeout in ms */
@@ -355,12 +355,18 @@ export function CalibrationPanel() {
         const typeRelevant =
           keywords.some((kw) => lower.includes(kw)) || lower.includes(calType);
 
-        // Detect completion
+        // Detect completion — covers ArduPilot-specific phrasing
         const isSuccessMessage =
           lower.includes("calibration successful") ||
           lower.includes("calibration done") ||
           lower.includes("calibration complete") ||
-          (lower.includes("calibrated") && lower.includes("requires reboot"));
+          (lower.includes("calibrated") && lower.includes("requires reboot")) ||
+          lower.includes("trim ok") ||
+          lower.includes("trim saved") ||
+          lower.includes("cal done") ||
+          lower.includes("offsets saved") ||
+          lower.includes("offsets complete") ||
+          lower.includes("cal complete");
 
         if (isSuccessMessage) {
           // Only accept success messages that are relevant to this calibration type — no generic fallback
@@ -418,10 +424,48 @@ export function CalibrationPanel() {
           return;
         }
 
-        // Show relevant status text
+        // Show relevant status text and reset timeout (FC is responding)
         setter((prev) => ({ ...prev, message: text }));
+        resetTimeout(calType, setter);
       });
       addSub(calType, statusUnsub);
+
+      // Fast-completion fallback for simple calibrations (gyro/level/baro/airspeed):
+      // If COMMAND_ACK returned success (we're here so it did), set a 5s timer.
+      // If no explicit success/failure STATUSTEXT arrived by then but a type-relevant
+      // message was received, treat as success.
+      const FAST_CAL_TYPES = ["gyro", "level", "baro", "airspeed"];
+      if (FAST_CAL_TYPES.includes(calType)) {
+        let sawRelevantMsg = false;
+        const fastUnsub = protocol.onStatusText(({ text: t }) => {
+          const l = t.toLowerCase();
+          const kws = TYPE_KEYWORDS[calType] ?? [];
+          if (kws.some((kw) => l.includes(kw)) || l.includes(calType)) {
+            sawRelevantMsg = true;
+          }
+        });
+        const fastTimer = setTimeout(() => {
+          fastUnsub();
+          if (!sawRelevantMsg) return;
+          setter((prev) => {
+            // Only trigger if still in_progress (no success/failure detected yet)
+            if (prev.status !== "in_progress") return prev;
+            const rebootTypes = ["accel", "compass", "level", "compassmot", "esc"];
+            cleanupSubs(calType);
+            return {
+              ...INITIAL_STATE,
+              status: "success",
+              currentStep: stepCount,
+              progress: 100,
+              message: prev.message || `${calType} calibration complete`,
+              needsReboot: rebootTypes.includes(calType),
+            };
+          });
+          toast(`${calType.charAt(0).toUpperCase() + calType.slice(1)} calibration complete`, "success");
+        }, 5000);
+        addSub(calType, fastUnsub);
+        addSub(calType, () => clearTimeout(fastTimer));
+      }
 
       // Accel-specific: subscribe to position requests from FC
       if (calType === "accel" && protocol.onAccelCalPos) {
