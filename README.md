@@ -4,6 +4,8 @@
 
 ![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-green.svg) ![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue.svg) ![Next.js 16](https://img.shields.io/badge/Next.js-16-black.svg) ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg) [![Discord](https://img.shields.io/badge/Discord-Join-5865F2.svg?logo=discord&logoColor=white)](https://discord.gg/uxbvuD4d5q)
 
+**[Live App](https://command.altnautica.com)** | **[Website](https://altnautica.com/command)** | **[Discord](https://discord.gg/uxbvuD4d5q)** | **[Documentation](#features)**
+
 ## Screenshots
 
 <p align="center">
@@ -463,7 +465,10 @@ You are free to use, modify, and distribute this software under the terms of the
 
 ## Links
 
+- Live app: [command.altnautica.com](https://command.altnautica.com)
+- Command page: [altnautica.com/command](https://altnautica.com/command)
 - Website: [altnautica.com](https://altnautica.com)
+- Discord: [discord.gg/uxbvuD4d5q](https://discord.gg/uxbvuD4d5q)
 - Issues: [github.com/altnautica/ADOSMissionControl/issues](https://github.com/altnautica/ADOSMissionControl/issues)
 - SITL tool: [`tools/sitl/`](tools/sitl/)
 
