@@ -23,6 +23,19 @@ app.whenReady().then(async () => {
   // Start the embedded Next.js standalone server
   const port = await startServer({ demo: isDemoMode });
 
+  // In packaged builds, passively log /_next/static requests for diagnostics
+  // (no interception — Chromium talks directly to the localhost server)
+  if (app.isPackaged) {
+    const { session } = require("electron");
+    const filter = { urls: ["http://127.0.0.1:*/_next/*"] };
+    session.defaultSession.webRequest.onCompleted(filter, (details: any) => {
+      console.log(`[req] ${details.statusCode} ${details.url.substring(0, 120)}`);
+    });
+    session.defaultSession.webRequest.onErrorOccurred(filter, (details: any) => {
+      console.error(`[req] ERR ${details.error} ${details.url.substring(0, 120)}`);
+    });
+  }
+
   // Create the main browser window
   const win = createMainWindow(port);
 

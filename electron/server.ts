@@ -1,6 +1,7 @@
 import { ChildProcess, fork } from "child_process";
-import { createServer } from "net";
+import { createServer as createTcpServer } from "net";
 import path from "path";
+import fs from "fs";
 import http from "http";
 import { app } from "electron";
 
@@ -10,13 +11,13 @@ let serverPort: number = 4000;
 /** Find a free port, starting with the preferred one. */
 async function findFreePort(preferred: number): Promise<number> {
   return new Promise((resolve, reject) => {
-    const srv = createServer();
+    const srv = createTcpServer();
     srv.listen(preferred, "127.0.0.1", () => {
       srv.close(() => resolve(preferred));
     });
     srv.on("error", () => {
       // Preferred port taken — let OS assign one
-      const srv2 = createServer();
+      const srv2 = createTcpServer();
       srv2.listen(0, "127.0.0.1", () => {
         const addr = srv2.address();
         if (addr && typeof addr === "object") {
@@ -33,15 +34,24 @@ async function findFreePort(preferred: number): Promise<number> {
 /** Resolve path to the standalone server.js. */
 function getServerPath(): string {
   if (app.isPackaged) {
-    // In packaged app, standalone files are in resources
     return path.join(process.resourcesPath, "standalone", "server.js");
   }
-  // In development, use the built standalone output
   return path.join(__dirname, "..", ".next", "standalone", "server.js");
 }
 
+/** Get the static files directory (for diagnostic logging only). */
+function getStaticDir(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, "standalone", ".next", "static");
+  }
+  return path.join(__dirname, "..", ".next", "static");
+}
+
 /** Wait for the server to respond to HTTP requests. */
-async function waitForReady(port: number, timeoutMs: number = 30000): Promise<void> {
+async function waitForReady(
+  port: number,
+  timeoutMs: number = 30000
+): Promise<void> {
   const start = Date.now();
   const interval = 200;
 
@@ -52,7 +62,7 @@ async function waitForReady(port: number, timeoutMs: number = 30000): Promise<vo
         return;
       }
 
-      const req = http.get(`http://localhost:${port}`, (res) => {
+      const req = http.get(`http://127.0.0.1:${port}`, (res) => {
         if (res.statusCode && res.statusCode < 500) {
           resolve();
         } else {
@@ -79,21 +89,37 @@ interface StartOptions {
   demo?: boolean;
 }
 
-/** Start the Next.js standalone server. Returns the port it's running on. */
+/**
+ * Start the Next.js standalone server. Returns the port.
+ *
+ * The standalone server serves static files natively when .next/static/
+ * is present in the standalone directory. No proxy needed.
+ */
 export async function startServer(options: StartOptions = {}): Promise<number> {
-  serverPort = await findFreePort(4000);
+  const port = await findFreePort(4000);
 
   const serverPath = getServerPath();
+  const staticDir = getStaticDir();
 
   const env: Record<string, string> = {
-    ...process.env as Record<string, string>,
-    PORT: String(serverPort),
-    HOSTNAME: "localhost",
+    ...((process.env as Record<string, string>) || {}),
+    PORT: String(port),
+    HOSTNAME: "127.0.0.1",
     NODE_ENV: "production",
   };
 
   if (options.demo) {
     env.NEXT_PUBLIC_DEMO_MODE = "true";
+  }
+
+  // Diagnostic: verify static directory exists in packaged builds
+  if (app.isPackaged) {
+    try {
+      const entries = fs.readdirSync(staticDir);
+      console.log(`[electron] Static dir OK: ${entries.join(", ")}`);
+    } catch (err: any) {
+      console.error(`[electron] Static dir MISSING: ${staticDir}`, err.message);
+    }
   }
 
   serverProcess = fork(serverPath, [], {
@@ -117,9 +143,10 @@ export async function startServer(options: StartOptions = {}): Promise<number> {
     serverProcess = null;
   });
 
-  await waitForReady(serverPort);
-  console.log(`[server] ready on port ${serverPort}`);
+  await waitForReady(port);
 
+  serverPort = port;
+  console.log(`[server] ready on port ${serverPort}`);
   return serverPort;
 }
 

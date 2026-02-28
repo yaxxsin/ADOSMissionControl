@@ -167,3 +167,5 @@ When you need to understand a system, read these files:
 - **`isDemoMode()` checks both env var and URL param** — `NEXT_PUBLIC_DEMO_MODE=true` or `?demo=true` in the URL. Either activates the mock engine.
 - **Never import from `src/mock/` in production code paths** — Mock modules should only be loaded when `isDemoMode()` is true. Use dynamic imports or conditional requires.
 - **Zustand `getState()` is synchronous** — Use it in callbacks and event handlers. Use selectors (`useStore(s => s.field)`) in React components for reactivity.
+- **Electron: no proxy needed for standalone** — The Next.js standalone server serves `/_next/static/*` natively when `.next/static/` is copied into the standalone directory. No HTTP proxy layer required. `server.ts` just forks the standalone server on a single port. Always use `127.0.0.1` (not `localhost`) to avoid IPv6 resolution issues on macOS.
+- **Electron: always use `127.0.0.1`** — `window.ts`, `main.ts`, and `server.ts` all use `127.0.0.1` instead of `localhost`. macOS can resolve `localhost` to `::1` (IPv6), causing ECONNREFUSED when the server only listens on IPv4.
