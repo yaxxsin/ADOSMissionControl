@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { usePanelParams } from "@/hooks/use-panel-params";
+import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { useArmedLock } from "@/hooks/use-armed-lock";
 import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
 import { PanelHeader } from "./PanelHeader";
@@ -53,6 +54,7 @@ export function FramePanel() {
     paramNames: FRAME_PARAMS,
     panelId: "frame",
   });
+  useUnsavedGuard(dirtyParams.size > 0);
 
   const [saving, setSaving] = useState(false);
   const [committing, setCommitting] = useState(false);

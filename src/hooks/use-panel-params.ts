@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useParamSafetyStore } from "@/stores/param-safety-store";
+import { usePanelCacheStore } from "@/stores/panel-cache-store";
 
 interface PanelParamOptions {
   /** List of parameter names to load */
@@ -77,6 +78,8 @@ export function usePanelParams(
   const trackWrite = useParamSafetyStore((s) => s.trackWrite);
   const commitFlashStore = useParamSafetyStore((s) => s.commitFlash);
   const markPanelLoaded = useParamSafetyStore((s) => s.markPanelLoaded);
+  const cachePanel = usePanelCacheStore((s) => s.cachePanel);
+  const getCachedPanel = usePanelCacheStore((s) => s.getCachedPanel);
 
   const loadParams = useCallback(async () => {
     const protocol = getProtocol();
@@ -149,12 +152,27 @@ export function usePanelParams(
     }
 
     markPanelLoaded(panelId);
+    cachePanel(panelId, new Map(loaded), new Map(loaded));
     setLoading(false);
-  }, [getProtocol, paramNames, optionalSet, panelId, maxRetries, batchSize, markPanelLoaded]);
+  }, [getProtocol, paramNames, optionalSet, panelId, maxRetries, batchSize, markPanelLoaded, cachePanel]);
 
   // Ref to decouple effect from loadParams identity changes during loading
   const loadParamsRef = useRef(loadParams);
   loadParamsRef.current = loadParams;
+
+  // Restore from cache on mount (before autoLoad triggers)
+  useEffect(() => {
+    const cached = getCachedPanel(panelId);
+    if (cached) {
+      setParams(new Map(cached.params));
+      originalValues.current = new Map(cached.originalValues);
+      setHasLoaded(true);
+      setDirtyParams(new Set());
+      setHasRamWrites(false);
+      markPanelLoaded(panelId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-load on mount (default: off)
   useEffect(() => {

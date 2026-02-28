@@ -3,6 +3,7 @@ import { RingBuffer } from "@/lib/ring-buffer";
 import type { AttitudeData, PositionData, BatteryData, GpsData, VfrData, RcData, SysStatusData, RadioData, EkfData, VibrationData, ServoOutputData, WindData, TerrainData, LocalPositionData, DebugData, GimbalData, ObstacleData } from "@/lib/types";
 
 interface TelemetryStoreState {
+  _version: number;
   attitude: RingBuffer<AttitudeData>;
   position: RingBuffer<PositionData>;
   battery: RingBuffer<BatteryData>;
@@ -61,6 +62,7 @@ interface TelemetryStoreState {
 }
 
 export const useTelemetryStore = create<TelemetryStoreState>((set, get) => ({
+  _version: 0,
   attitude: new RingBuffer<AttitudeData>(600),   // 10Hz x 60s
   position: new RingBuffer<PositionData>(300),   // 5Hz x 60s
   battery: new RingBuffer<BatteryData>(120),     // 2Hz x 60s
@@ -81,45 +83,45 @@ export const useTelemetryStore = create<TelemetryStoreState>((set, get) => ({
 
   pushAttitude: (data) => {
     get().attitude.push(data);
-    set({});  // trigger re-render
+    set({ _version: get()._version + 1 });
   },
   pushPosition: (data) => {
     get().position.push(data);
-    set({});
+    set({ _version: get()._version + 1 });
   },
   pushBattery: (data) => {
     get().battery.push(data);
-    set({});
+    set({ _version: get()._version + 1 });
   },
   pushGps: (data) => {
     get().gps.push(data);
-    set({});
+    set({ _version: get()._version + 1 });
   },
   pushVfr: (data) => {
     get().vfr.push(data);
-    set({});
+    set({ _version: get()._version + 1 });
   },
   pushRc: (data) => {
     get().rc.push(data);
-    set({});
+    set({ _version: get()._version + 1 });
   },
   pushSysStatus: (data) => {
     get().sysStatus.push(data);
-    set({});
+    set({ _version: get()._version + 1 });
   },
   pushRadio: (data) => {
     get().radio.push(data);
-    set({});
+    set({ _version: get()._version + 1 });
   },
-  pushEkf: (data) => { get().ekf.push(data); set({}); },
-  pushVibration: (data) => { get().vibration.push(data); set({}); },
-  pushServoOutput: (data) => { get().servoOutput.push(data); set({}); },
-  pushWind: (data) => { get().wind.push(data); set({}); },
-  pushTerrain: (data) => { get().terrain.push(data); set({}); },
-  pushLocalPosition: (data) => { get().localPosition.push(data); set({}); },
-  pushDebug: (data) => { get().debug.push(data); set({}); },
-  pushGimbal: (data) => { get().gimbal.push(data); set({}); },
-  pushObstacle: (data) => { get().obstacle.push(data); set({}); },
+  pushEkf: (data) => { get().ekf.push(data); set({ _version: get()._version + 1 }); },
+  pushVibration: (data) => { get().vibration.push(data); set({ _version: get()._version + 1 }); },
+  pushServoOutput: (data) => { get().servoOutput.push(data); set({ _version: get()._version + 1 }); },
+  pushWind: (data) => { get().wind.push(data); set({ _version: get()._version + 1 }); },
+  pushTerrain: (data) => { get().terrain.push(data); set({ _version: get()._version + 1 }); },
+  pushLocalPosition: (data) => { get().localPosition.push(data); set({ _version: get()._version + 1 }); },
+  pushDebug: (data) => { get().debug.push(data); set({ _version: get()._version + 1 }); },
+  pushGimbal: (data) => { get().gimbal.push(data); set({ _version: get()._version + 1 }); },
+  pushObstacle: (data) => { get().obstacle.push(data); set({ _version: get()._version + 1 }); },
   pushBatch: (batch) => {
     const s = get();
     if (batch.attitude) s.attitude.push(batch.attitude);
@@ -139,7 +141,7 @@ export const useTelemetryStore = create<TelemetryStoreState>((set, get) => ({
     if (batch.debug) s.debug.push(batch.debug);
     if (batch.gimbal) s.gimbal.push(batch.gimbal);
     if (batch.obstacle) s.obstacle.push(batch.obstacle);
-    set({});
+    set({ _version: get()._version + 1 });
   },
   clear: () =>
     set({

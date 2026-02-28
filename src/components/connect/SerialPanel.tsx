@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Plug, Plus, Usb } from "lucide-react";
-import { WebSerialTransport } from "@/lib/protocol/transport-webserial";
+import { WebSerialTransport } from "@/lib/protocol/transport/webserial";
 import { MAVLinkAdapter } from "@/lib/protocol/mavlink-adapter";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useDroneMetadataStore } from "@/stores/drone-metadata-store";

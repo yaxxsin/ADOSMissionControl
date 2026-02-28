@@ -1,0 +1,167 @@
+/**
+ * Navigation, safety, and sensor message handlers.
+ * Each function decodes a MAVLink payload and dispatches to subscriber callbacks.
+ *
+ * @module protocol/handlers/nav-safety-handlers
+ */
+
+import type {
+  EkfCallback, VibrationCallback, ServoOutputCallback,
+  WindCallback, TerrainCallback, HomePositionCallback,
+  DistanceSensorCallback, FenceStatusCallback, NavControllerCallback,
+  FencePointCallback, MissionProgressCallback,
+} from '../types'
+import {
+  decodeEkfStatusReport, decodeVibration, decodeServoOutputRaw,
+  decodeWind, decodeTerrainReport, decodeHomePosition,
+  decodeDistanceSensor, decodeFenceStatus, decodeNavControllerOutput,
+  decodeFencePoint, decodeMissionCurrent, decodeMissionItemReached,
+} from '../mavlink-messages'
+
+export function handleEkfStatus(payload: DataView, callbacks: EkfCallback[]): void {
+  const data = decodeEkfStatusReport(payload)
+  for (const cb of callbacks) {
+    cb({
+      timestamp: Date.now(),
+      velocityVariance: data.velocityVariance,
+      posHorizVariance: data.posHorizVariance,
+      posVertVariance: data.posVertVariance,
+      compassVariance: data.compassVariance,
+      terrainAltVariance: data.terrainAltVariance,
+      flags: data.flags,
+    })
+  }
+}
+
+export function handleVibration(payload: DataView, callbacks: VibrationCallback[]): void {
+  const data = decodeVibration(payload)
+  for (const cb of callbacks) {
+    cb({
+      timestamp: Date.now(),
+      vibrationX: data.vibrationX,
+      vibrationY: data.vibrationY,
+      vibrationZ: data.vibrationZ,
+      clipping0: data.clipping0,
+      clipping1: data.clipping1,
+      clipping2: data.clipping2,
+    })
+  }
+}
+
+export function handleServoOutput(payload: DataView, callbacks: ServoOutputCallback[]): void {
+  const data = decodeServoOutputRaw(payload)
+  for (const cb of callbacks) {
+    cb({
+      timestamp: Date.now(),
+      port: data.port,
+      servos: [data.servo1, data.servo2, data.servo3, data.servo4,
+               data.servo5, data.servo6, data.servo7, data.servo8],
+    })
+  }
+}
+
+export function handleWind(payload: DataView, callbacks: WindCallback[]): void {
+  const data = decodeWind(payload)
+  for (const cb of callbacks) {
+    cb({
+      timestamp: Date.now(),
+      direction: data.direction,
+      speed: data.speed,
+      speedZ: data.speedZ,
+    })
+  }
+}
+
+export function handleTerrainReport(payload: DataView, callbacks: TerrainCallback[]): void {
+  const data = decodeTerrainReport(payload)
+  for (const cb of callbacks) {
+    cb({
+      timestamp: Date.now(),
+      lat: data.lat / 1e7,
+      lon: data.lon / 1e7,
+      terrainHeight: data.terrainHeight,
+      currentHeight: data.currentHeight,
+      spacing: data.spacing,
+      pending: data.pending,
+      loaded: data.loaded,
+    })
+  }
+}
+
+export function handleHomePosition(payload: DataView, callbacks: HomePositionCallback[]): void {
+  const data = decodeHomePosition(payload)
+  for (const cb of callbacks) {
+    cb({
+      timestamp: Date.now(),
+      lat: data.lat / 1e7,
+      lon: data.lon / 1e7,
+      alt: data.alt / 1000, // mm → m
+    })
+  }
+}
+
+export function handleDistanceSensor(payload: DataView, callbacks: DistanceSensorCallback[]): void {
+  const data = decodeDistanceSensor(payload)
+  for (const cb of callbacks) {
+    cb({
+      timestamp: Date.now(),
+      currentDistance: data.currentDistance, // cm
+      minDistance: data.minDistance,
+      maxDistance: data.maxDistance,
+      orientation: data.orientation,
+      id: data.id,
+      covariance: data.covariance,
+    })
+  }
+}
+
+export function handleFenceStatus(payload: DataView, callbacks: FenceStatusCallback[]): void {
+  const data = decodeFenceStatus(payload)
+  for (const cb of callbacks) {
+    cb({
+      timestamp: Date.now(),
+      breachStatus: data.breachStatus,
+      breachCount: data.breachCount,
+      breachType: data.breachType,
+    })
+  }
+}
+
+export function handleNavControllerOutput(payload: DataView, callbacks: NavControllerCallback[]): void {
+  const data = decodeNavControllerOutput(payload)
+  for (const cb of callbacks) {
+    cb({
+      timestamp: Date.now(),
+      navBearing: data.navBearing,
+      targetBearing: data.targetBearing,
+      wpDist: data.wpDist,
+      altError: data.altError,
+      xtrackError: data.xtrackError,
+    })
+  }
+}
+
+export function handleFencePoint(payload: DataView, callbacks: FencePointCallback[]): void {
+  const data = decodeFencePoint(payload)
+  for (const cb of callbacks) {
+    cb({
+      timestamp: Date.now(),
+      idx: data.idx, count: data.count,
+      lat: data.lat, lon: data.lon,
+    })
+  }
+}
+
+export function handleMissionCurrent(payload: DataView, callbacks: MissionProgressCallback[]): void {
+  const data = decodeMissionCurrent(payload)
+  for (const cb of callbacks) {
+    cb({ currentSeq: data.seq })
+  }
+}
+
+export function handleMissionItemReached(payload: DataView, callbacks: MissionProgressCallback[]): void {
+  const data = decodeMissionItemReached(payload)
+  for (const cb of callbacks) {
+    cb({ currentSeq: data.seq, reachedSeq: data.seq })
+  }
+}

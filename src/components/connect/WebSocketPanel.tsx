@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plug } from "lucide-react";
-import { WebSocketTransport } from "@/lib/protocol/transport-websocket";
+import { WebSocketTransport } from "@/lib/protocol/transport/websocket";
 import { MAVLinkAdapter } from "@/lib/protocol/mavlink-adapter";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useDroneMetadataStore } from "@/stores/drone-metadata-store";

@@ -65,7 +65,7 @@ import type {
   FencePointCallback,
   SystemTimeCallback,
 } from "@/lib/protocol/types";
-import { ArduCopterHandler } from "@/lib/protocol/firmware-ardupilot";
+import { ArduCopterHandler } from "@/lib/protocol/firmware/ardupilot";
 import { MOCK_PARAMS, type MockParam } from "./mock-params";
 
 // ── Helpers ─────────────────────────────────────────────────

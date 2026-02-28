@@ -6,198 +6,19 @@ import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useTelemetryStore } from "@/stores/telemetry-store";
 import { usePanelParams } from "@/hooks/use-panel-params";
+import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { PanelHeader } from "./PanelHeader";
 import {
   SlidersHorizontal, Save, RotateCcw, BarChart3, HardDrive,
   Play, Copy, Zap, Filter,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-interface PidParam {
-  param: string;
-  label: string;
-  min: number;
-  max: number;
-  step: number;
-}
-
-interface AxisConfig {
-  axis: string;
-  params: PidParam[];
-}
-
-// ── Plane PID axes (servo-rate controllers) ──────────────────
-
-const PLANE_AXES: AxisConfig[] = [
-  {
-    axis: "Roll",
-    params: [
-      { param: "RLL2SRV_P", label: "P", min: 0, max: 5, step: 0.001 },
-      { param: "RLL2SRV_I", label: "I", min: 0, max: 5, step: 0.001 },
-      { param: "RLL2SRV_D", label: "D", min: 0, max: 5, step: 0.001 },
-      { param: "RLL2SRV_IMAX", label: "IMAX", min: 0, max: 4500, step: 1 },
-      { param: "RLL2SRV_FF", label: "FF", min: 0, max: 5, step: 0.001 },
-    ],
-  },
-  {
-    axis: "Pitch",
-    params: [
-      { param: "PTCH2SRV_P", label: "P", min: 0, max: 5, step: 0.001 },
-      { param: "PTCH2SRV_I", label: "I", min: 0, max: 5, step: 0.001 },
-      { param: "PTCH2SRV_D", label: "D", min: 0, max: 5, step: 0.001 },
-      { param: "PTCH2SRV_IMAX", label: "IMAX", min: 0, max: 4500, step: 1 },
-      { param: "PTCH2SRV_FF", label: "FF", min: 0, max: 5, step: 0.001 },
-    ],
-  },
-  {
-    axis: "Yaw",
-    params: [
-      { param: "YAW2SRV_SLIP", label: "SLIP", min: 0, max: 5, step: 0.001 },
-      { param: "YAW2SRV_INT", label: "INT", min: 0, max: 5, step: 0.001 },
-      { param: "YAW2SRV_DAMP", label: "DAMP", min: 0, max: 5, step: 0.001 },
-      { param: "YAW2SRV_RLL", label: "RLL", min: 0, max: 5, step: 0.001 },
-    ],
-  },
-];
-
-// ── Copter rate PID axes (ATC_RAT_*) ─────────────────────────
-
-const COPTER_AXES: AxisConfig[] = [
-  {
-    axis: "Roll Rate",
-    params: [
-      { param: "ATC_RAT_RLL_P", label: "P", min: 0, max: 1, step: 0.001 },
-      { param: "ATC_RAT_RLL_I", label: "I", min: 0, max: 2, step: 0.001 },
-      { param: "ATC_RAT_RLL_D", label: "D", min: 0, max: 0.2, step: 0.0001 },
-      { param: "ATC_RAT_RLL_FF", label: "FF", min: 0, max: 1, step: 0.001 },
-      { param: "ATC_RAT_RLL_FLTT", label: "FLTT", min: 0, max: 100, step: 1 },
-      { param: "ATC_RAT_RLL_FLTD", label: "FLTD", min: 0, max: 100, step: 1 },
-    ],
-  },
-  {
-    axis: "Pitch Rate",
-    params: [
-      { param: "ATC_RAT_PIT_P", label: "P", min: 0, max: 1, step: 0.001 },
-      { param: "ATC_RAT_PIT_I", label: "I", min: 0, max: 2, step: 0.001 },
-      { param: "ATC_RAT_PIT_D", label: "D", min: 0, max: 0.2, step: 0.0001 },
-      { param: "ATC_RAT_PIT_FF", label: "FF", min: 0, max: 1, step: 0.001 },
-      { param: "ATC_RAT_PIT_FLTT", label: "FLTT", min: 0, max: 100, step: 1 },
-      { param: "ATC_RAT_PIT_FLTD", label: "FLTD", min: 0, max: 100, step: 1 },
-    ],
-  },
-  {
-    axis: "Yaw Rate",
-    params: [
-      { param: "ATC_RAT_YAW_P", label: "P", min: 0, max: 1, step: 0.001 },
-      { param: "ATC_RAT_YAW_I", label: "I", min: 0, max: 2, step: 0.001 },
-      { param: "ATC_RAT_YAW_D", label: "D", min: 0, max: 0.2, step: 0.0001 },
-      { param: "ATC_RAT_YAW_FF", label: "FF", min: 0, max: 1, step: 0.001 },
-      { param: "ATC_RAT_YAW_FLTT", label: "FLTT", min: 0, max: 100, step: 1 },
-      { param: "ATC_RAT_YAW_FLTD", label: "FLTD", min: 0, max: 100, step: 1 },
-    ],
-  },
-];
-
-// ── Shared acro rate params ──────────────────────────────────
-
-const ACRO_PARAMS: PidParam[] = [
-  { param: "ACRO_RP_RATE", label: "ACRO Roll/Pitch Rate", min: 0, max: 720, step: 1 },
-  { param: "ACRO_Y_RATE", label: "ACRO Yaw Rate", min: 0, max: 720, step: 1 },
-];
-
-// ── Filter params (INS_*) ────────────────────────────────────
-
-const FILTER_PARAMS: PidParam[] = [
-  { param: "INS_GYRO_FILTER", label: "Gyro LPF (Hz)", min: 0, max: 256, step: 1 },
-  { param: "INS_ACCEL_FILTER", label: "Accel LPF (Hz)", min: 0, max: 256, step: 1 },
-  { param: "INS_HNTCH_ENABLE", label: "Notch Enable", min: 0, max: 1, step: 1 },
-  { param: "INS_HNTCH_FREQ", label: "Notch Freq (Hz)", min: 10, max: 400, step: 1 },
-  { param: "INS_HNTCH_BW", label: "Notch BW (Hz)", min: 5, max: 200, step: 1 },
-  { param: "INS_HNTCH_ATT", label: "Notch Attenuation (dB)", min: 0, max: 50, step: 1 },
-  { param: "INS_HNTCH_REF", label: "Notch Reference", min: 0, max: 1, step: 0.01 },
-  { param: "INS_HNTCH_MODE", label: "Notch Mode", min: 0, max: 5, step: 1 },
-];
-
-// ── PID preset profiles ──────────────────────────────────────
-
-interface PidPreset {
-  name: string;
-  description: string;
-  values: Record<string, number>;
-}
-
-const COPTER_PRESETS: PidPreset[] = [
-  {
-    name: "Conservative",
-    description: "Gentle response, good for first flights",
-    values: {
-      ATC_RAT_RLL_P: 0.05, ATC_RAT_RLL_I: 0.05, ATC_RAT_RLL_D: 0.002,
-      ATC_RAT_PIT_P: 0.05, ATC_RAT_PIT_I: 0.05, ATC_RAT_PIT_D: 0.002,
-      ATC_RAT_YAW_P: 0.15, ATC_RAT_YAW_I: 0.015, ATC_RAT_YAW_D: 0.0,
-    },
-  },
-  {
-    name: "Default",
-    description: "ArduCopter defaults — balanced response",
-    values: {
-      ATC_RAT_RLL_P: 0.135, ATC_RAT_RLL_I: 0.135, ATC_RAT_RLL_D: 0.004,
-      ATC_RAT_PIT_P: 0.135, ATC_RAT_PIT_I: 0.135, ATC_RAT_PIT_D: 0.004,
-      ATC_RAT_YAW_P: 0.18, ATC_RAT_YAW_I: 0.018, ATC_RAT_YAW_D: 0.0,
-    },
-  },
-  {
-    name: "Aggressive",
-    description: "Snappy response — experienced pilots only",
-    values: {
-      ATC_RAT_RLL_P: 0.25, ATC_RAT_RLL_I: 0.25, ATC_RAT_RLL_D: 0.008,
-      ATC_RAT_PIT_P: 0.25, ATC_RAT_PIT_I: 0.25, ATC_RAT_PIT_D: 0.008,
-      ATC_RAT_YAW_P: 0.3, ATC_RAT_YAW_I: 0.03, ATC_RAT_YAW_D: 0.0,
-    },
-  },
-];
-
-// ── Inline waveform chart (SVG) ──────────────────────────────
-
-function PidResponseChart({
-  data,
-  label,
-  color,
-  height = 50,
-}: {
-  data: number[];
-  label: string;
-  color: string;
-  height?: number;
-}) {
-  const width = 300;
-  if (data.length < 2) return null;
-  const minV = Math.min(...data);
-  const maxV = Math.max(...data);
-  const range = maxV - minV || 1;
-  const pad = 2;
-
-  const points = data
-    .map((v, i) => {
-      const x = (i / (data.length - 1)) * width;
-      const y = height - pad - ((v - minV) / range) * (height - pad * 2);
-      return `${x},${y}`;
-    })
-    .join(" ");
-
-  return (
-    <div className="flex items-center gap-1.5">
-      <span className="text-[9px] font-mono text-text-tertiary w-8">{label}</span>
-      <svg viewBox={`0 0 ${width} ${height}`} className="flex-1 h-[50px] bg-bg-tertiary/30 rounded" preserveAspectRatio="none">
-        <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-      </svg>
-      <span className="text-[9px] font-mono text-text-tertiary w-12 text-right tabular-nums">
-        {data[data.length - 1]?.toFixed(1)}°
-      </span>
-    </div>
-  );
-}
-
-type VehicleType = "copter" | "plane";
+import { PidResponseChart } from "./PidResponseChart";
+import { PidAxisRow } from "./PidAxisRow";
+import {
+  type PidParam, type PidPreset, type VehicleType,
+  PLANE_AXES, COPTER_AXES, ACRO_PARAMS, FILTER_PARAMS, COPTER_PRESETS,
+} from "./pid-constants";
 
 export function PidTuningPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
@@ -255,6 +76,7 @@ export function PidTuningPanel() {
     loadProgress, hasLoaded,
     refresh, setLocalValue, saveAllToRam, commitToFlash, revertAll,
   } = usePanelParams({ paramNames, panelId: "pid" });
+  useUnsavedGuard(dirtyParams.size > 0);
 
   const connected = !!getSelectedProtocol();
   const hasDirty = dirtyParams.size > 0;
@@ -379,60 +201,13 @@ export function PidTuningPanel() {
 
         {/* PID Tables per axis */}
         {activeAxes.map((axis) => (
-          <div key={axis.axis} className="border border-border-default bg-bg-secondary p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <SlidersHorizontal size={14} className="text-accent-primary" />
-              <h2 className="text-sm font-medium text-text-primary">{axis.axis}</h2>
-            </div>
-
-            <div className="space-y-3">
-              {axis.params.map((pidP) => {
-                const value = params.get(pidP.param) ?? 0;
-                const isDirty = dirtyParams.has(pidP.param);
-                return (
-                  <div key={pidP.param} className="grid grid-cols-[100px_1fr_80px] items-center gap-3">
-                    <div>
-                      <span className="text-xs font-mono text-text-secondary">{pidP.label}</span>
-                      <span className="text-[9px] text-text-tertiary block">{pidP.param}</span>
-                    </div>
-
-                    {/* Slider */}
-                    <div className="relative">
-                      <input
-                        type="range"
-                        min={pidP.min}
-                        max={pidP.max}
-                        step={pidP.step}
-                        value={value}
-                        onChange={(e) => setLocalValue(pidP.param, parseFloat(e.target.value))}
-                        className="w-full h-1.5 bg-bg-tertiary appearance-none cursor-pointer accent-accent-primary [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-accent-primary [&::-webkit-slider-thumb]:cursor-pointer"
-                      />
-                      {/* Marks */}
-                      <div className="flex justify-between text-[8px] text-text-tertiary font-mono mt-0.5">
-                        <span>{pidP.min}</span>
-                        <span>{pidP.max}</span>
-                      </div>
-                    </div>
-
-                    {/* Numeric input */}
-                    <input
-                      type="number"
-                      min={pidP.min}
-                      max={pidP.max}
-                      step={pidP.step}
-                      value={value}
-                      onChange={(e) => setLocalValue(pidP.param, parseFloat(e.target.value) || 0)}
-                      className={cn(
-                        "w-full h-7 px-1.5 bg-bg-tertiary border text-xs font-mono text-text-primary text-right",
-                        "focus:outline-none focus:border-accent-primary transition-colors",
-                        isDirty ? "border-status-warning" : "border-border-default",
-                      )}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <PidAxisRow
+            key={axis.axis}
+            axis={axis}
+            params={params}
+            dirtyParams={dirtyParams}
+            setLocalValue={setLocalValue}
+          />
         ))}
 
         {/* Acro Rate Params */}
@@ -515,7 +290,7 @@ export function PidTuningPanel() {
           >
             <Filter size={14} className="text-accent-primary" />
             <h2 className="text-sm font-medium text-text-primary">Filter Settings</h2>
-            <span className="text-[10px] text-text-tertiary ml-auto">{showFilters ? "▾" : "▸"}</span>
+            <span className="text-[10px] text-text-tertiary ml-auto">{showFilters ? "\u25BE" : "\u25B8"}</span>
           </button>
           {showFilters && (
             <div className="px-4 pb-4 space-y-3">
@@ -575,7 +350,7 @@ export function PidTuningPanel() {
             >
               <Play size={14} className="text-accent-primary" />
               <h2 className="text-sm font-medium text-text-primary">Autotune</h2>
-              <span className="text-[10px] text-text-tertiary ml-auto">{showAutotune ? "▾" : "▸"}</span>
+              <span className="text-[10px] text-text-tertiary ml-auto">{showAutotune ? "\u25BE" : "\u25B8"}</span>
             </button>
             {showAutotune && (
               <div className="px-4 pb-4 space-y-3">
@@ -647,7 +422,7 @@ export function PidTuningPanel() {
           </div>
           {!snapshot ? (
             <p className="text-[10px] text-text-tertiary">
-              Click "Snapshot Current" to save current PID values, then adjust — compare side-by-side.
+              Click &quot;Snapshot Current&quot; to save current PID values, then adjust — compare side-by-side.
             </p>
           ) : (
             <div className="overflow-x-auto">

@@ -21,7 +21,7 @@ import type {
   EkfCallback, VibrationCallback, ServoOutputCallback,
   WindCallback, TerrainCallback,
   MagCalProgressCallback, MagCalReportCallback,
-  AccelCalPosCallback, AccelCalPosition,
+  AccelCalPosCallback,
   HomePositionCallback, AutopilotVersionCallback,
   PowerStatusCallback, DistanceSensorCallback, FenceStatusCallback,
   NavControllerCallback, ScaledImuCallback, LinkStateCallback,
@@ -41,29 +41,37 @@ import {
   encodeFencePoint, encodeFenceFetchPoint, encodeRcChannelsOverride,
 } from './mavlink-encoder'
 import {
-  decodeHeartbeat, decodeAttitude, decodeGlobalPositionInt,
-  decodeBatteryStatus, decodeGpsRawInt, decodeVfrHud,
-  decodeRcChannels, decodeCommandAck, decodeParamValue,
-  decodeStatustext, decodeMissionAck, decodeMissionRequestInt,
-  decodeSerialControl, decodeSysStatus, decodeRadioStatus,
+  decodeHeartbeat, decodeCommandAck, decodeParamValue,
+  decodeMissionAck, decodeMissionRequestInt,
   decodeMissionCount, decodeMissionItemInt as decodeMissionItemIntMsg,
-  decodeMissionCurrent, decodeMissionItemReached,
-  decodeEkfStatusReport, decodeVibration, decodeServoOutputRaw,
-  decodeWind, decodeTerrainReport,
-  decodeMagCalProgress, decodeMagCalReport,
-  decodeCommandLong,
-  decodeHomePosition, decodeAutopilotVersion,
-  decodePowerStatus, decodeDistanceSensor, decodeFenceStatus,
-  decodeNavControllerOutput, decodeScaledImu,
   decodeLogEntry, decodeLogData,
-  decodeSystemTime, decodeLocalPositionNed,
-  decodeExtendedSysState, decodeNamedValueFloat, decodeNamedValueInt,
-  decodeDebug, decodeCameraImageCaptured,
-  decodeGimbalDeviceAttitudeStatus, decodeObstacleDistance,
-  decodeFencePoint,
 } from './mavlink-messages'
+import {
+  handleAttitude, handleGlobalPosition, handleBattery,
+  handleGpsRaw, handleVfrHud, handleRcChannels,
+  handleSysStatus, handleRadioStatus, handlePowerStatus,
+  handleScaledImu, handleLocalPosition,
+} from './handlers/telemetry-handlers'
+import {
+  handleEkfStatus, handleVibration, handleServoOutput,
+  handleWind, handleTerrainReport, handleHomePosition,
+  handleDistanceSensor, handleFenceStatus, handleNavControllerOutput,
+  handleFencePoint, handleMissionCurrent, handleMissionItemReached,
+} from './handlers/nav-safety-handlers'
+import {
+  handleMagCalProgress, handleMagCalReport, handleIncomingCommandLong,
+} from './handlers/calibration-handlers'
+import {
+  handleExtendedSysState, handleSystemTime,
+  handleStatusText, handleSerialControl,
+  handleAutopilotVersion as handleAutopilotVersionMsg,
+} from './handlers/info-handlers'
+import {
+  handleNamedValueFloat, handleNamedValueInt, handleDebugValue,
+  handleCameraImageCaptured, handleGimbalAttitude, handleObstacleDistance,
+} from './handlers/debug-handlers'
 import { CommandQueue } from './command-queue'
-import { createFirmwareHandler } from './firmware-ardupilot'
+import { createFirmwareHandler } from './firmware/ardupilot'
 
 export class MAVLinkAdapter implements DroneProtocol {
   readonly protocolName = 'mavlink'
@@ -354,53 +362,65 @@ export class MAVLinkAdapter implements DroneProtocol {
   // ── Frame Routing ──────────────────────────────────────
 
   private handleFrame(frame: MAVLinkFrame): void {
+    const p = frame.payload
     switch (frame.msgId) {
+      // Core / stateful handlers (remain in adapter)
       case 0:   this.handleHeartbeat(frame); break
-      case 1:   this.handleSysStatus(frame); break
-      case 30:  this.handleAttitude(frame); break
-      case 33:  this.handleGlobalPosition(frame); break
-      case 42:  this.handleMissionCurrent(frame); break
-      case 44:  this.handleMissionCountResponse(frame); break
-      case 46:  this.handleMissionItemReached(frame); break
-      case 73:  this.handleMissionItemIntResponse(frame); break
-      case 147: this.handleBattery(frame); break
-      case 24:  this.handleGpsRaw(frame); break
-      case 74:  this.handleVfrHud(frame); break
-      case 65:  this.handleRcChannels(frame); break
-      case 76:  this.handleIncomingCommandLong(frame); break
-      case 77:  this.handleCommandAck(frame); break
       case 22:  this.handleParamValue(frame); break
-      case 109: this.handleRadioStatus(frame); break
-      case 253: this.handleStatusText(frame); break
+      case 77:  this.handleCommandAck(frame); break
+      case 44:  this.handleMissionCountResponse(frame); break
       case 47:  this.handleMissionAck(frame); break
       case 51:  this.handleMissionRequest(frame); break
-      case 126: this.handleSerialControl(frame); break
-      case 191: this.handleMagCalProgress(frame); break
-      case 192: this.handleMagCalReport(frame); break
-      case 36:  this.handleServoOutput(frame); break
-      case 136: this.handleTerrainReport(frame); break
-      case 168: this.handleWind(frame); break
-      case 241: this.handleVibration(frame); break
-      case 335: this.handleEkfStatus(frame); break
-      case 242: this.handleHomePosition(frame); break
-      case 148: this.handleAutopilotVersion(frame); break
-      case 125: this.handlePowerStatus(frame); break
-      case 132: this.handleDistanceSensor(frame); break
-      case 162: this.handleFenceStatus(frame); break
-      case 62:  this.handleNavControllerOutput(frame); break
-      case 26:  this.handleScaledImu(frame); break
+      case 73:  this.handleMissionItemIntResponse(frame); break
       case 118: this.handleLogEntry(frame); break
       case 120: this.handleLogData(frame); break
-      case 2:   this.handleSystemTime(frame); break
-      case 32:  this.handleLocalPosition(frame); break
-      case 245: this.handleExtendedSysState(frame); break
-      case 251: this.handleNamedValueFloat(frame); break
-      case 252: this.handleNamedValueInt(frame); break
-      case 254: this.handleDebugValue(frame); break
-      case 263: this.handleCameraImageCaptured(frame); break
-      case 284: this.handleGimbalAttitude(frame); break
-      case 330: this.handleObstacleDistance(frame); break
-      case 160: this.handleFencePoint(frame); break
+      case 148: this.handleAutopilotVersion(frame); break
+
+      // Telemetry handlers
+      case 1:   handleSysStatus(p, this.sysStatusCallbacks); break
+      case 24:  handleGpsRaw(p, this.gpsCallbacks); break
+      case 26:  handleScaledImu(p, this.scaledImuCallbacks); break
+      case 30:  handleAttitude(p, this.attitudeCallbacks); break
+      case 32:  handleLocalPosition(p, this.localPositionCallbacks); break
+      case 33:  handleGlobalPosition(p, this.positionCallbacks); break
+      case 65:  handleRcChannels(p, this.rcCallbacks); break
+      case 74:  handleVfrHud(p, this.vfrCallbacks); break
+      case 109: handleRadioStatus(p, this.radioCallbacks); break
+      case 125: handlePowerStatus(p, this.powerStatusCallbacks); break
+      case 147: handleBattery(p, this.batteryCallbacks); break
+
+      // Nav-safety handlers
+      case 36:  handleServoOutput(p, this.servoOutputCallbacks); break
+      case 42:  handleMissionCurrent(p, this.missionProgressCallbacks); break
+      case 46:  handleMissionItemReached(p, this.missionProgressCallbacks); break
+      case 62:  handleNavControllerOutput(p, this.navControllerCallbacks); break
+      case 132: handleDistanceSensor(p, this.distanceSensorCallbacks); break
+      case 136: handleTerrainReport(p, this.terrainCallbacks); break
+      case 160: handleFencePoint(p, this.fencePointCallbacks); break
+      case 162: handleFenceStatus(p, this.fenceStatusCallbacks); break
+      case 168: handleWind(p, this.windCallbacks); break
+      case 241: handleVibration(p, this.vibrationCallbacks); break
+      case 242: handleHomePosition(p, this.homePositionCallbacks); break
+      case 335: handleEkfStatus(p, this.ekfCallbacks); break
+
+      // Calibration handlers
+      case 76:  handleIncomingCommandLong(p, this.accelCalPosCallbacks); break
+      case 191: handleMagCalProgress(p, this.magCalProgressCallbacks); break
+      case 192: handleMagCalReport(p, this.magCalReportCallbacks); break
+
+      // Info handlers
+      case 2:   handleSystemTime(p, this.systemTimeCallbacks); break
+      case 126: handleSerialControl(p, this.serialDataCallbacks); break
+      case 245: handleExtendedSysState(p, this.extendedSysStateCallbacks); break
+      case 253: handleStatusText(p, this.statusTextCallbacks); break
+
+      // Debug / peripheral handlers
+      case 251: handleNamedValueFloat(p, this.debugCallbacks); break
+      case 252: handleNamedValueInt(p, this.debugCallbacks); break
+      case 254: handleDebugValue(p, this.debugCallbacks); break
+      case 263: handleCameraImageCaptured(p, this.cameraImageCallbacks); break
+      case 284: handleGimbalAttitude(p, this.gimbalAttitudeCallbacks); break
+      case 330: handleObstacleDistance(p, this.obstacleDistanceCallbacks); break
     }
   }
 
@@ -435,98 +455,6 @@ export class MAVLinkAdapter implements DroneProtocol {
     } else if (elapsed <= MAVLinkAdapter.HEARTBEAT_TIMEOUT_MS && this.linkIsLost) {
       this.linkIsLost = false
       for (const cb of this.linkRestoredCallbacks) cb()
-    }
-  }
-
-  private handleAttitude(frame: MAVLinkFrame): void {
-    const data = decodeAttitude(frame.payload)
-    const RAD_TO_DEG = 180 / Math.PI
-    for (const cb of this.attitudeCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        roll: data.roll * RAD_TO_DEG,
-        pitch: data.pitch * RAD_TO_DEG,
-        yaw: data.yaw * RAD_TO_DEG,
-        rollSpeed: data.rollspeed,
-        pitchSpeed: data.pitchspeed,
-        yawSpeed: data.yawspeed,
-      })
-    }
-  }
-
-  private handleGlobalPosition(frame: MAVLinkFrame): void {
-    const data = decodeGlobalPositionInt(frame.payload)
-    for (const cb of this.positionCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        lat: data.lat / 1e7,
-        lon: data.lon / 1e7,
-        alt: data.alt / 1000,           // mm → m
-        relativeAlt: data.relativeAlt / 1000,
-        heading: data.hdg / 100,         // cdeg → deg
-        groundSpeed: Math.sqrt(data.vx * data.vx + data.vy * data.vy) / 100, // cm/s → m/s
-        airSpeed: 0, // Not in this message — comes from VFR_HUD
-        climbRate: -data.vz / 100,       // cm/s → m/s (NED, so negate)
-      })
-    }
-  }
-
-  private handleBattery(frame: MAVLinkFrame): void {
-    const data = decodeBatteryStatus(frame.payload)
-    // Sum valid cell voltages (0xFFFF = cell not used)
-    const totalVoltage = data.voltages
-      .filter(v => v !== 0xFFFF)
-      .reduce((sum, v) => sum + v, 0) / 1000 // mV → V
-
-    for (const cb of this.batteryCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        voltage: totalVoltage,
-        current: data.currentBattery / 100,      // cA → A
-        remaining: data.batteryRemaining,          // already %
-        consumed: data.currentConsumed,            // mAh
-      })
-    }
-  }
-
-  private handleGpsRaw(frame: MAVLinkFrame): void {
-    const data = decodeGpsRawInt(frame.payload)
-    for (const cb of this.gpsCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        fixType: data.fixType,
-        satellites: data.satellitesVisible,
-        hdop: data.eph / 100,        // cm → m
-        lat: data.lat / 1e7,
-        lon: data.lon / 1e7,
-        alt: data.alt / 1000,        // mm → m
-      })
-    }
-  }
-
-  private handleVfrHud(frame: MAVLinkFrame): void {
-    const data = decodeVfrHud(frame.payload)
-    for (const cb of this.vfrCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        airspeed: data.airspeed,
-        groundspeed: data.groundspeed,
-        heading: data.heading,
-        throttle: data.throttle,
-        alt: data.alt,
-        climb: data.climb,
-      })
-    }
-  }
-
-  private handleRcChannels(frame: MAVLinkFrame): void {
-    const data = decodeRcChannels(frame.payload)
-    for (const cb of this.rcCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        channels: data.channels.slice(0, data.chancount),
-        rssi: data.rssi,
-      })
     }
   }
 
@@ -568,11 +496,6 @@ export class MAVLinkAdapter implements DroneProtocol {
     }
   }
 
-  private handleStatusText(frame: MAVLinkFrame): void {
-    const st = decodeStatustext(frame.payload)
-    for (const cb of this.statusTextCallbacks) cb(st)
-  }
-
   private handleMissionAck(frame: MAVLinkFrame): void {
     const ack = decodeMissionAck(frame.payload)
     if (this.missionUpload) {
@@ -598,61 +521,6 @@ export class MAVLinkAdapter implements DroneProtocol {
         this.sysId, this.compId,
       )
       this.transport?.send(encoded)
-    }
-  }
-
-  private handleSerialControl(frame: MAVLinkFrame): void {
-    const sc = decodeSerialControl(frame.payload)
-    for (const cb of this.serialDataCallbacks) {
-      cb({ device: sc.device, data: sc.data })
-    }
-  }
-
-  private handleSysStatus(frame: MAVLinkFrame): void {
-    const data = decodeSysStatus(frame.payload)
-    for (const cb of this.sysStatusCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        cpuLoad: data.load,
-        sensorsPresent: data.onboardControlSensorsPresent,
-        sensorsEnabled: data.onboardControlSensorsEnabled,
-        sensorsHealthy: data.onboardControlSensorsHealth,
-        voltageMv: data.voltageBattery,
-        currentCa: data.currentBattery,
-        batteryRemaining: data.batteryRemaining,
-        dropRateComm: data.dropRateComm,
-        errorsComm: data.errorsComm,
-      })
-    }
-  }
-
-  private handleRadioStatus(frame: MAVLinkFrame): void {
-    const data = decodeRadioStatus(frame.payload)
-    for (const cb of this.radioCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        rssi: data.rssi,
-        remrssi: data.remrssi,
-        txbuf: data.txbuf,
-        noise: data.noise,
-        remnoise: data.remnoise,
-        rxerrors: data.rxerrors,
-        fixed: data.fixed,
-      })
-    }
-  }
-
-  private handleMissionCurrent(frame: MAVLinkFrame): void {
-    const data = decodeMissionCurrent(frame.payload)
-    for (const cb of this.missionProgressCallbacks) {
-      cb({ currentSeq: data.seq })
-    }
-  }
-
-  private handleMissionItemReached(frame: MAVLinkFrame): void {
-    const data = decodeMissionItemReached(frame.payload)
-    for (const cb of this.missionProgressCallbacks) {
-      cb({ currentSeq: data.seq, reachedSeq: data.seq })
     }
   }
 
@@ -713,130 +581,8 @@ export class MAVLinkAdapter implements DroneProtocol {
     }
   }
 
-  private handleEkfStatus(frame: MAVLinkFrame): void {
-    const data = decodeEkfStatusReport(frame.payload)
-    for (const cb of this.ekfCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        velocityVariance: data.velocityVariance,
-        posHorizVariance: data.posHorizVariance,
-        posVertVariance: data.posVertVariance,
-        compassVariance: data.compassVariance,
-        terrainAltVariance: data.terrainAltVariance,
-        flags: data.flags,
-      })
-    }
-  }
-
-  private handleVibration(frame: MAVLinkFrame): void {
-    const data = decodeVibration(frame.payload)
-    for (const cb of this.vibrationCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        vibrationX: data.vibrationX,
-        vibrationY: data.vibrationY,
-        vibrationZ: data.vibrationZ,
-        clipping0: data.clipping0,
-        clipping1: data.clipping1,
-        clipping2: data.clipping2,
-      })
-    }
-  }
-
-  private handleServoOutput(frame: MAVLinkFrame): void {
-    const data = decodeServoOutputRaw(frame.payload)
-    for (const cb of this.servoOutputCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        port: data.port,
-        servos: [data.servo1, data.servo2, data.servo3, data.servo4,
-                 data.servo5, data.servo6, data.servo7, data.servo8],
-      })
-    }
-  }
-
-  private handleWind(frame: MAVLinkFrame): void {
-    const data = decodeWind(frame.payload)
-    for (const cb of this.windCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        direction: data.direction,
-        speed: data.speed,
-        speedZ: data.speedZ,
-      })
-    }
-  }
-
-  private handleTerrainReport(frame: MAVLinkFrame): void {
-    const data = decodeTerrainReport(frame.payload)
-    for (const cb of this.terrainCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        lat: data.lat / 1e7,
-        lon: data.lon / 1e7,
-        terrainHeight: data.terrainHeight,
-        currentHeight: data.currentHeight,
-        spacing: data.spacing,
-        pending: data.pending,
-        loaded: data.loaded,
-      })
-    }
-  }
-
-  private handleMagCalProgress(frame: MAVLinkFrame): void {
-    const data = decodeMagCalProgress(frame.payload)
-    for (const cb of this.magCalProgressCallbacks) {
-      cb({
-        compassId: data.compassId,
-        completionPct: data.completionPct,
-        calStatus: data.calStatus,
-        completionMask: Array.from(data.completionMask),
-        directionX: data.directionX,
-        directionY: data.directionY,
-        directionZ: data.directionZ,
-      })
-    }
-  }
-
-  private handleMagCalReport(frame: MAVLinkFrame): void {
-    const data = decodeMagCalReport(frame.payload)
-    for (const cb of this.magCalReportCallbacks) {
-      cb({
-        compassId: data.compassId,
-        calStatus: data.calStatus,
-        autosaved: data.autosaved,
-        ofsX: data.ofsX,
-        ofsY: data.ofsY,
-        ofsZ: data.ofsZ,
-        fitness: data.fitness,
-        diagX: data.diagX,
-        diagY: data.diagY,
-        diagZ: data.diagZ,
-        offdiagX: data.offdiagX,
-        offdiagY: data.offdiagY,
-        offdiagZ: data.offdiagZ,
-        orientationConfidence: data.orientationConfidence,
-        oldOrientation: data.oldOrientation,
-        newOrientation: data.newOrientation,
-        scaleFactor: data.scaleFactor,
-      })
-    }
-  }
-
-  private handleHomePosition(frame: MAVLinkFrame): void {
-    const data = decodeHomePosition(frame.payload)
-    for (const cb of this.homePositionCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        lat: data.lat / 1e7,
-        lon: data.lon / 1e7,
-        alt: data.alt / 1000, // mm → m
-      })
-    }
-  }
-
   private handleAutopilotVersion(frame: MAVLinkFrame): void {
-    const data = decodeAutopilotVersion(frame.payload)
+    const data = handleAutopilotVersionMsg(frame.payload, this.autopilotVersionCallbacks)
 
     // Update firmware version string from flight software version
     if (this.vehicleInfo) {
@@ -846,208 +592,6 @@ export class MAVLinkAdapter implements DroneProtocol {
       this.vehicleInfo = {
         ...this.vehicleInfo,
         firmwareVersionString: `${major}.${minor}.${patch}`,
-      }
-    }
-
-    for (const cb of this.autopilotVersionCallbacks) {
-      cb({
-        capabilities: data.capabilities,
-        flightSwVersion: data.flightSwVersion,
-        middlewareSwVersion: data.middlewareSwVersion,
-        osSwVersion: data.osSwVersion,
-        boardVersion: data.boardVersion,
-        uid: data.uid,
-      })
-    }
-  }
-
-  private handlePowerStatus(frame: MAVLinkFrame): void {
-    const data = decodePowerStatus(frame.payload)
-    for (const cb of this.powerStatusCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        vcc: data.vcc,     // mV
-        vservo: data.vservo, // mV
-        flags: data.flags,
-      })
-    }
-  }
-
-  private handleDistanceSensor(frame: MAVLinkFrame): void {
-    const data = decodeDistanceSensor(frame.payload)
-    for (const cb of this.distanceSensorCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        currentDistance: data.currentDistance, // cm
-        minDistance: data.minDistance,
-        maxDistance: data.maxDistance,
-        orientation: data.orientation,
-        id: data.id,
-        covariance: data.covariance,
-      })
-    }
-  }
-
-  private handleFenceStatus(frame: MAVLinkFrame): void {
-    const data = decodeFenceStatus(frame.payload)
-    for (const cb of this.fenceStatusCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        breachStatus: data.breachStatus,
-        breachCount: data.breachCount,
-        breachType: data.breachType,
-      })
-    }
-  }
-
-  private handleNavControllerOutput(frame: MAVLinkFrame): void {
-    const data = decodeNavControllerOutput(frame.payload)
-    for (const cb of this.navControllerCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        navBearing: data.navBearing,
-        targetBearing: data.targetBearing,
-        wpDist: data.wpDist,
-        altError: data.altError,
-        xtrackError: data.xtrackError,
-      })
-    }
-  }
-
-  private handleScaledImu(frame: MAVLinkFrame): void {
-    const data = decodeScaledImu(frame.payload)
-    for (const cb of this.scaledImuCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        xacc: data.xacc,
-        yacc: data.yacc,
-        zacc: data.zacc,
-        xgyro: data.xgyro,
-        ygyro: data.ygyro,
-        zgyro: data.zgyro,
-        xmag: data.xmag,
-        ymag: data.ymag,
-        zmag: data.zmag,
-      })
-    }
-  }
-
-  private handleSystemTime(frame: MAVLinkFrame): void {
-    const data = decodeSystemTime(frame.payload)
-    for (const cb of this.systemTimeCallbacks) {
-      cb({ timestamp: Date.now(), timeUnixUsec: data.timeUnixUsec, timeBootMs: data.timeBootMs })
-    }
-  }
-
-  private handleLocalPosition(frame: MAVLinkFrame): void {
-    const data = decodeLocalPositionNed(frame.payload)
-    for (const cb of this.localPositionCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        x: data.x, y: data.y, z: data.z,
-        vx: data.vx, vy: data.vy, vz: data.vz,
-      })
-    }
-  }
-
-  private handleExtendedSysState(frame: MAVLinkFrame): void {
-    const data = decodeExtendedSysState(frame.payload)
-    for (const cb of this.extendedSysStateCallbacks) {
-      cb({ timestamp: Date.now(), vtolState: data.vtolState, landedState: data.landedState })
-    }
-  }
-
-  private handleNamedValueFloat(frame: MAVLinkFrame): void {
-    const data = decodeNamedValueFloat(frame.payload)
-    for (const cb of this.debugCallbacks) {
-      cb({ timestamp: Date.now(), name: data.name, value: data.value, type: "float" })
-    }
-  }
-
-  private handleNamedValueInt(frame: MAVLinkFrame): void {
-    const data = decodeNamedValueInt(frame.payload)
-    for (const cb of this.debugCallbacks) {
-      cb({ timestamp: Date.now(), name: data.name, value: data.value, type: "int" })
-    }
-  }
-
-  private handleDebugValue(frame: MAVLinkFrame): void {
-    const data = decodeDebug(frame.payload)
-    for (const cb of this.debugCallbacks) {
-      cb({ timestamp: Date.now(), name: `debug[${data.ind}]`, value: data.value, type: "debug" })
-    }
-  }
-
-  private handleCameraImageCaptured(frame: MAVLinkFrame): void {
-    const data = decodeCameraImageCaptured(frame.payload)
-    for (const cb of this.cameraImageCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        lat: data.lat, lon: data.lon, alt: data.alt,
-        imageIndex: data.imageIndex,
-        captureResult: data.captureResult,
-        fileUrl: "",
-      })
-    }
-  }
-
-  private handleGimbalAttitude(frame: MAVLinkFrame): void {
-    const data = decodeGimbalDeviceAttitudeStatus(frame.payload)
-    // Convert quaternion to Euler angles (simplified)
-    const [w, x, y, z] = data.q
-    const roll = Math.atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y))
-    const pitch = Math.asin(Math.max(-1, Math.min(1, 2 * (w * y - z * x))))
-    const yaw = Math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
-    const RAD_TO_DEG = 180 / Math.PI
-    for (const cb of this.gimbalAttitudeCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        roll: roll * RAD_TO_DEG,
-        pitch: pitch * RAD_TO_DEG,
-        yaw: yaw * RAD_TO_DEG,
-        angularVelocityX: data.angularVelocityX,
-        angularVelocityY: data.angularVelocityY,
-        angularVelocityZ: data.angularVelocityZ,
-      })
-    }
-  }
-
-  private handleObstacleDistance(frame: MAVLinkFrame): void {
-    const data = decodeObstacleDistance(frame.payload)
-    for (const cb of this.obstacleDistanceCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        distances: data.distances,
-        minDistance: data.minDistance,
-        maxDistance: data.maxDistance,
-        increment: data.increment,
-        incrementF: 0,
-        angleOffset: 0,
-        frame: 0,
-      })
-    }
-  }
-
-  private handleFencePoint(frame: MAVLinkFrame): void {
-    const data = decodeFencePoint(frame.payload)
-    for (const cb of this.fencePointCallbacks) {
-      cb({
-        timestamp: Date.now(),
-        idx: data.idx, count: data.count,
-        lat: data.lat, lon: data.lon,
-      })
-    }
-  }
-
-  private handleIncomingCommandLong(frame: MAVLinkFrame): void {
-    const data = decodeCommandLong(frame.payload)
-    // MAV_CMD_ACCELCAL_VEHICLE_POS = 42429 — FC requests GCS to confirm vehicle position
-    if (data.command === 42429) {
-      const position = Math.round(data.param1) as AccelCalPosition
-      if (position >= 1 && position <= 6) {
-        for (const cb of this.accelCalPosCallbacks) {
-          cb({ position })
-        }
       }
     }
   }

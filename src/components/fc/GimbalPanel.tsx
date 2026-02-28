@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { usePanelParams } from "@/hooks/use-panel-params";
+import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useTelemetryStore } from "@/stores/telemetry-store";
 import { useToast } from "@/components/ui/toast";
@@ -55,6 +56,7 @@ export function GimbalPanel() {
     loadProgress, hasLoaded,
     refresh, setLocalValue, saveAllToRam, commitToFlash,
   } = usePanelParams({ paramNames: GIMBAL_PARAMS, optionalParams: OPTIONAL_GIMBAL_PARAMS, panelId: "gimbal" });
+  useUnsavedGuard(dirtyParams.size > 0);
 
   const connected = !!getSelectedProtocol();
   const hasDirty = dirtyParams.size > 0;

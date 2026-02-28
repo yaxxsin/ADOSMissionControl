@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useTelemetryStore } from "@/stores/telemetry-store";
 import { usePanelParams } from "@/hooks/use-panel-params";
+import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { PanelHeader } from "./PanelHeader";
 import { Battery, Zap, ShieldAlert, Save, HardDrive } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -68,6 +69,7 @@ export function PowerPanel() {
     loadProgress, hasLoaded,
     refresh, setLocalValue, saveAllToRam, commitToFlash,
   } = usePanelParams({ paramNames: POWER_PARAMS, optionalParams: OPTIONAL_POWER_PARAMS, panelId: "power" });
+  useUnsavedGuard(dirtyParams.size > 0);
 
   const connected = !!getSelectedProtocol();
   const hasDirty = dirtyParams.size > 0;

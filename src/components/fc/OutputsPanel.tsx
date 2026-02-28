@@ -11,16 +11,16 @@ import { SERVO_FUNCTION_GROUPS } from "@/lib/servo-functions";
 import {
   detectBoardProfile,
   detectTimerGroupConflicts,
-  getTimerGroupForOutput,
-  getOutputProtocol,
   UNKNOWN_BOARD,
   type BoardProfile,
   type TimerGroupConflict,
 } from "@/lib/board-profiles";
 import { usePanelParams } from "@/hooks/use-panel-params";
+import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { PanelHeader } from "./PanelHeader";
-import { TimerGroupDiagram } from "./TimerGroupDiagram";
-import { Save, Zap, HardDrive, Info, AlertTriangle } from "lucide-react";
+import { OutputTimerGroupConfig, type PwmWarning } from "./OutputTimerGroupConfig";
+import { ServoMappingTable, type OutputRow } from "./ServoMappingTable";
+import { Save, Zap, HardDrive, AlertTriangle } from "lucide-react";
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -29,8 +29,6 @@ const PWM_ABS_MIN = 800;
 const PWM_ABS_MAX = 2200;
 
 // Build param name list: 16 outputs * 5 props = 80 params
-// BRD_PWM_COUNT removed — deprecated in ArduPilot 4.2+
-// GPIO detection now uses SERVOx_FUNCTION = -1
 const OUTPUT_PARAMS: string[] = [
   ...Array.from({ length: OUTPUT_COUNT }, (_, i) => {
     const n = i + 1;
@@ -41,39 +39,22 @@ const OUTPUT_PARAMS: string[] = [
   }).flat(),
 ];
 
-// MOT_PWM_TYPE may not exist on all firmware configs (e.g. ArduPlane without motor outputs)
 const OPTIONAL_OUTPUT_PARAMS = ['MOT_PWM_TYPE'];
 
-interface OutputRow {
-  function: number;
-  min: number;
-  max: number;
-  trim: number;
-  reversed: boolean;
-}
-
 // ── Validation helpers ───────────────────────────────────────
-
-interface PwmWarning {
-  output: number;
-  message: string;
-}
 
 function validateOutputs(rows: OutputRow[]): { pwmWarnings: PwmWarning[]; conflicts: string[] } {
   const pwmWarnings: PwmWarning[] = [];
   const conflicts: string[] = [];
 
-  // Track function assignments for conflict detection
   const fnAssignments = new Map<number, number[]>();
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const n = i + 1;
 
-    // Skip validation for GPIO outputs (function = -1)
     if (row.function === -1) continue;
 
-    // PWM range validation
     if (row.min < PWM_ABS_MIN || row.min > PWM_ABS_MAX) {
       pwmWarnings.push({ output: n, message: `Min (${row.min}) outside ${PWM_ABS_MIN}-${PWM_ABS_MAX}` });
     }
@@ -87,7 +68,6 @@ function validateOutputs(rows: OutputRow[]): { pwmWarnings: PwmWarning[]; confli
       pwmWarnings.push({ output: n, message: `Trim (${row.trim}) outside Min/Max range` });
     }
 
-    // Conflict detection — skip disabled (0) and GPIO (-1)
     if (row.function > 0) {
       const existing = fnAssignments.get(row.function) ?? [];
       existing.push(n);
@@ -95,7 +75,6 @@ function validateOutputs(rows: OutputRow[]): { pwmWarnings: PwmWarning[]; confli
     }
   }
 
-  // Build conflict messages
   for (const [fnId, outputs] of fnAssignments) {
     if (outputs.length > 1) {
       const fnLabel = SERVO_FUNCTION_GROUPS
@@ -121,6 +100,7 @@ export function OutputsPanel() {
     loadProgress, hasLoaded,
     refresh, setLocalValue, saveAllToRam, commitToFlash,
   } = usePanelParams({ paramNames: OUTPUT_PARAMS, optionalParams: OPTIONAL_OUTPUT_PARAMS, panelId: "outputs" });
+  useUnsavedGuard(dirtyParams.size > 0);
 
   // ── GPIO detection (SERVOx_FUNCTION = -1 means GPIO) ────
   const gpioOutputs = useMemo(() => {
@@ -130,7 +110,6 @@ export function OutputsPanel() {
     }
     return set;
   }, [params]);
-  const activeOutputCount = OUTPUT_COUNT - gpioOutputs.size;
 
   // ── Live servo output from telemetry ────────────────────
   const servoBuffer = useTelemetryStore((s) => s.servoOutput);
@@ -171,7 +150,6 @@ export function OutputsPanel() {
   // ── Timer Group / Board Profile ─────────────────────────────
   const motPwmType = params.get('MOT_PWM_TYPE') ?? 0;
 
-  // Detect board from AUTOPILOT_VERSION message's boardVersion field
   const [boardVersion, setBoardVersion] = useState(0);
   const [manualBoardOverride, setManualBoardOverride] = useState<BoardProfile | null>(null);
   useEffect(() => {
@@ -179,7 +157,6 @@ export function OutputsPanel() {
     const unsub = protocol.onAutopilotVersion((data) => {
       setBoardVersion(data.boardVersion);
     });
-    // Request AUTOPILOT_VERSION by sending MAV_CMD_REQUEST_MESSAGE(148)
     protocol.requestMessage?.(148).catch(() => {});
     return unsub;
   }, [protocol]);
@@ -189,12 +166,10 @@ export function OutputsPanel() {
     [boardVersion],
   );
 
-  // Manual override takes precedence, but auto-detection replaces it when a real board is found
   const boardProfile: BoardProfile = (autoDetectedProfile !== UNKNOWN_BOARD)
     ? autoDetectedProfile
     : (manualBoardOverride ?? UNKNOWN_BOARD);
 
-  // Build function map for conflict detection (output number → function ID)
   const functionMap = useMemo(() => {
     const map = new Map<number, number>();
     for (let i = 0; i < OUTPUT_COUNT; i++) {
@@ -208,7 +183,6 @@ export function OutputsPanel() {
     [boardProfile, functionMap, motPwmType],
   );
 
-  // Set of outputs disabled by timer conflicts for row highlighting
   const conflictDisabledOutputs = useMemo(() => {
     const set = new Set<number>();
     for (const c of timerConflicts) {
@@ -257,8 +231,6 @@ export function OutputsPanel() {
       setMotorTesting(false);
     }
   }, [protocol, motorTestEnabled, testMotor, testThrottle, testDuration, toast]);
-
-  // ── Motor options ──────────────────────────────────────────
 
   const motorOptions = useMemo(
     () => Array.from({ length: 8 }, (_, i) => ({
@@ -321,223 +293,26 @@ export function OutputsPanel() {
           )}
         </PanelHeader>
 
-        {/* ── Timer Group Diagram ──────────────────────────── */}
+        <OutputTimerGroupConfig
+          hasLoaded={hasLoaded}
+          boardProfile={boardProfile}
+          functionMap={functionMap}
+          motPwmType={motPwmType}
+          timerConflicts={timerConflicts}
+          conflicts={conflicts}
+          pwmWarnings={pwmWarnings}
+          gpioOutputs={gpioOutputs}
+          onBoardOverride={setManualBoardOverride}
+        />
 
-        {hasLoaded && (
-          <TimerGroupDiagram
-            board={boardProfile}
-            functions={functionMap}
-            motPwmType={motPwmType}
-            conflicts={timerConflicts}
-            onBoardOverride={setManualBoardOverride}
-          />
-        )}
-
-        {/* ── Timer Group Conflict Warning ────────────────── */}
-
-        {timerConflicts.length > 0 && (
-          <div className="p-2 bg-status-error/10 border border-status-error/20 space-y-1">
-            <div className="flex items-center gap-1.5">
-              <AlertTriangle size={12} className="text-status-error shrink-0" />
-              <span className="text-[10px] font-medium text-status-error">Timer Group Conflict</span>
-            </div>
-            {timerConflicts.map((c, i) => (
-              <p key={i} className="text-[10px] text-status-error pl-5">
-                Outputs {c.outputs.join(", ")} share a timer group.
-                DShot motors ({c.dshotOutputs.map((o) => `S${o}`).join(", ")}) disable
-                PWM servos ({c.pwmOutputs.map((o) => `S${o}`).join(", ")}).
-                Move servos to an all-PWM group.
-              </p>
-            ))}
-          </div>
-        )}
-
-        {/* ── Warnings ─────────────────────────────────────── */}
-
-        {conflicts.length > 0 && (
-          <div className="p-2 bg-accent-primary/10 border border-accent-primary/20 space-y-1">
-            <div className="flex items-center gap-1.5">
-              <Info size={12} className="text-accent-primary shrink-0" />
-              <span className="text-[10px] font-medium text-accent-primary">Duplicate Functions</span>
-            </div>
-            {conflicts.map((c, i) => (
-              <p key={i} className="text-[10px] text-accent-primary pl-5">{c}</p>
-            ))}
-          </div>
-        )}
-
-        {pwmWarnings.length > 0 && (
-          <div className="p-2 bg-status-warning/10 border border-status-warning/20 space-y-1">
-            <div className="flex items-center gap-1.5">
-              <AlertTriangle size={12} className="text-status-warning shrink-0" />
-              <span className="text-[10px] font-medium text-status-warning">PWM Warnings</span>
-            </div>
-            {pwmWarnings.map((w, i) => (
-              <p key={i} className="text-[10px] text-status-warning pl-5">Output {w.output}: {w.message}</p>
-            ))}
-          </div>
-        )}
-
-        {/* ── GPIO Info Banner ──────────────────────────────── */}
-
-        {hasLoaded && gpioOutputs.size > 0 && (
-          <div className="flex items-center gap-2 p-2 bg-accent-primary/10 border border-accent-primary/20">
-            <Info size={12} className="text-accent-primary shrink-0" />
-            <span className="text-[10px] text-text-secondary">
-              {gpioOutputs.size} output{gpioOutputs.size > 1 ? "s" : ""} configured as GPIO
-              (SERVO{[...gpioOutputs].join(", SERVO")}_FUNCTION = -1).
-            </span>
-          </div>
-        )}
-
-        {/* ── Output Table ──────────────────────────────────── */}
-
-        <Card padding={false}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-border-default text-text-secondary">
-                  <th className="px-3 py-2 text-left font-medium">#</th>
-                  <th className="px-3 py-2 text-left font-medium">Function</th>
-                  <th className="px-3 py-2 text-left font-medium">Min</th>
-                  <th className="px-3 py-2 text-left font-medium">Max</th>
-                  <th className="px-3 py-2 text-left font-medium">Trim</th>
-                  <th className="px-3 py-2 text-left font-medium">Rev</th>
-                  <th className="px-3 py-2 text-left font-medium">Current</th>
-                </tr>
-              </thead>
-              <tbody>
-                {outputs.map((row, i) => {
-                  const hasDuplicateFn = row.function > 0 && outputs.some(
-                    (other, j) => j !== i && other.function === row.function
-                  );
-                  const n = i + 1;
-                  const isGpio = gpioOutputs.has(n);
-                  const isTimerConflict = conflictDisabledOutputs.has(n);
-                  const timerGroup = boardProfile.timerGroups.length > 0
-                    ? getTimerGroupForOutput(boardProfile, n)
-                    : -1;
-                  const proto = getOutputProtocol(row.function, motPwmType);
-                  const livePwm = liveServos[i];
-                  const hasLivePwm = livePwm !== undefined && livePwm > 0;
-                  return (
-                    <tr
-                      key={i}
-                      className={`border-b border-border-default last:border-0 hover:bg-bg-tertiary/50 ${
-                        isTimerConflict ? "bg-status-error/10" : hasDuplicateFn ? "bg-status-error/5" : ""
-                      } ${isGpio ? "opacity-40" : ""}`}
-                    >
-                      <td className="px-3 py-1.5 font-mono text-text-secondary">
-                        <span className="flex items-center gap-1">
-                          {n}
-                          {timerGroup >= 0 && (
-                            <span className="text-[7px] font-sans text-text-tertiary bg-bg-tertiary px-0.5 py-px" title={`Timer Group ${timerGroup + 1}`}>
-                              G{timerGroup + 1}
-                            </span>
-                          )}
-                          {isGpio && (
-                            <span className="text-[8px] font-sans text-text-tertiary bg-bg-tertiary px-1 py-px">
-                              GPIO
-                            </span>
-                          )}
-                          {isTimerConflict && (
-                            <span className="text-[7px] font-sans text-status-error bg-status-error/10 px-0.5 py-px" title="Disabled by timer group conflict">
-                              CONFLICT
-                            </span>
-                          )}
-                        </span>
-                      </td>
-                      <td className="px-3 py-1.5">
-                        <select
-                          value={String(row.function)}
-                          onChange={(e) => setLocalValue(`SERVO${n}_FUNCTION`, Number(e.target.value))}
-                          className={`w-full h-7 px-1.5 bg-bg-tertiary border text-xs text-text-primary appearance-none focus:outline-none focus:border-accent-primary ${
-                            isTimerConflict ? "border-status-error" : hasDuplicateFn ? "border-status-error" : "border-border-default"
-                          }`}
-                        >
-                          {SERVO_FUNCTION_GROUPS.map((group) => (
-                            <optgroup key={group.label} label={group.label}>
-                              {group.functions.map((fn) => (
-                                <option key={fn.value} value={String(fn.value)}>
-                                  {fn.value} — {fn.label}
-                                </option>
-                              ))}
-                            </optgroup>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-3 py-1.5">
-                        <input
-                          type="number"
-                          value={row.min}
-                          onChange={(e) => setLocalValue(`SERVO${n}_MIN`, Number(e.target.value))}
-                          className={`w-16 h-7 px-1.5 bg-bg-tertiary border text-xs font-mono text-text-primary focus:outline-none focus:border-accent-primary ${
-                            row.min < PWM_ABS_MIN || row.min > PWM_ABS_MAX || row.min >= row.max
-                              ? "border-status-warning"
-                              : "border-border-default"
-                          }`}
-                        />
-                      </td>
-                      <td className="px-3 py-1.5">
-                        <input
-                          type="number"
-                          value={row.max}
-                          onChange={(e) => setLocalValue(`SERVO${n}_MAX`, Number(e.target.value))}
-                          className={`w-16 h-7 px-1.5 bg-bg-tertiary border text-xs font-mono text-text-primary focus:outline-none focus:border-accent-primary ${
-                            row.max < PWM_ABS_MIN || row.max > PWM_ABS_MAX || row.min >= row.max
-                              ? "border-status-warning"
-                              : "border-border-default"
-                          }`}
-                        />
-                      </td>
-                      <td className="px-3 py-1.5">
-                        <input
-                          type="number"
-                          value={row.trim}
-                          onChange={(e) => setLocalValue(`SERVO${n}_TRIM`, Number(e.target.value))}
-                          className={`w-16 h-7 px-1.5 bg-bg-tertiary border text-xs font-mono text-text-primary focus:outline-none focus:border-accent-primary ${
-                            row.trim < row.min || row.trim > row.max
-                              ? "border-status-warning"
-                              : "border-border-default"
-                          }`}
-                        />
-                      </td>
-                      <td className="px-3 py-1.5">
-                        <button
-                          onClick={() => setLocalValue(`SERVO${n}_REVERSED`, row.reversed ? 0 : 1)}
-                          className={`w-7 h-7 border text-[10px] font-mono transition-colors ${
-                            row.reversed
-                              ? "bg-accent-primary border-accent-primary text-white"
-                              : "bg-bg-tertiary border-border-default text-text-tertiary"
-                          }`}
-                        >
-                          {row.reversed ? "R" : "—"}
-                        </button>
-                      </td>
-                      <td className="px-3 py-1.5">
-                        {hasLivePwm ? (
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-12 h-3 bg-bg-tertiary border border-border-default relative overflow-hidden">
-                              <div
-                                className="h-full bg-status-success/60"
-                                style={{ width: `${Math.max(0, Math.min(100, ((livePwm - 1000) / 1000) * 100))}%` }}
-                              />
-                            </div>
-                            <span className="text-[10px] font-mono text-text-primary tabular-nums w-10 text-right">
-                              {livePwm}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-[10px] font-mono text-text-tertiary">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+        <ServoMappingTable
+          outputs={outputs}
+          gpioOutputs={gpioOutputs}
+          conflictDisabledOutputs={conflictDisabledOutputs}
+          boardProfile={boardProfile}
+          liveServos={liveServos}
+          setLocalValue={setLocalValue}
+        />
 
         {/* ── Motor Test ────────────────────────────────────── */}
 

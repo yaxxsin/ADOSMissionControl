@@ -13,8 +13,8 @@ import { useDroneManager, onUnexpectedDisconnect } from "@/stores/drone-manager"
 import { useSettingsStore } from "@/stores/settings-store";
 import { useToast } from "@/components/ui/toast";
 import { getRecentConnections } from "@/lib/recent-connections";
-import { WebSerialTransport } from "@/lib/protocol/transport-webserial";
-import { WebSocketTransport } from "@/lib/protocol/transport-websocket";
+import { WebSerialTransport } from "@/lib/protocol/transport/webserial";
+import { WebSocketTransport } from "@/lib/protocol/transport/websocket";
 import { MAVLinkAdapter } from "@/lib/protocol/mavlink-adapter";
 import { serialPortManager } from "@/lib/serial-port-manager";
 import { randomId } from "@/lib/utils";

@@ -4,203 +4,25 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import {
   CalibrationWizard,
   type CalibrationStatus,
-  type CalibrationStep,
   type CompassProgressEntry,
   type CompassResultEntry,
 } from "./CalibrationWizard";
 import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
 import { cn } from "@/lib/utils";
-import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-interface CompassResult {
-  ofsX: number; ofsY: number; ofsZ: number;
-  fitness: number; calStatus: number;
-  diagX: number; diagY: number; diagZ: number;
-  offdiagX: number; offdiagY: number; offdiagZ: number;
-  orientationConfidence: number;
-  oldOrientation: number; newOrientation: number;
-  scaleFactor: number;
-}
-
-interface CalibrationState {
-  status: CalibrationStatus;
-  currentStep: number;
-  progress: number;
-  message: string;
-  waitingForConfirm: boolean;
-  accelCalPosition: number | null;
-  compassProgress: Map<number, number>;
-  compassStatus: Map<number, number>;
-  compassResults: Map<number, CompassResult>;
-  compassCompletionMask: Map<number, number[]>;
-  compassDirection: Map<number, { x: number; y: number; z: number }>;
-  needsReboot: boolean;
-  failureFixes: string[];
-}
-
-const INITIAL_STATE: CalibrationState = {
-  status: "idle",
-  currentStep: 0,
-  progress: 0,
-  message: "",
-  waitingForConfirm: false,
-  accelCalPosition: null,
-  compassProgress: new Map(),
-  compassStatus: new Map(),
-  compassResults: new Map(),
-  compassCompletionMask: new Map(),
-  compassDirection: new Map(),
-  needsReboot: false,
-  failureFixes: [],
-};
-
-// ArduPilot ACCELCAL_VEHICLE_POS enum: 1=Level, 2=Left, 3=Right, 4=NoseDown, 5=NoseUp, 6=Back
-const ACCEL_STEPS: CalibrationStep[] = [
-  { label: "Level", description: "Place vehicle level on a flat surface" },
-  { label: "Left Side", description: "Rotate vehicle so left side faces down" },
-  { label: "Right Side", description: "Rotate vehicle so right side faces down" },
-  { label: "Nose Down", description: "Point the nose straight down" },
-  { label: "Nose Up", description: "Point the nose straight up" },
-  { label: "Back", description: "Place vehicle upside-down" },
-];
-
-const GYRO_STEPS: CalibrationStep[] = [
-  { label: "Keep Still", description: "Keep the vehicle perfectly still on a level surface" },
-];
-
-const COMPASS_STEPS: CalibrationStep[] = [
-  { label: "Rotate", description: "Slowly rotate the vehicle in all orientations — roll, pitch, and yaw" },
-];
-
-const LEVEL_STEPS: CalibrationStep[] = [
-  { label: "Level Surface", description: "Place vehicle on a perfectly level surface" },
-];
-
-const AIRSPEED_STEPS: CalibrationStep[] = [
-  { label: "Cover Pitot", description: "Cover the pitot tube opening to seal it from airflow" },
-];
-
-const BARO_STEPS: CalibrationStep[] = [
-  { label: "Stabilize", description: "Keep vehicle still in current environment — do not cover barometer" },
-];
-
-const RC_CAL_STEPS: CalibrationStep[] = [
-  { label: "Center Sticks", description: "Move all sticks to center position and all switches to default" },
-  { label: "Move Sticks", description: "Move all sticks and switches to their full extent in all directions" },
-  { label: "Center Again", description: "Return all sticks to center position" },
-];
-
-const ESC_CAL_STEPS: CalibrationStep[] = [
-  { label: "Safety", description: "REMOVE ALL PROPELLERS. Disconnect battery. Ensure ESCs are powered off" },
-  { label: "Max Throttle", description: "Set throttle to maximum and connect battery" },
-  { label: "Wait for Beep", description: "Wait for ESC beep sequence (high-low tones)" },
-  { label: "Min Throttle", description: "Set throttle to minimum — wait for confirmation beeps" },
-];
-
-const COMPASSMOT_STEPS: CalibrationStep[] = [
-  { label: "Setup", description: "Place vehicle in open area. Ensure GPS fix. Remove nearby metal objects" },
-  { label: "Run Test", description: "Motors will spin — stay clear. Interference is measured at various throttle levels" },
-];
-
-/** Keywords per calibration type — only messages containing these are shown */
-const TYPE_KEYWORDS: Record<string, string[]> = {
-  accel: ["accel", "place vehicle"],
-  gyro: ["gyro", "imu"],
-  compass: ["compass", "mag"],
-  level: ["level", "horizon", "trim"],
-  airspeed: ["airspeed", "pitot"],
-  baro: ["baro", "ground pressure"],
-  rc: ["radio", "rc ", "trim", "calibrat"],
-  esc: ["esc", "motor", "throttle"],
-  compassmot: ["compassmot", "interference", "compensation"],
-};
-
-/** Human-readable compass calibration failure messages with actionable fixes */
-const MAG_CAL_FAIL_MESSAGES: Record<number, { message: string; fixes: string[] }> = {
-  5: {
-    message: "Calibration failed — strong magnetic interference detected",
-    fixes: [
-      "Move at least 10m away from metal objects, vehicles, buildings, and power lines",
-      "Remove phone, tools, and metal accessories from nearby",
-      "If using USB power, try battery power (USB cables create EMI)",
-    ],
-  },
-  6: {
-    message: "Calibration failed — insufficient rotation coverage",
-    fixes: [
-      "Rotate SLOWLY (2-3 sec per orientation) — fast rotation drops samples",
-      "Cover all 6 faces: front, back, left, right, nose-up, nose-down",
-      "Add 4 diagonal corners for full sphere coverage",
-      "Total calibration should take 2-3 minutes of continuous rotation",
-      "Try setting COMPASS_AUTO_ROT=3 if orientation detection is failing",
-    ],
-  },
-  7: {
-    message: "Calibration failed — magnetic field radius out of range (150-950 mGauss)",
-    fixes: [
-      "Severe magnetic interference — move compass further from motors/ESCs/battery",
-      "If external compass, mount on a mast at least 15cm above the frame",
-      "Check compass wiring — loose I2C connection can cause erratic readings",
-    ],
-  },
-};
-
-/** Keywords to capture for the calibration log */
-const LOG_KEYWORDS = [
-  "calibrat", "accel", "gyro", "compass", "mag", "level",
-  "place vehicle", "baro", "airspeed", "pitot", "horizon",
-  "radio", "rc ", "esc", "motor", "throttle", "compassmot",
-  "interference", "compensation", "trim", "imu", "offsets",
-];
-
-/** Per-type calibration timeout in ms */
-const CAL_TIMEOUTS: Record<string, number> = {
-  accel: 300_000,       // 5 min — 6 physical repositions
-  gyro: 60_000,         // 1 min
-  compass: 120_000,     // 2 min
-  level: 60_000,        // 1 min
-  airspeed: 60_000,     // 1 min
-  baro: 60_000,         // 1 min
-  rc: 120_000,          // 2 min — manual stick movement
-  esc: 120_000,         // 2 min — boot sequence
-  compassmot: 180_000,  // 3 min — motor spin + data collection
-};
-const MAX_LOG_ENTRIES = 200;
-
-interface CalibrationLogEntry {
-  timestamp: number;
-  text: string;
-  severity: number;
-}
-
-const SEVERITY_COLORS: Record<number, string> = {
-  0: "text-status-error",     // EMERGENCY
-  1: "text-status-error",     // ALERT
-  2: "text-status-error",     // CRITICAL
-  3: "text-status-error",     // ERROR
-  4: "text-status-warning",   // WARNING
-  5: "text-text-secondary",   // NOTICE
-  6: "text-text-tertiary",    // INFO
-  7: "text-text-tertiary",    // DEBUG
-};
-
-function RebootBanner({ label, onReboot }: { label: string; onReboot: () => void }) {
-  return (
-    <div className="flex items-center justify-between gap-3 border border-status-warning/30 bg-status-warning/10 px-4 py-3">
-      <div>
-        <p className="text-sm font-medium text-status-warning">Reboot Required</p>
-        <p className="text-xs text-text-secondary mt-0.5">
-          {label}. Reboot the flight controller to apply.
-        </p>
-      </div>
-      <Button variant="primary" size="sm" onClick={onReboot}>
-        Reboot FC
-      </Button>
-    </div>
-  );
-}
+import { CalibrationRebootBanner } from "./CalibrationRebootBanner";
+import { CalibrationLog } from "./CalibrationLog";
+import {
+  type CompassResult,
+  type CalibrationState,
+  type CalibrationLogEntry,
+  INITIAL_STATE,
+  ACCEL_STEPS, GYRO_STEPS, COMPASS_STEPS, LEVEL_STEPS,
+  AIRSPEED_STEPS, BARO_STEPS, RC_CAL_STEPS, ESC_CAL_STEPS, COMPASSMOT_STEPS,
+  TYPE_KEYWORDS, MAG_CAL_FAIL_MESSAGES, LOG_KEYWORDS,
+  CAL_TIMEOUTS, MAX_LOG_ENTRIES,
+} from "./calibration-types";
 
 export function CalibrationPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
@@ -225,8 +47,6 @@ export function CalibrationPanel() {
     COMPASS_LEARN: number | null;
     COMPASS_EXTERNAL: number | null;
   }>({ COMPASS_USE: null, COMPASS_ORIENT: null, COMPASS_AUTO_ROT: null, COMPASS_OFFS_MAX: null, COMPASS_LEARN: null, COMPASS_EXTERNAL: null });
-
-  const logEndRef = useRef<HTMLDivElement>(null);
 
   // Per-type subscription map
   const subsRef = useRef<Map<string, (() => void)[]>>(new Map());
@@ -258,11 +78,6 @@ export function CalibrationPanel() {
     timeoutRef.current.set(type, newTimeout);
     addSub(type, () => clearTimeout(newTimeout));
   }
-
-  // Auto-scroll log
-  useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [logEntries]);
 
   // Global log subscription — subscribe to all calibration-related STATUSTEXT
   useEffect(() => {
@@ -972,7 +787,7 @@ export function CalibrationPanel() {
 
           {/* Compass Reboot Required Banner */}
           {compass.needsReboot && compass.status === "success" && (
-            <RebootBanner label="Compass offsets saved" onReboot={() => { const p = getSelectedProtocol(); if (p) p.reboot(); }} />
+            <CalibrationRebootBanner label="Compass offsets saved" onReboot={() => { const p = getSelectedProtocol(); if (p) p.reboot(); }} />
           )}
 
           {/* Orientation change alert */}
@@ -990,7 +805,7 @@ export function CalibrationPanel() {
 
           {/* Accel Reboot Banner */}
           {accel.needsReboot && accel.status === "success" && (
-            <RebootBanner label="Accelerometer calibration saved" onReboot={() => { const p = getSelectedProtocol(); if (p) p.reboot(); }} />
+            <CalibrationRebootBanner label="Accelerometer calibration saved" onReboot={() => { const p = getSelectedProtocol(); if (p) p.reboot(); }} />
           )}
 
           {/* Level */}
@@ -1008,7 +823,7 @@ export function CalibrationPanel() {
 
           {/* Level Reboot Banner */}
           {level.needsReboot && level.status === "success" && (
-            <RebootBanner label="Level calibration saved" onReboot={() => { const p = getSelectedProtocol(); if (p) p.reboot(); }} />
+            <CalibrationRebootBanner label="Level calibration saved" onReboot={() => { const p = getSelectedProtocol(); if (p) p.reboot(); }} />
           )}
 
           {/* Airspeed — ArduPlane only */}
@@ -1077,7 +892,7 @@ export function CalibrationPanel() {
 
           {/* ESC Reboot Banner */}
           {esc.needsReboot && esc.status === "success" && (
-            <RebootBanner label="ESC calibration saved" onReboot={() => { const p = getSelectedProtocol(); if (p) p.reboot(); }} />
+            <CalibrationRebootBanner label="ESC calibration saved" onReboot={() => { const p = getSelectedProtocol(); if (p) p.reboot(); }} />
           )}
 
           {/* CompassMot */}
@@ -1101,46 +916,14 @@ export function CalibrationPanel() {
 
           {/* CompassMot Reboot Banner */}
           {compassmot.needsReboot && compassmot.status === "success" && (
-            <RebootBanner label="CompassMot calibration saved" onReboot={() => { const p = getSelectedProtocol(); if (p) p.reboot(); }} />
+            <CalibrationRebootBanner label="CompassMot calibration saved" onReboot={() => { const p = getSelectedProtocol(); if (p) p.reboot(); }} />
           )}
 
           <div className="pb-4" />
         </div>
 
         {/* Right: Calibration Log */}
-        <div className="xl:sticky xl:top-6 xl:self-start">
-          <div className="border border-border-default bg-bg-secondary">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-border-default">
-              <h3 className="text-xs font-medium text-text-primary">Calibration Log</h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setLogEntries([])}
-                className="h-5 w-5 p-0"
-                title="Clear log"
-              >
-                <Trash2 size={12} />
-              </Button>
-            </div>
-            <div className="h-[400px] overflow-y-auto p-2 font-mono text-[10px] space-y-0.5">
-              {logEntries.length === 0 ? (
-                <p className="text-text-tertiary italic">No calibration messages yet</p>
-              ) : (
-                logEntries.map((entry, i) => (
-                  <div key={i} className="flex gap-2">
-                    <span className="text-text-tertiary shrink-0">
-                      {new Date(entry.timestamp).toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-                    </span>
-                    <span className={cn(SEVERITY_COLORS[entry.severity] ?? "text-text-tertiary")}>
-                      {entry.text}
-                    </span>
-                  </div>
-                ))
-              )}
-              <div ref={logEndRef} />
-            </div>
-          </div>
-        </div>
+        <CalibrationLog logEntries={logEntries} onClear={() => setLogEntries([])} />
       </div>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { usePanelParams } from "@/hooks/use-panel-params";
+import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useToast } from "@/components/ui/toast";
 import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
@@ -53,6 +54,7 @@ export function LedPanel() {
     loadProgress, hasLoaded,
     refresh, setLocalValue, saveAllToRam, commitToFlash,
   } = usePanelParams({ paramNames: LED_PARAMS, panelId: "led" });
+  useUnsavedGuard(dirtyParams.size > 0);
 
   const connected = !!getSelectedProtocol();
   const hasDirty = dirtyParams.size > 0;

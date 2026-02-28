@@ -13,8 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Usb, Wifi, RotateCw, Trash2 } from "lucide-react";
 import { randomId } from "@/lib/utils";
-import { WebSerialTransport } from "@/lib/protocol/transport-webserial";
-import { WebSocketTransport } from "@/lib/protocol/transport-websocket";
+import { WebSerialTransport } from "@/lib/protocol/transport/webserial";
+import { WebSocketTransport } from "@/lib/protocol/transport/websocket";
 import { MAVLinkAdapter } from "@/lib/protocol/mavlink-adapter";
 import { serialPortManager } from "@/lib/serial-port-manager";
 import {

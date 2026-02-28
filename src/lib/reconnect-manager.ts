@@ -6,8 +6,8 @@
  */
 
 import type { ConnectionMeta } from "@/stores/drone-manager";
-import { WebSerialTransport } from "@/lib/protocol/transport-webserial";
-import { WebSocketTransport } from "@/lib/protocol/transport-websocket";
+import { WebSerialTransport } from "@/lib/protocol/transport/webserial";
+import { WebSocketTransport } from "@/lib/protocol/transport/websocket";
 import { MAVLinkAdapter } from "@/lib/protocol/mavlink-adapter";
 import { serialPortManager } from "@/lib/serial-port-manager";
 import { randomId } from "@/lib/utils";

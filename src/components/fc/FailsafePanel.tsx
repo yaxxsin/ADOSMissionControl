@@ -7,6 +7,7 @@ import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
 import { usePanelParams } from "@/hooks/use-panel-params";
+import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { PanelHeader } from "./PanelHeader";
 import { ShieldAlert, Battery, Radio, Gauge, Save, HardDrive, MapPin, SlidersHorizontal } from "lucide-react";
 
@@ -75,6 +76,7 @@ export function FailsafePanel() {
     loadProgress, hasLoaded, missingOptional,
     refresh, setLocalValue, saveAllToRam, commitToFlash,
   } = usePanelParams({ paramNames, optionalParams, panelId: "failsafe" });
+  useUnsavedGuard(dirtyParams.size > 0);
 
   const connected = !!getSelectedProtocol();
   const hasDirty = dirtyParams.size > 0;

@@ -10,143 +10,25 @@ import { useDroneStore } from "@/stores/drone-store";
 import { useTelemetryStore } from "@/stores/telemetry-store";
 import { bitmaskToSet, setToBitmask } from "@/lib/rc-options";
 import { RotateCcw, Save, HardDrive, Info } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useArmedLock } from "@/hooks/use-armed-lock";
+import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import type { UnifiedFlightMode } from "@/lib/protocol/types";
-
-// ── Mode descriptions ────────────────────────────────────────
-
-const MODE_DESCRIPTIONS: Partial<Record<UnifiedFlightMode, string>> = {
-  STABILIZE: "Self-leveling with manual throttle",
-  ACRO: "Rate-based control, no self-leveling",
-  ALT_HOLD: "Maintains altitude, pilot controls roll/pitch/yaw",
-  AUTO: "Follows uploaded mission autonomously",
-  GUIDED: "Fly to commanded positions via GCS",
-  LOITER: "GPS hold position and altitude",
-  RTL: "Return to launch point and land",
-  LAND: "Descend and land at current position",
-  CIRCLE: "Circle around a point of interest",
-  POSHOLD: "GPS and optical flow position hold",
-  AUTOTUNE: "Automatic PID tuning in flight",
-  MANUAL: "Direct passthrough to control surfaces",
-  FBWA: "Fly-by-wire with manual throttle",
-  FBWB: "Fly-by-wire with auto throttle",
-  CRUISE: "Level flight with heading lock",
-  TRAINING: "Limited roll/pitch for training",
-  BRAKE: "Rapid stop and hold position",
-  SMART_RTL: "Retrace path back to launch",
-  DRIFT: "Coordinated turn flight, easy FPV",
-  SPORT: "Rate-controlled with self-leveling",
-  FLIP: "Automated flip maneuver",
-  THROW: "Launch by throwing the vehicle",
-  QSTABILIZE: "VTOL stabilize mode",
-  QHOVER: "VTOL altitude hold",
-  QLOITER: "VTOL GPS position hold",
-  QLAND: "VTOL land mode",
-  QRTL: "VTOL return to launch",
-  QAUTOTUNE: "VTOL automatic PID tuning",
-  QACRO: "VTOL rate-based control",
-  FLOWHOLD: "Optical flow position hold without GPS",
-  FOLLOW: "Follow another vehicle or GCS",
-  ZIGZAG: "Fly zigzag pattern between waypoints A & B",
-  SYSTEMID: "System identification for dynamic response characterization",
-  HELI_AUTOROTATE: "Helicopter autorotation emergency landing",
-  AUTO_RTL: "Return via Smart RTL path then switch to AUTO",
-  TAKEOFF: "Automatic takeoff sequence",
-  LOITER_TO_QLAND: "Loiter then transition to VTOL landing",
-  AVOID_ADSB: "Automatic avoidance of ADS-B equipped aircraft",
-  THERMAL: "Soaring in thermal updrafts",
-};
-
-// ── PWM ranges per mode slot (6 slots, standard ArduPilot) ──
-
-const MODE_PWM_RANGES = [
-  { label: "PWM 0–1230", min: 0, max: 1230 },
-  { label: "PWM 1231–1360", min: 1231, max: 1360 },
-  { label: "PWM 1361–1490", min: 1361, max: 1490 },
-  { label: "PWM 1491–1620", min: 1491, max: 1620 },
-  { label: "PWM 1621–1749", min: 1621, max: 1749 },
-  { label: "PWM 1750–2000", min: 1750, max: 2000 },
-];
-
-const MODE_SLOT_COUNT = 6;
-
-// ── Types ────────────────────────────────────────────────────
-
-interface ModeSlotConfig {
-  mode: string;
-  simple: boolean;
-  superSimple: boolean;
-}
-
-interface FlightModeGlobalConfig {
-  modeChannel: string;
-  initialMode: string;
-}
-
-function defaultSlot(): ModeSlotConfig {
-  return { mode: "STABILIZE", simple: false, superSimple: false };
-}
-
-function defaultGlobalConfig(): FlightModeGlobalConfig {
-  return { modeChannel: "5", initialMode: "0" };
-}
-
-// ── PWM Range Bar ────────────────────────────────────────────
-
-function PwmRangeBar({ currentPwm, activeSlot }: { currentPwm: number; activeSlot: number }) {
-  // Bar spans 800 to 2100
-  const barMin = 800;
-  const barMax = 2100;
-  const barRange = barMax - barMin;
-
-  const markerPct = currentPwm > 0
-    ? Math.max(0, Math.min(100, ((currentPwm - barMin) / barRange) * 100))
-    : -1;
-
-  return (
-    <div className="space-y-1">
-      <div className="relative h-6 bg-bg-tertiary border border-border-default overflow-hidden">
-        {MODE_PWM_RANGES.map((range, i) => {
-          const left = ((Math.max(range.min, barMin) - barMin) / barRange) * 100;
-          const right = ((Math.min(range.max, barMax) - barMin) / barRange) * 100;
-          const width = right - left;
-          const isActive = activeSlot === i;
-
-          return (
-            <div
-              key={i}
-              className={cn(
-                "absolute top-0 bottom-0 flex items-center justify-center text-[9px] font-mono transition-colors",
-                isActive
-                  ? "bg-accent-primary/20 text-accent-primary font-bold"
-                  : i % 2 === 0
-                    ? "bg-bg-secondary/50 text-text-tertiary"
-                    : "bg-bg-tertiary/80 text-text-tertiary",
-                i < 5 && "border-r border-border-default",
-              )}
-              style={{ left: `${left}%`, width: `${width}%` }}
-            >
-              {i + 1}
-            </div>
-          );
-        })}
-        {/* Current PWM marker */}
-        {markerPct >= 0 && (
-          <div
-            className="absolute top-0 bottom-0 w-0.5 bg-accent-primary z-10 transition-all duration-150"
-            style={{ left: `${markerPct}%` }}
-          />
-        )}
-      </div>
-    </div>
-  );
-}
+import { PwmRangeBar } from "./PwmRangeBar";
+import { ModeSlotRow } from "./ModeSlotRow";
+import {
+  MODE_PWM_RANGES,
+  MODE_SLOT_COUNT,
+  defaultSlot,
+  defaultGlobalConfig,
+} from "./flight-mode-constants";
+import type { ModeSlotConfig, FlightModeGlobalConfig } from "./flight-mode-constants";
 
 // ── Main Component ───────────────────────────────────────────
 
 export function FlightModesPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const { toast } = useToast();
+  const { isLocked, lockMessage } = useArmedLock();
   const protocol = getSelectedProtocol();
   const firmwareHandler = protocol?.getFirmwareHandler() ?? null;
   const isCopter = firmwareHandler?.vehicleClass === "copter";
@@ -238,6 +120,8 @@ export function FlightModesPanel() {
 
   const totalDirtyCount = dirtySlots.size + (globalDirty ? 1 : 0);
   const isDirty = totalDirtyCount > 0;
+
+  useUnsavedGuard(isDirty);
 
   // ── Fetch params ─────────────────────────────────────────
 
@@ -472,7 +356,7 @@ export function FlightModesPanel() {
               size="sm"
               icon={<Save size={12} />}
               loading={saving}
-              disabled={!isDirty}
+              disabled={!isDirty || isLocked}
               onClick={saveParams}
             >
               Save{dirtySlots.size > 0 ? ` (${dirtySlots.size})` : ""}
@@ -534,7 +418,6 @@ export function FlightModesPanel() {
                   { value: "0", label: "0 — Use mode switch" },
                   ...availableModes
                     .map((m) => {
-                      // Encode mode to custom_mode number for param value
                       if (firmwareHandler) {
                         try {
                           const { customMode } = firmwareHandler.encodeFlightMode(
@@ -558,7 +441,7 @@ export function FlightModesPanel() {
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-text-secondary">Current PWM:</span>
               <span className="text-xs font-mono text-accent-primary tabular-nums">
-                {currentPwm > 0 ? currentPwm : "—"}
+                {currentPwm > 0 ? currentPwm : "\u2014"}
               </span>
               {activeSlot >= 0 && (
                 <span className="text-[10px] text-status-success font-medium ml-1">
@@ -580,107 +463,31 @@ export function FlightModesPanel() {
           </div>
         )}
 
+        {/* ── Armed Lock Warning ──────────────────────────── */}
+
+        {isLocked && (
+          <div className="flex items-center gap-2 p-2 bg-status-error/10 border border-status-error/20">
+            <span className="text-[10px] text-status-error">{lockMessage}</span>
+          </div>
+        )}
+
         {/* ── Mode Slots ────────────────────────────────────── */}
 
         <div className="grid grid-cols-1 gap-2">
-          {slots.map((slot, i) => {
-            const isActive = activeSlot === i;
-            const isSlotDirty = dirtySlots.has(i);
-            const range = MODE_PWM_RANGES[i];
-            const description = MODE_DESCRIPTIONS[slot.mode as UnifiedFlightMode];
-
-            return (
-              <div
-                key={i}
-                className={cn(
-                  "bg-bg-secondary border p-3 transition-colors",
-                  isSlotDirty && "border-l-2 border-l-status-warning",
-                  isActive
-                    ? "border-accent-primary bg-accent-primary/5"
-                    : "border-border-default",
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  {/* Slot number */}
-                  <div
-                    className={cn(
-                      "w-7 h-7 flex items-center justify-center text-xs font-mono font-bold shrink-0",
-                      isActive
-                        ? "bg-accent-primary text-white"
-                        : "bg-bg-tertiary text-text-secondary",
-                    )}
-                  >
-                    {i + 1}
-                  </div>
-
-                  {/* Mode selector */}
-                  <div className="flex-1">
-                    <Select
-                      value={slot.mode}
-                      onChange={(v) => updateSlot(i, { mode: v })}
-                      options={availableModes}
-                    />
-                  </div>
-
-                  {/* Simple / Super Simple checkboxes (copter only) */}
-                  {isCopter && (
-                    <div className="flex items-center gap-2 shrink-0">
-                      <label className="flex items-center gap-1 text-[10px] text-text-secondary cursor-pointer" title="Simple Mode — earth-relative heading">
-                        <input
-                          type="checkbox"
-                          checked={slot.simple}
-                          onChange={(e) => updateSlot(i, { simple: e.target.checked })}
-                          className="accent-accent-primary"
-                        />
-                        S
-                      </label>
-                      <label className="flex items-center gap-1 text-[10px] text-text-secondary cursor-pointer" title="Super Simple Mode — home-relative heading">
-                        <input
-                          type="checkbox"
-                          checked={slot.superSimple}
-                          onChange={(e) => updateSlot(i, { superSimple: e.target.checked })}
-                          className="accent-accent-primary"
-                        />
-                        SS
-                      </label>
-                    </div>
-                  )}
-
-                  {/* PWM range */}
-                  <span className="text-[10px] font-mono text-text-tertiary shrink-0 w-28 text-right">
-                    {range.label}
-                  </span>
-
-                  {/* Reset button (only when dirty) */}
-                  {isSlotDirty && (
-                    <button
-                      onClick={() => resetSlot(i)}
-                      title="Reset to FC values"
-                      className="text-text-tertiary hover:text-text-primary cursor-pointer shrink-0"
-                    >
-                      <RotateCcw size={12} />
-                    </button>
-                  )}
-                </div>
-
-                {/* Description */}
-                {description && (
-                  <p className="text-[10px] text-text-tertiary mt-1.5 ml-10">
-                    {description}
-                  </p>
-                )}
-
-                {/* Active indicator */}
-                {isActive && (
-                  <div className="mt-2 ml-10">
-                    <span className="text-[10px] font-medium text-accent-primary uppercase tracking-wider">
-                      Active
-                    </span>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {slots.map((slot, i) => (
+            <ModeSlotRow
+              key={i}
+              index={i}
+              slot={slot}
+              isActive={activeSlot === i}
+              isDirty={dirtySlots.has(i)}
+              isCopter={isCopter}
+              availableModes={availableModes}
+              range={MODE_PWM_RANGES[i]}
+              onUpdate={updateSlot}
+              onReset={resetSlot}
+            />
+          ))}
         </div>
       </div>
     </div>

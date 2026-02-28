@@ -1,31 +1,19 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ParameterGrid } from "./ParameterGrid";
-import { ColumnVisibilityToggle } from "./ColumnVisibilityToggle";
 import { WriteConfirmDialog } from "./WriteConfirmDialog";
+import { ParameterSearchFilter } from "./ParameterSearchFilter";
 import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useSettingsStore } from "@/stores/settings-store";
 import { getParamMetadata, firmwareTypeToVehicle, type ParamMetadata } from "@/lib/protocol/param-metadata";
 import { cn } from "@/lib/utils";
 import {
-  Search,
-  Download,
-  Upload,
-  PenLine,
-  RotateCcw,
-  RotateCw,
   RefreshCw,
-  AlertTriangle,
-  Filter,
   ListTree,
-  Star,
-  HardDrive,
-  Zap,
 } from "lucide-react";
 import type { ParameterValue } from "@/lib/protocol/types";
 
@@ -63,7 +51,6 @@ export function ParametersPanel() {
   const [showRebootPrompt, setShowRebootPrompt] = useState(false);
   const [showCommitButton, setShowCommitButton] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const columnVisibility = useSettingsStore((s) => s.paramColumns);
   const favoriteParams = useSettingsStore((s) => s.favoriteParams);
 
@@ -192,7 +179,6 @@ export function ParametersPanel() {
       setError(`Failed to write ${failures.length} param(s): ${failures.join(", ")}`);
       toast(`Failed to write ${failures.length} parameter(s)`, "error");
     } else {
-      // Check if any written param needs reboot
       const needsReboot = entries.some(([name]) => metadata.get(name)?.rebootRequired);
 
       setParameters((prev) => {
@@ -245,10 +231,8 @@ export function ParametersPanel() {
     try {
       const result = await protocol.resetParametersToDefault();
       if (result.success) {
-        // Wait for FC to finish applying defaults before re-downloading
         await new Promise((r) => setTimeout(r, 1000));
         await downloadParams();
-        // Factory reset always requires reboot
         setShowRebootPrompt(true);
       } else {
         setError(`Reset failed: ${result.message}`);
@@ -304,152 +288,51 @@ export function ParametersPanel() {
     e.target.value = "";
   }, [parameters, modified]);
 
-  const progressPercent = progress.total > 0
-    ? Math.round((progress.current / progress.total) * 100)
-    : 0;
+  const handleCommitFlash = useCallback(async () => {
+    const protocol = useDroneManager.getState().getSelectedProtocol();
+    if (protocol) {
+      try {
+        const result = await protocol.commitParamsToFlash();
+        if (result.success) {
+          setShowCommitButton(false);
+          toast("Written to flash — persists after reboot", "success");
+        } else {
+          toast("Failed to write to flash", "error");
+        }
+      } catch {
+        toast("Failed to write to flash", "error");
+      }
+    }
+  }, [toast]);
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
-      <div className="flex-shrink-0 border-b border-border-default bg-bg-secondary px-4 py-3">
-        <div className="flex items-center gap-3 mb-3">
-          <h1 className="text-sm font-display font-semibold text-text-primary">
-            FC Parameters
-          </h1>
-          {parameters.length > 0 && (
-            <Badge variant="info" size="sm">{parameters.length} params</Badge>
-          )}
-          {modified.size > 0 && (
-            <Badge variant="warning" size="sm">{modified.size} changed</Badge>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Filters group */}
-          <div className="relative flex-1 max-w-sm">
-            <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-text-tertiary" />
-            <input
-              type="text"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              placeholder="Search parameters..."
-              className="w-full h-8 pl-7 pr-2 bg-bg-tertiary border border-border-default text-xs font-mono text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent-primary transition-colors"
-            />
-          </div>
-
-          <Button
-            variant={showModifiedOnly ? "primary" : "ghost"}
-            size="sm"
-            icon={<Filter size={12} />}
-            onClick={() => setShowModifiedOnly(!showModifiedOnly)}
-            className={cn(showModifiedOnly && "bg-status-warning text-bg-primary hover:bg-status-warning/90")}
-          >
-            Modified
-          </Button>
-
-          <Button
-            variant={showNonDefault ? "primary" : "ghost"}
-            size="sm"
-            icon={<Zap size={12} />}
-            onClick={() => setShowNonDefault(!showNonDefault)}
-            className={cn(showNonDefault && "bg-accent-primary text-bg-primary hover:bg-accent-primary/90")}
-          >
-            Non-Default
-          </Button>
-
-          <Button
-            variant={showFavorites ? "primary" : "ghost"}
-            size="sm"
-            icon={<Star size={12} />}
-            onClick={() => setShowFavorites(!showFavorites)}
-            className={cn(showFavorites && "bg-status-warning text-bg-primary hover:bg-status-warning/90")}
-          >
-            Favorites
-          </Button>
-
-          <ColumnVisibilityToggle />
-
-          <div className="w-px h-5 bg-border-default" />
-
-          {/* File ops group */}
-          <Button variant="secondary" size="sm" icon={<Download size={12} />} onClick={handleExport} disabled={parameters.length === 0}>Export</Button>
-          <Button variant="secondary" size="sm" icon={<Upload size={12} />} onClick={() => fileInputRef.current?.click()} disabled={parameters.length === 0}>Import</Button>
-          <input ref={fileInputRef} type="file" accept=".param,.txt" className="hidden" onChange={handleImport} />
-
-          <div className="w-px h-5 bg-border-default" />
-
-          {/* Changes group */}
-          <Button variant="ghost" size="sm" icon={<RotateCcw size={12} />} onClick={handleRevert} disabled={modified.size === 0}>Revert</Button>
-          <Button variant="ghost" size="sm" icon={<RotateCw size={12} />} onClick={handleResetDefaults} disabled={parameters.length === 0 || saving}>Reset to Default</Button>
-          <Button variant="primary" size="sm" icon={<PenLine size={12} />} onClick={handleSave} disabled={modified.size === 0} loading={saving}>
-            {saving ? `Writing ${writeProgress.current}/${writeProgress.total}...` : `Write to FC (${modified.size})`}
-          </Button>
-
-          {showCommitButton && (
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<HardDrive size={12} />}
-              onClick={async () => {
-                const protocol = useDroneManager.getState().getSelectedProtocol();
-                if (protocol) {
-                  try {
-                    const result = await protocol.commitParamsToFlash();
-                    if (result.success) {
-                      setShowCommitButton(false);
-                      toast("Written to flash — persists after reboot", "success");
-                    } else {
-                      toast("Failed to write to flash", "error");
-                    }
-                  } catch {
-                    toast("Failed to write to flash", "error");
-                  }
-                }
-              }}
-            >
-              Commit to Flash
-            </Button>
-          )}
-
-          <div className="w-px h-5 bg-border-default" />
-
-          {/* Sync group */}
-          <Button variant="secondary" size="sm" icon={<RefreshCw size={12} />} onClick={downloadParams} disabled={loading} loading={loading}>Refresh</Button>
-        </div>
-      </div>
-
-      {loading && (
-        <div className="flex-shrink-0 px-4 py-2 bg-bg-secondary border-b border-border-default">
-          <div className="flex items-center gap-3">
-            <RefreshCw size={12} className="text-accent-primary animate-spin flex-shrink-0" />
-            <span className="text-xs text-text-secondary">Downloading parameters... {progress.current}/{progress.total}</span>
-            <div className="flex-1 h-1.5 bg-bg-tertiary rounded-full overflow-hidden">
-              <div className="h-full bg-accent-primary transition-all duration-200" style={{ width: `${progressPercent}%` }} />
-            </div>
-            <span className="text-xs text-text-tertiary font-mono">{progressPercent}%</span>
-          </div>
-        </div>
-      )}
-
-      {saving && writeProgress.total > 0 && (
-        <div className="flex-shrink-0 px-4 py-2 bg-bg-secondary border-b border-border-default">
-          <div className="flex items-center gap-3">
-            <PenLine size={12} className="text-status-warning flex-shrink-0" />
-            <span className="text-xs text-text-secondary">Writing parameters... {writeProgress.current}/{writeProgress.total}</span>
-            <div className="flex-1 h-1.5 bg-bg-tertiary rounded-full overflow-hidden">
-              <div className="h-full bg-status-warning transition-all duration-200" style={{ width: `${Math.round((writeProgress.current / writeProgress.total) * 100)}%` }} />
-            </div>
-            <span className="text-xs text-text-tertiary font-mono">{Math.round((writeProgress.current / writeProgress.total) * 100)}%</span>
-          </div>
-        </div>
-      )}
-
-      {error && (
-        <div className="flex-shrink-0 px-4 py-2 bg-status-error/10 border-b border-status-error/30 flex items-center gap-2">
-          <AlertTriangle size={14} className="text-status-error flex-shrink-0" />
-          <span className="text-xs text-status-error">{error}</span>
-          <button onClick={() => setError(null)} className="ml-auto text-xs text-status-error hover:text-status-error/80 cursor-pointer">Dismiss</button>
-        </div>
-      )}
+      <ParameterSearchFilter
+        filter={filter}
+        onFilterChange={setFilter}
+        showModifiedOnly={showModifiedOnly}
+        onToggleModified={() => setShowModifiedOnly(!showModifiedOnly)}
+        showNonDefault={showNonDefault}
+        onToggleNonDefault={() => setShowNonDefault(!showNonDefault)}
+        showFavorites={showFavorites}
+        onToggleFavorites={() => setShowFavorites(!showFavorites)}
+        paramCount={parameters.length}
+        modifiedCount={modified.size}
+        loading={loading}
+        saving={saving}
+        progress={progress}
+        writeProgress={writeProgress}
+        error={error}
+        onDismissError={() => setError(null)}
+        onExport={handleExport}
+        onImport={handleImport}
+        onRevert={handleRevert}
+        onResetDefaults={handleResetDefaults}
+        onSave={handleSave}
+        onRefresh={downloadParams}
+        showCommitButton={showCommitButton}
+        onCommitFlash={handleCommitFlash}
+      />
 
       <div className="flex-1 flex min-h-0 overflow-hidden">
         {!loading && parameters.length === 0 ? (
