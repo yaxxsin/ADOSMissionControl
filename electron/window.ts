@@ -10,8 +10,15 @@ export function createMainWindow(port: number): BrowserWindow {
     minHeight: 700,
     backgroundColor: "#0A0A0F",
     show: false,
-    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
+    titleBarStyle: process.platform === "linux" ? "default" : process.platform === "darwin" ? "hiddenInset" : "hidden",
     trafficLightPosition: process.platform === "darwin" ? { x: 16, y: 16 } : undefined,
+    ...(process.platform === "win32" ? {
+      titleBarOverlay: {
+        color: "#0A0A0F",
+        symbolColor: "#fafafa",
+        height: 48,
+      },
+    } : {}),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,

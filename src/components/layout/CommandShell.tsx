@@ -19,11 +19,14 @@ import { WelcomeModal } from "@/components/onboarding/WelcomeModal";
 import { formatSyncTime } from "@/lib/sync";
 import { useAutoReconnect } from "@/hooks/use-auto-reconnect";
 import { useGcsLocation } from "@/hooks/use-gcs-location";
+import { usePlatform } from "@/hooks/use-platform";
+import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 export function CommandShell({ children }: { children: React.ReactNode }) {
   useAutoReconnect();
   useGcsLocation();
+  const { isElectron, isMac, isWindows, isLinux } = usePlatform();
   const demo = useSettingsStore((s) => s.demoMode);
   const alertCount = useFleetStore((s) => s.alerts.filter((a) => !a.acknowledged).length);
   const mavConnected = useDroneManager((s) => s.selectedDroneId !== null);
@@ -43,9 +46,14 @@ export function CommandShell({ children }: { children: React.ReactNode }) {
       <WelcomeModal />
 
       {/* Top bar */}
-      <header className="h-12 flex items-center justify-between px-4 bg-bg-secondary border-b border-border-default shrink-0">
+      <header className={cn(
+        "h-12 flex items-center justify-between px-4 bg-bg-secondary border-b border-border-default shrink-0",
+        isElectron && isMac && "pl-[76px]",
+        isElectron && isWindows && "pr-[140px]",
+        isElectron && !isLinux && "[-webkit-app-region:drag]"
+      )}>
         {/* Left — Wordmark */}
-        <div className="flex items-baseline gap-1.5">
+        <div className={cn("flex items-baseline gap-1.5", isElectron && !isLinux && "[-webkit-app-region:no-drag]")}>
           <span className="font-display uppercase tracking-[0.25em] text-sm font-semibold text-accent-primary">
             ADOS
           </span>
@@ -60,10 +68,12 @@ export function CommandShell({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Center — Navigation */}
-        <CommandNav />
+        <div className={cn(isElectron && !isLinux && "[-webkit-app-region:no-drag]")}>
+          <CommandNav />
+        </div>
 
         {/* Right — Status indicators */}
-        <div className="flex items-center gap-3">
+        <div className={cn("flex items-center gap-3", isElectron && !isLinux && "[-webkit-app-region:no-drag]")}>
           {/* Connection dots: MAVLink / Video / MQTT */}
           <div className="flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${mavConnected ? "bg-status-success" : "bg-text-tertiary"}`} title="MAVLink" />
