@@ -29,6 +29,11 @@ import {
 } from "lucide-react";
 import type { ParameterValue } from "@/lib/protocol/types";
 
+/** Module-level cache — survives unmount/remount, avoids full re-download on navigation. */
+let cachedParamList: ParameterValue[] | null = null;
+let cacheTimestamp = 0;
+const PARAM_LIST_CACHE_TTL = 300_000; // 5 minutes — matches adapter's PARAM_CACHE_TTL_MS
+
 /** Natural numeric sort collator for parameter names. */
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
@@ -63,7 +68,11 @@ export function ParametersPanel() {
   const favoriteParams = useSettingsStore((s) => s.favoriteParams);
 
   useEffect(() => {
-    downloadParams();
+    if (cachedParamList && Date.now() - cacheTimestamp < PARAM_LIST_CACHE_TTL) {
+      setParameters(cachedParamList);
+    } else {
+      downloadParams();
+    }
 
     // Fetch metadata in parallel
     const drone = useDroneManager.getState().getSelectedDrone();
@@ -98,6 +107,8 @@ export function ParametersPanel() {
     try {
       const params = await protocol.getAllParameters();
       params.sort((a, b) => collator.compare(a.name, b.name));
+      cachedParamList = params;
+      cacheTimestamp = Date.now();
       setParameters(params);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to download parameters");
@@ -184,12 +195,15 @@ export function ParametersPanel() {
       // Check if any written param needs reboot
       const needsReboot = entries.some(([name]) => metadata.get(name)?.rebootRequired);
 
-      setParameters((prev) =>
-        prev.map((p) => {
+      setParameters((prev) => {
+        const updated = prev.map((p) => {
           const newVal = modified.get(p.name);
           return newVal !== undefined ? { ...p, value: newVal } : p;
-        })
-      );
+        });
+        cachedParamList = updated;
+        cacheTimestamp = Date.now();
+        return updated;
+      });
       setModified(new Map());
       setShowCommitButton(true);
       toast(`Wrote ${entries.length} parameter(s) to FC`, "success");
