@@ -9,11 +9,13 @@ export function PidAxisRow({
   params,
   dirtyParams,
   setLocalValue,
+  mapParamName = (s) => s,
 }: {
   axis: AxisConfig;
   params: Map<string, number>;
   dirtyParams: Set<string>;
   setLocalValue: (name: string, value: number) => void;
+  mapParamName?: (s: string) => string;
 }) {
   return (
     <div className="border border-border-default bg-bg-secondary p-4">
@@ -30,7 +32,7 @@ export function PidAxisRow({
             <div key={pidP.param} className="grid grid-cols-[100px_1fr_80px] items-center gap-3">
               <div>
                 <span className="text-xs font-mono text-text-secondary">{pidP.label}</span>
-                <span className="text-[9px] text-text-tertiary block">{pidP.param}</span>
+                <span className="text-[9px] text-text-tertiary block">{mapParamName(pidP.param)}</span>
               </div>
 
               {/* Slider */}

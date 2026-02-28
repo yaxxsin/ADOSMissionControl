@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { usePanelParams } from "@/hooks/use-panel-params";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { useDroneManager } from "@/stores/drone-manager";
+import { useParamLabel } from "@/hooks/use-param-label";
 import { useTelemetryStore } from "@/stores/telemetry-store";
 import { useToast } from "@/components/ui/toast";
 import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
@@ -65,6 +66,7 @@ function rssiColor(pct: number): string {
 export function TelRadioPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const { toast } = useToast();
+  const { label: pl } = useParamLabel();
   const [saving, setSaving] = useState(false);
   const [atCommand, setAtCommand] = useState("");
   const [atResponse, setAtResponse] = useState("");
@@ -158,13 +160,13 @@ export function TelRadioPanel() {
                 <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">SERIAL1 (TELEM1)</span>
                 <div className="mt-2 space-y-2">
                   <Select
-                    label="SERIAL1_PROTOCOL — Protocol"
+                    label={pl("SERIAL1_PROTOCOL — Protocol")}
                     options={SERIAL_PROTOCOL_OPTIONS}
                     value={p("SERIAL1_PROTOCOL", "2")}
                     onChange={(v) => set("SERIAL1_PROTOCOL", v)}
                   />
                   <Select
-                    label="SERIAL1_BAUD — Baud Rate"
+                    label={pl("SERIAL1_BAUD — Baud Rate")}
                     options={SERIAL_BAUD_OPTIONS}
                     value={p("SERIAL1_BAUD", "57")}
                     onChange={(v) => set("SERIAL1_BAUD", v)}
@@ -175,13 +177,13 @@ export function TelRadioPanel() {
                 <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">SERIAL2 (TELEM2)</span>
                 <div className="mt-2 space-y-2">
                   <Select
-                    label="SERIAL2_PROTOCOL — Protocol"
+                    label={pl("SERIAL2_PROTOCOL — Protocol")}
                     options={SERIAL_PROTOCOL_OPTIONS}
                     value={p("SERIAL2_PROTOCOL", "2")}
                     onChange={(v) => set("SERIAL2_PROTOCOL", v)}
                   />
                   <Select
-                    label="SERIAL2_BAUD — Baud Rate"
+                    label={pl("SERIAL2_BAUD — Baud Rate")}
                     options={SERIAL_BAUD_OPTIONS}
                     value={p("SERIAL2_BAUD", "57")}
                     onChange={(v) => set("SERIAL2_BAUD", v)}

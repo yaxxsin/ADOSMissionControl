@@ -70,6 +70,9 @@ export type UnifiedFlightMode =
   | "TAKEOFF"
   | "FOLLOW_ME"
   | "ORBIT"
+  | "READY"
+  | "PRECLAND"
+  | "RTGS"
   // Generic
   | "UNKNOWN";
 

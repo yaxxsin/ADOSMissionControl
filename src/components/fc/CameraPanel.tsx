@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { usePanelParams } from "@/hooks/use-panel-params";
+import { useParamLabel } from "@/hooks/use-param-label";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useToast } from "@/components/ui/toast";
@@ -31,6 +32,7 @@ const CAM_TYPE_OPTIONS = [
 export function CameraPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const { toast } = useToast();
+  const { label: pl } = useParamLabel();
   const [saving, setSaving] = useState(false);
   const [imageCount, setImageCount] = useState(0);
 
@@ -108,7 +110,7 @@ export function CameraPanel() {
           {/* Camera Type */}
           <Card icon={<Camera size={14} />} title="Camera Configuration" description="Camera type and trigger method">
             <Select
-              label="CAM1_TYPE — Camera Type"
+              label={pl("CAM1_TYPE — Camera Type")}
               options={CAM_TYPE_OPTIONS}
               value={p("CAM1_TYPE")}
               onChange={(v) => set("CAM1_TYPE", v)}
@@ -119,7 +121,7 @@ export function CameraPanel() {
           {camEnabled && isServoType && (
             <Card icon={<Aperture size={14} />} title="Servo Trigger" description="PWM values for servo-based shutter">
               <Input
-                label="CAM1_SERVO_OFF — Servo Off PWM"
+                label={pl("CAM1_SERVO_OFF — Servo Off PWM")}
                 type="number"
                 step="10"
                 min="500"
@@ -129,7 +131,7 @@ export function CameraPanel() {
                 onChange={(e) => set("CAM1_SERVO_OFF", e.target.value)}
               />
               <Input
-                label="CAM1_SERVO_ON — Servo On PWM"
+                label={pl("CAM1_SERVO_ON — Servo On PWM")}
                 type="number"
                 step="10"
                 min="500"
@@ -139,7 +141,7 @@ export function CameraPanel() {
                 onChange={(e) => set("CAM1_SERVO_ON", e.target.value)}
               />
               <Input
-                label="CAM1_DURATION — Pulse Duration"
+                label={pl("CAM1_DURATION — Pulse Duration")}
                 type="number"
                 step="1"
                 min="1"
@@ -154,7 +156,7 @@ export function CameraPanel() {
           {camEnabled && (
             <Card icon={<Ruler size={14} />} title="Distance Trigger" description="Automatic capture at distance intervals">
               <Input
-                label="CAM1_TRIGG_DIST — Trigger Distance"
+                label={pl("CAM1_TRIGG_DIST — Trigger Distance")}
                 type="number"
                 step="0.5"
                 min="0"

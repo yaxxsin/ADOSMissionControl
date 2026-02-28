@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { usePanelParams } from "@/hooks/use-panel-params";
+import { useParamLabel } from "@/hooks/use-param-label";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useTelemetryStore } from "@/stores/telemetry-store";
@@ -61,6 +62,7 @@ const ARSPD_TYPE_OPTIONS = [
 export function SensorsPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const { toast } = useToast();
+  const { label: pl } = useParamLabel();
   const [saving, setSaving] = useState(false);
 
   const vfrBuffer = useTelemetryStore((s) => s.vfr);
@@ -113,7 +115,7 @@ export function SensorsPanel() {
           <CollapsibleSection title="Rangefinder" defaultOpen>
             <div className="p-4 space-y-3">
               <Select
-                label="RNGFND1_TYPE — Sensor Type"
+                label={pl("RNGFND1_TYPE — Sensor Type")}
                 options={RNGFND_TYPE_OPTIONS}
                 value={p("RNGFND1_TYPE")}
                 onChange={(v) => set("RNGFND1_TYPE", v)}
@@ -121,7 +123,7 @@ export function SensorsPanel() {
               {p("RNGFND1_TYPE") !== "0" && (
                 <>
                   <Input
-                    label="RNGFND1_PIN — Analog Pin"
+                    label={pl("RNGFND1_PIN — Analog Pin")}
                     type="number"
                     step="1"
                     min="-1"
@@ -129,7 +131,7 @@ export function SensorsPanel() {
                     onChange={(e) => set("RNGFND1_PIN", e.target.value)}
                   />
                   <Input
-                    label="RNGFND1_MIN_CM — Min Distance"
+                    label={pl("RNGFND1_MIN_CM — Min Distance")}
                     type="number"
                     step="1"
                     min="0"
@@ -138,7 +140,7 @@ export function SensorsPanel() {
                     onChange={(e) => set("RNGFND1_MIN_CM", e.target.value)}
                   />
                   <Input
-                    label="RNGFND1_MAX_CM — Max Distance"
+                    label={pl("RNGFND1_MAX_CM — Max Distance")}
                     type="number"
                     step="1"
                     min="0"
@@ -147,7 +149,7 @@ export function SensorsPanel() {
                     onChange={(e) => set("RNGFND1_MAX_CM", e.target.value)}
                   />
                   <Select
-                    label="RNGFND1_ORIENT — Orientation"
+                    label={pl("RNGFND1_ORIENT — Orientation")}
                     options={RNGFND_ORIENT_OPTIONS}
                     value={p("RNGFND1_ORIENT", "25")}
                     onChange={(v) => set("RNGFND1_ORIENT", v)}
@@ -161,7 +163,7 @@ export function SensorsPanel() {
           <CollapsibleSection title="Optical Flow">
             <div className="p-4 space-y-3">
               <Select
-                label="FLOW_TYPE — Sensor Type"
+                label={pl("FLOW_TYPE — Sensor Type")}
                 options={FLOW_TYPE_OPTIONS}
                 value={p("FLOW_TYPE")}
                 onChange={(v) => set("FLOW_TYPE", v)}
@@ -169,21 +171,21 @@ export function SensorsPanel() {
               {p("FLOW_TYPE") !== "0" && (
                 <>
                   <Input
-                    label="FLOW_FXSCALER — X Scaler"
+                    label={pl("FLOW_FXSCALER — X Scaler")}
                     type="number"
                     step="1"
                     value={p("FLOW_FXSCALER")}
                     onChange={(e) => set("FLOW_FXSCALER", e.target.value)}
                   />
                   <Input
-                    label="FLOW_FYSCALER — Y Scaler"
+                    label={pl("FLOW_FYSCALER — Y Scaler")}
                     type="number"
                     step="1"
                     value={p("FLOW_FYSCALER")}
                     onChange={(e) => set("FLOW_FYSCALER", e.target.value)}
                   />
                   <Input
-                    label="FLOW_ORIENT_YAW — Yaw Orientation"
+                    label={pl("FLOW_ORIENT_YAW — Yaw Orientation")}
                     type="number"
                     step="1"
                     min="0"
@@ -201,7 +203,7 @@ export function SensorsPanel() {
           <CollapsibleSection title="Airspeed">
             <div className="p-4 space-y-3">
               <Select
-                label="ARSPD_TYPE — Sensor Type"
+                label={pl("ARSPD_TYPE — Sensor Type")}
                 options={ARSPD_TYPE_OPTIONS}
                 value={p("ARSPD_TYPE")}
                 onChange={(v) => set("ARSPD_TYPE", v)}
@@ -209,7 +211,7 @@ export function SensorsPanel() {
               {p("ARSPD_TYPE") !== "0" && (
                 <>
                   <Select
-                    label="ARSPD_USE — Use Airspeed"
+                    label={pl("ARSPD_USE — Use Airspeed")}
                     options={[
                       { value: "0", label: "0 — Disabled" },
                       { value: "1", label: "1 — Enabled" },
@@ -219,7 +221,7 @@ export function SensorsPanel() {
                     onChange={(v) => set("ARSPD_USE", v)}
                   />
                   <Input
-                    label="ARSPD_OFFSET — Pressure Offset"
+                    label={pl("ARSPD_OFFSET — Pressure Offset")}
                     type="number"
                     step="0.1"
                     unit="Pa"
@@ -227,7 +229,7 @@ export function SensorsPanel() {
                     onChange={(e) => set("ARSPD_OFFSET", e.target.value)}
                   />
                   <Input
-                    label="ARSPD_RATIO — Speed Ratio"
+                    label={pl("ARSPD_RATIO — Speed Ratio")}
                     type="number"
                     step="0.01"
                     value={p("ARSPD_RATIO", "1.9936")}
@@ -250,7 +252,7 @@ export function SensorsPanel() {
           <CollapsibleSection title="Barometer">
             <div className="p-4 space-y-3">
               <Input
-                label="GND_ABS_PRESS — Absolute Pressure"
+                label={pl("GND_ABS_PRESS — Absolute Pressure")}
                 type="number"
                 step="0.01"
                 unit="Pa"
@@ -258,7 +260,7 @@ export function SensorsPanel() {
                 onChange={(e) => set("GND_ABS_PRESS", e.target.value)}
               />
               <Input
-                label="GND_TEMP — Ground Temperature"
+                label={pl("GND_TEMP — Ground Temperature")}
                 type="number"
                 step="0.1"
                 unit="°C"
@@ -266,7 +268,7 @@ export function SensorsPanel() {
                 onChange={(e) => set("GND_TEMP", e.target.value)}
               />
               <Select
-                label="BARO_PRIMARY — Primary Barometer"
+                label={pl("BARO_PRIMARY — Primary Barometer")}
                 options={[
                   { value: "0", label: "0 — First Baro" },
                   { value: "1", label: "1 — Second Baro" },

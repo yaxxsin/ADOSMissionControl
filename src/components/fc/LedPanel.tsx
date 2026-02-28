@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback } from "react";
 import { usePanelParams } from "@/hooks/use-panel-params";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { useDroneManager } from "@/stores/drone-manager";
+import { useParamLabel } from "@/hooks/use-param-label";
 import { useToast } from "@/components/ui/toast";
 import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
 import { PanelHeader } from "./PanelHeader";
@@ -47,6 +48,7 @@ function hexToOverride(hex: string): number {
 export function LedPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const { toast } = useToast();
+  const { label: pl } = useParamLabel();
   const [saving, setSaving] = useState(false);
 
   const {
@@ -131,7 +133,7 @@ export function LedPanel() {
           {/* Strip Length & Brightness */}
           <Card icon={<Lightbulb size={14} />} title="Strip Settings" description="LED count and brightness level">
             <Input
-              label="NTF_LED_LEN — Strip Length"
+              label={pl("NTF_LED_LEN — Strip Length")}
               type="number"
               step="1"
               min="1"
@@ -141,7 +143,7 @@ export function LedPanel() {
               onChange={(e) => setLocalValue("NTF_LED_LEN", Number(e.target.value) || 1)}
             />
             <div>
-              <label className="text-xs text-text-secondary block mb-2">NTF_LED_BRIGHT — Brightness</label>
+              <label className="text-xs text-text-secondary block mb-2">{pl("NTF_LED_BRIGHT — Brightness")}</label>
               <div className="flex gap-2">
                 {BRIGHTNESS_OPTIONS.map((label, i) => (
                   <button

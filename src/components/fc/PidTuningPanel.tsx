@@ -19,6 +19,7 @@ import {
   type PidParam, type PidPreset, type VehicleType,
   PLANE_AXES, COPTER_AXES, ACRO_PARAMS, FILTER_PARAMS, COPTER_PRESETS,
 } from "./pid-constants";
+import { useParamLabel } from "@/hooks/use-param-label";
 
 export function PidTuningPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
@@ -28,6 +29,7 @@ export function PidTuningPanel() {
 
   // Detect vehicle type from connected drone
   const drone = getSelectedDrone();
+  const { paramName: pn } = useParamLabel();
   const detectedVehicle: VehicleType | null = useMemo(() => {
     const vc = drone?.vehicleInfo?.vehicleClass;
     if (vc === "copter") return "copter";
@@ -207,6 +209,7 @@ export function PidTuningPanel() {
             params={params}
             dirtyParams={dirtyParams}
             setLocalValue={setLocalValue}
+            mapParamName={pn}
           />
         ))}
 
@@ -224,7 +227,7 @@ export function PidTuningPanel() {
                 <div key={pidP.param} className="grid grid-cols-[160px_1fr_80px] items-center gap-3">
                   <div>
                     <span className="text-xs font-mono text-text-secondary">{pidP.label}</span>
-                    <span className="text-[9px] text-text-tertiary block">{pidP.param}</span>
+                    <span className="text-[9px] text-text-tertiary block">{pn(pidP.param)}</span>
                   </div>
                   <div className="relative">
                     <input
@@ -304,7 +307,7 @@ export function PidTuningPanel() {
                   <div key={fp.param} className="grid grid-cols-[180px_1fr_80px] items-center gap-3">
                     <div>
                       <span className="text-xs font-mono text-text-secondary">{fp.label}</span>
-                      <span className="text-[9px] text-text-tertiary block">{fp.param}</span>
+                      <span className="text-[9px] text-text-tertiary block">{pn(fp.param)}</span>
                     </div>
                     <div className="relative">
                       <input
@@ -448,7 +451,7 @@ export function PidTuningPanel() {
                       const delta = current - before;
                       return (
                         <tr key={name} className="border-b border-border-default/50">
-                          <td className="py-0.5 pr-3 text-text-secondary">{name}</td>
+                          <td className="py-0.5 pr-3 text-text-secondary">{pn(name)}</td>
                           <td className="py-0.5 px-2 text-right text-text-tertiary">{before.toFixed(4)}</td>
                           <td className="py-0.5 px-2 text-right text-text-primary">{current.toFixed(4)}</td>
                           <td className={cn(

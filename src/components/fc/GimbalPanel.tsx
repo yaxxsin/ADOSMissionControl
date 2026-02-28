@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { usePanelParams } from "@/hooks/use-panel-params";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { useDroneManager } from "@/stores/drone-manager";
+import { useParamLabel } from "@/hooks/use-param-label";
 import { useTelemetryStore } from "@/stores/telemetry-store";
 import { useToast } from "@/components/ui/toast";
 import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
@@ -44,6 +45,7 @@ const MNT_MODE_OPTIONS = [
 export function GimbalPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const { toast } = useToast();
+  const { label: pl } = useParamLabel();
   const [saving, setSaving] = useState(false);
   const [manualPitch, setManualPitch] = useState(0);
   const [manualYaw, setManualYaw] = useState(0);
@@ -103,14 +105,14 @@ export function GimbalPanel() {
           {/* Mount Configuration */}
           <Card icon={<Move3D size={14} />} title="Gimbal Configuration" description="Mount type and default behavior">
             <Select
-              label="MNT1_TYPE — Mount Type"
+              label={pl("MNT1_TYPE — Mount Type")}
               options={MNT_TYPE_OPTIONS}
               value={p("MNT1_TYPE")}
               onChange={(v) => set("MNT1_TYPE", v)}
             />
             {mountEnabled && (
               <Select
-                label="MNT1_DEFLT_MODE — Default Mode"
+                label={pl("MNT1_DEFLT_MODE — Default Mode")}
                 options={MNT_MODE_OPTIONS}
                 value={p("MNT1_DEFLT_MODE", "3")}
                 onChange={(v) => set("MNT1_DEFLT_MODE", v)}
@@ -189,7 +191,7 @@ export function GimbalPanel() {
                 </div>
 
                 <Input
-                  label="MNT1_RC_RATE — RC Rate"
+                  label={pl("MNT1_RC_RATE — RC Rate")}
                   type="number"
                   step="1"
                   min="0"

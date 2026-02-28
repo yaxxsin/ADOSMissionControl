@@ -495,3 +495,104 @@ export const MOCK_PARAMS: MockParam[] = [
   { name: "ATC_RAT_YAW_FLTD", value: 0, type: 9 },
 
 ];
+
+/**
+ * PX4 parameters for demo mode.
+ *
+ * PX4-native parameter names with realistic defaults covering
+ * PID, receiver, flight modes, power, failsafe, geofence, and navigation.
+ */
+export const PX4_MOCK_PARAMS: MockParam[] = [
+  // ── PID rate (inner loop) ─────────────────────────────
+  { name: "MC_ROLLRATE_P", value: 0.15, type: 9 },
+  { name: "MC_ROLLRATE_I", value: 0.2, type: 9 },
+  { name: "MC_ROLLRATE_D", value: 0.003, type: 9 },
+  { name: "MC_ROLLRATE_FF", value: 0, type: 9 },
+  { name: "MC_PITCHRATE_P", value: 0.15, type: 9 },
+  { name: "MC_PITCHRATE_I", value: 0.2, type: 9 },
+  { name: "MC_PITCHRATE_D", value: 0.003, type: 9 },
+  { name: "MC_PITCHRATE_FF", value: 0, type: 9 },
+  { name: "MC_YAWRATE_P", value: 0.2, type: 9 },
+  { name: "MC_YAWRATE_I", value: 0.1, type: 9 },
+  { name: "MC_YAWRATE_D", value: 0, type: 9 },
+  { name: "MC_YAWRATE_FF", value: 0, type: 9 },
+
+  // ── PID angle (outer loop) ────────────────────────────
+  { name: "MC_ROLL_P", value: 6.5, type: 9 },
+  { name: "MC_PITCH_P", value: 6.5, type: 9 },
+  { name: "MC_YAW_P", value: 2.8, type: 9 },
+
+  // ── Receiver channel mapping ──────────────────────────
+  { name: "RC_MAP_ROLL", value: 1, type: 9 },
+  { name: "RC_MAP_PITCH", value: 2, type: 9 },
+  { name: "RC_MAP_YAW", value: 4, type: 9 },
+  { name: "RC_MAP_THROTTLE", value: 3, type: 9 },
+  { name: "RC_MAP_FLTMODE", value: 5, type: 9 },
+
+  // ── RC channels (same as ArduPilot) ───────────────────
+  { name: "RC1_MIN", value: 1100, type: 9 },
+  { name: "RC1_MAX", value: 1900, type: 9 },
+  { name: "RC1_TRIM", value: 1500, type: 9 },
+  { name: "RC1_REVERSED", value: 0, type: 9 },
+  { name: "RC2_MIN", value: 1100, type: 9 },
+  { name: "RC2_MAX", value: 1900, type: 9 },
+  { name: "RC2_TRIM", value: 1500, type: 9 },
+  { name: "RC2_REVERSED", value: 0, type: 9 },
+  { name: "RC3_MIN", value: 1100, type: 9 },
+  { name: "RC3_MAX", value: 1900, type: 9 },
+  { name: "RC3_TRIM", value: 1100, type: 9 },
+  { name: "RC3_REVERSED", value: 0, type: 9 },
+  { name: "RC4_MIN", value: 1100, type: 9 },
+  { name: "RC4_MAX", value: 1900, type: 9 },
+  { name: "RC4_TRIM", value: 1500, type: 9 },
+  { name: "RC4_REVERSED", value: 0, type: 9 },
+  { name: "RC1_DZ", value: 10, type: 9 },
+  { name: "RC2_DZ", value: 10, type: 9 },
+  { name: "RC3_DZ", value: 10, type: 9 },
+  { name: "RC4_DZ", value: 10, type: 9 },
+
+  // ── Flight modes ──────────────────────────────────────
+  { name: "COM_FLTMODE1", value: 0, type: 9 },
+  { name: "COM_FLTMODE2", value: 1, type: 9 },
+  { name: "COM_FLTMODE3", value: 2, type: 9 },
+  { name: "COM_FLTMODE4", value: 3, type: 9 },
+  { name: "COM_FLTMODE5", value: 4, type: 9 },
+  { name: "COM_FLTMODE6", value: 5, type: 9 },
+
+  // ── Power / battery ───────────────────────────────────
+  { name: "BAT1_SOURCE", value: 0, type: 9 },
+  { name: "BAT1_CAPACITY", value: 3300, type: 9 },
+  { name: "BAT1_V_DIV", value: 18.1, type: 9 },
+  { name: "BAT1_A_PER_V", value: 24.0, type: 9 },
+  { name: "BAT1_A_OFFSET", value: 0, type: 9 },
+  { name: "BAT_N_CELLS", value: 4, type: 9 },
+  { name: "BAT_V_EMPTY", value: 3.5, type: 9 },
+  { name: "BAT_V_CHARGED", value: 4.2, type: 9 },
+
+  // ── Failsafe ──────────────────────────────────────────
+  { name: "COM_RC_LOSS_T", value: 0.5, type: 9 },
+  { name: "RC_FAILS_THR", value: 950, type: 9 },
+  { name: "COM_DL_LOSS_T", value: 10, type: 9 },
+  { name: "COM_LOW_BAT_ACT", value: 0, type: 9 },
+  { name: "BAT_LOW_THR", value: 0.15, type: 9 },
+  { name: "BAT_CRIT_THR", value: 0.07, type: 9 },
+
+  // ── Geofence ──────────────────────────────────────────
+  { name: "GF_ACTION", value: 1, type: 9 },
+  { name: "GF_MAX_VER_DIST", value: 120, type: 9 },
+  { name: "GF_MAX_HOR_DIST", value: 500, type: 9 },
+
+  // ── Navigation ────────────────────────────────────────
+  { name: "MPC_XY_VEL_MAX", value: 12, type: 9 },
+  { name: "MPC_Z_VEL_MAX_UP", value: 3, type: 9 },
+  { name: "MPC_Z_VEL_MAX_DN", value: 1, type: 9 },
+  { name: "MPC_ACC_HOR", value: 3, type: 9 },
+  { name: "MPC_ACC_UP_MAX", value: 4, type: 9 },
+  { name: "MPC_LAND_SPEED", value: 0.7, type: 9 },
+  { name: "RTL_RETURN_ALT", value: 30, type: 9 },
+
+  // ── General ───────────────────────────────────────────
+  { name: "COM_ARM_CHK_MODE", value: 1, type: 9 },
+  { name: "COM_ARM_AUTH_REQ", value: 0, type: 9 },
+  { name: "SYS_AUTOSTART", value: 4001, type: 9 },
+];

@@ -66,7 +66,8 @@ import type {
   SystemTimeCallback,
 } from "@/lib/protocol/types";
 import { ArduCopterHandler } from "@/lib/protocol/firmware/ardupilot";
-import { MOCK_PARAMS, type MockParam } from "./mock-params";
+import { PX4Handler } from "@/lib/protocol/firmware/px4";
+import { MOCK_PARAMS, PX4_MOCK_PARAMS, type MockParam } from "./mock-params";
 
 // ── Helpers ─────────────────────────────────────────────────
 
@@ -108,13 +109,24 @@ const MOCK_VEHICLE_INFO: VehicleInfo = {
   vehicleType: 2,    // MAV_TYPE_QUADROTOR
 };
 
+const PX4_VEHICLE_INFO: VehicleInfo = {
+  firmwareType: "px4",
+  vehicleClass: "copter",
+  firmwareVersionString: "PX4 v1.15.0",
+  systemId: 1,
+  componentId: 1,
+  autopilotType: 12,  // MAV_AUTOPILOT_PX4
+  vehicleType: 2,     // MAV_TYPE_QUADROTOR
+};
+
 // ── MockProtocol ────────────────────────────────────────────
 
 export class MockProtocol implements DroneProtocol {
   readonly protocolName = "mock-mavlink";
 
   private _connected = true;
-  private handler = new ArduCopterHandler();
+  private handler: FirmwareHandler;
+  private _vehicleInfo: VehicleInfo;
   private params: Map<string, MockParam>;
   private defaults: MockParam[];
 
@@ -160,10 +172,18 @@ export class MockProtocol implements DroneProtocol {
   private accelCalTimers: ReturnType<typeof setTimeout>[] = [];
   private compassCalTimers: ReturnType<typeof setTimeout | typeof setInterval>[] = [];
 
-  constructor() {
-    this.defaults = MOCK_PARAMS;
+  constructor(firmwareType: 'ardupilot-copter' | 'px4' = 'ardupilot-copter') {
+    if (firmwareType === 'px4') {
+      this.handler = new PX4Handler();
+      this.defaults = PX4_MOCK_PARAMS;
+      this._vehicleInfo = PX4_VEHICLE_INFO;
+    } else {
+      this.handler = new ArduCopterHandler();
+      this.defaults = MOCK_PARAMS;
+      this._vehicleInfo = MOCK_VEHICLE_INFO;
+    }
     this.params = new Map();
-    for (const p of MOCK_PARAMS) {
+    for (const p of this.defaults) {
       this.params.set(p.name, { ...p });
     }
   }
@@ -180,7 +200,7 @@ export class MockProtocol implements DroneProtocol {
         armed,
         mode,
         systemStatus: armed ? 4 : 3, // MAV_STATE_ACTIVE : MAV_STATE_STANDBY
-        vehicleInfo: MOCK_VEHICLE_INFO,
+        vehicleInfo: this._vehicleInfo,
       });
     }
   }
@@ -253,7 +273,7 @@ export class MockProtocol implements DroneProtocol {
 
   async connect(_transport: Transport): Promise<VehicleInfo> {
     this._connected = true;
-    return MOCK_VEHICLE_INFO;
+    return this._vehicleInfo;
   }
 
   async disconnect(): Promise<void> {
@@ -897,7 +917,7 @@ export class MockProtocol implements DroneProtocol {
   // ── Info ────────────────────────────────────────────────
 
   getVehicleInfo(): VehicleInfo {
-    return MOCK_VEHICLE_INFO;
+    return this._vehicleInfo;
   }
 
   getCapabilities(): ProtocolCapabilities {

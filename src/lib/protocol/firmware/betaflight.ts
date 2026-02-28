@@ -100,6 +100,10 @@ class BetaflightHandler implements FirmwareHandler {
   mapParameterName(canonical: string): string {
     return canonical
   }
+
+  reverseMapParameterName(firmwareName: string): string {
+    return firmwareName
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -79,7 +79,7 @@ class MockFlightEngine {
         tickCount: 0,
         lastAlertTick: 0,
         batteryAlertSent: false,
-        protocol: new MockProtocol(),
+        protocol: new MockProtocol(cfg.id === 'delta' ? 'px4' : 'ardupilot-copter'),
         transport: new MockTransport(),
         bootMessageIndex: 0,
         statusMessageTick: 0,
@@ -127,7 +127,7 @@ class MockFlightEngine {
     const droneManager = useDroneManager.getState();
     for (const state of this.states) {
       const cfg = state.config;
-      if (cfg.pathIndex < 0) continue; // skip grounded drones
+      if (cfg.pathIndex < 0 && cfg.id !== 'delta') continue; // skip grounded drones except delta (PX4 demo)
 
       const vehicleInfo = state.protocol.getVehicleInfo();
       droneManager.addDrone(

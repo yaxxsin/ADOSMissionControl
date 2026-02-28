@@ -466,8 +466,9 @@ export class MAVLinkAdapter implements DroneProtocol {
 
   private handleParamValue(frame: MAVLinkFrame): void {
     const pv = decodeParamValue(frame.payload)
+    const canonicalName = this.firmwareHandler?.reverseMapParameterName(pv.paramId) ?? pv.paramId
     const param: ParameterValue = {
-      name: pv.paramId,
+      name: canonicalName,
       value: pv.paramValue,
       type: pv.paramType,
       index: pv.paramIndex,
@@ -478,7 +479,7 @@ export class MAVLinkAdapter implements DroneProtocol {
     for (const cb of this.parameterCallbacks) cb(param)
 
     // Seed paramCache from every PARAM_VALUE — getAllParameters() warms cache for all panels
-    this.paramCache.set(pv.paramId, { value: pv.paramValue, timestamp: Date.now() })
+    this.paramCache.set(canonicalName, { value: pv.paramValue, timestamp: Date.now() })
 
     // If downloading all params, accumulate
     if (this.parameterDownload) {
@@ -739,6 +740,8 @@ export class MAVLinkAdapter implements DroneProtocol {
       return Promise.reject(new Error('Not connected'))
     }
 
+    const firmwareName = this.firmwareHandler?.mapParameterName(name) ?? name
+
     // Check cache first (30s TTL)
     const cached = this.paramCache.get(name)
     if (cached && (Date.now() - cached.timestamp) < MAVLinkAdapter.PARAM_CACHE_TTL_MS) {
@@ -752,19 +755,19 @@ export class MAVLinkAdapter implements DroneProtocol {
       }, 5000)
 
       const unsub = this.onParameter((param) => {
-        if (param.name === name) {
+        if (param.name === firmwareName) {
           clearTimeout(timer)
           unsub()
           // Populate cache on successful read
           this.paramCache.set(name, { value: param.value, timestamp: Date.now() })
-          resolve(param)
+          resolve({ ...param, name })
         }
       })
 
       // PARAM_REQUEST_READ: paramIndex=-1 means use name instead of index
       this.transport!.send(encodeParamRequestRead(
         this.targetSysId, this.targetCompId,
-        name, -1,
+        firmwareName, -1,
         this.sysId, this.compId,
       ))
     })
@@ -772,6 +775,8 @@ export class MAVLinkAdapter implements DroneProtocol {
 
   async setParameter(name: string, value: number, type = 9): Promise<CommandResult> {
     if (!this.transport?.isConnected) return { success: false, resultCode: -1, message: 'Not connected' }
+
+    const firmwareName = this.firmwareHandler?.mapParameterName(name) ?? name
 
     // Invalidate cache for this param
     this.paramCache.delete(name)
@@ -783,7 +788,7 @@ export class MAVLinkAdapter implements DroneProtocol {
 
       // Listen for PARAM_VALUE echo as confirmation
       const unsub = this.onParameter((param) => {
-        if (param.name === name) {
+        if (param.name === firmwareName) {
           clearTimeout(timer)
           unsub()
           // Update cache with confirmed value
@@ -796,7 +801,7 @@ export class MAVLinkAdapter implements DroneProtocol {
         }
       })
 
-      this.transport!.send(encodeParamSet(this.targetSysId, this.targetCompId, name, value, type, this.sysId, this.compId))
+      this.transport!.send(encodeParamSet(this.targetSysId, this.targetCompId, firmwareName, value, type, this.sysId, this.compId))
     })
   }
 

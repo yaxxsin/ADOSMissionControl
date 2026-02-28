@@ -226,6 +226,10 @@ export class ArduPlaneHandler implements FirmwareHandler {
   mapParameterName(canonical: string): string {
     return canonical
   }
+
+  reverseMapParameterName(firmwareName: string): string {
+    return firmwareName
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -292,6 +296,10 @@ export class ArduCopterHandler implements FirmwareHandler {
   /** ArduPilot uses canonical parameter names. */
   mapParameterName(canonical: string): string {
     return canonical
+  }
+
+  reverseMapParameterName(firmwareName: string): string {
+    return firmwareName
   }
 }
 
@@ -362,6 +370,14 @@ class GenericHandler implements FirmwareHandler {
 
   getFirmwareVersion(): string {
     return 'Unknown'
+  }
+
+  mapParameterName(canonical: string): string {
+    return canonical
+  }
+
+  reverseMapParameterName(firmwareName: string): string {
+    return firmwareName
   }
 }
 

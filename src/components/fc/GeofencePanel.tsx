@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo } from "react";
 import { usePanelParams } from "@/hooks/use-panel-params";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { useArmedLock } from "@/hooks/use-armed-lock";
+import { useParamLabel } from "@/hooks/use-param-label";
 import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
 import { PanelHeader } from "./PanelHeader";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,7 @@ const FENCE_ACTION_OPTIONS = [
 export function GeofencePanel() {
   const { toast } = useToast();
   const { isLocked } = useArmedLock();
+  const { label: pl } = useParamLabel();
 
   const {
     params,
@@ -139,7 +141,7 @@ export function GeofencePanel() {
           {/* Enable */}
           <Card icon={<Shield size={14} />} title="Geofence Enable" description="Master enable for fence enforcement">
             <div className="flex items-center gap-3">
-              <label className="text-xs text-text-secondary">FENCE_ENABLE</label>
+              <label className="text-xs text-text-secondary">{pl("FENCE_ENABLE")}</label>
               <button
                 onClick={() => setLocalValue("FENCE_ENABLE", fenceEnable ? 0 : 1)}
                 disabled={isLocked}
@@ -195,7 +197,7 @@ export function GeofencePanel() {
           {hasCircleFence && (
             <Card icon={<Circle size={14} />} title="Circle Fence" description="Maximum horizontal distance from home">
               <ParamInput
-                label="FENCE_RADIUS — Max Radius"
+                label={pl("FENCE_RADIUS — Max Radius")}
                 value={fenceRadius}
                 unit="m"
                 min={0}
@@ -204,7 +206,7 @@ export function GeofencePanel() {
                 onChange={(v) => setLocalValue("FENCE_RADIUS", v)}
               />
               <ParamInput
-                label="FENCE_MARGIN — Warning Margin"
+                label={pl("FENCE_MARGIN — Warning Margin")}
                 value={fenceMargin}
                 unit="m"
                 min={0}
@@ -219,7 +221,7 @@ export function GeofencePanel() {
           {hasAltFence && (
             <Card icon={<ArrowUp size={14} />} title="Altitude Fence" description="Altitude ceiling and floor">
               <ParamInput
-                label="FENCE_ALT_MAX — Max Altitude"
+                label={pl("FENCE_ALT_MAX — Max Altitude")}
                 value={fenceAltMax}
                 unit="m"
                 min={0}
@@ -228,7 +230,7 @@ export function GeofencePanel() {
                 onChange={(v) => setLocalValue("FENCE_ALT_MAX", v)}
               />
               <ParamInput
-                label="FENCE_ALT_MIN — Min Altitude"
+                label={pl("FENCE_ALT_MIN — Min Altitude")}
                 value={fenceAltMin}
                 unit="m"
                 min={-100}
@@ -254,7 +256,7 @@ export function GeofencePanel() {
           {/* Breach Action */}
           <Card icon={<Shield size={14} />} title="Breach Action" description="Action taken when fence is breached">
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-text-secondary">FENCE_ACTION</label>
+              <label className="text-xs text-text-secondary">{pl("FENCE_ACTION")}</label>
               <select
                 value={String(fenceAction)}
                 onChange={(e) => setLocalValue("FENCE_ACTION", Number(e.target.value))}

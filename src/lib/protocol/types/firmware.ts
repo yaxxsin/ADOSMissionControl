@@ -37,5 +37,8 @@ export interface FirmwareHandler {
   getFirmwareVersion(params?: Map<string, number>): string;
 
   /** Map a canonical param name to the firmware-specific name (e.g., ArduPilot ATC_RAT_RLL_P → PX4 MC_ROLLRATE_P). */
-  mapParameterName?(canonical: string): string;
+  mapParameterName(canonical: string): string;
+
+  /** Map a firmware-specific param name back to the canonical name. */
+  reverseMapParameterName(firmwareName: string): string;
 }

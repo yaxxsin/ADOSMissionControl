@@ -107,7 +107,7 @@ interface DroneConfigureTabProps {
 
 export function DroneConfigureTab({ droneId, droneName, isConnected }: DroneConfigureTabProps) {
   const [activePanel, setActivePanel] = useState("outputs");
-  const { supports } = useFirmwareCapabilities();
+  const { supports, firmwareType } = useFirmwareCapabilities();
 
   // Filter nav items based on firmware capabilities
   const visibleItems = useMemo(
@@ -129,6 +129,19 @@ export function DroneConfigureTab({ droneId, droneName, isConnected }: DroneConf
     return map;
   }, [visibleItems]);
 
+  const firmwareLabel = firmwareType
+    ? ({
+        'ardupilot-copter': 'ArduCopter',
+        'ardupilot-plane': 'ArduPlane',
+        'ardupilot-rover': 'ArduRover',
+        'ardupilot-sub': 'ArduSub',
+        'px4': 'PX4',
+        'betaflight': 'Betaflight',
+        'inav': 'iNav',
+        'unknown': 'Unknown',
+      } as Record<string, string>)[firmwareType] ?? firmwareType
+    : null;
+
   // Auto-select first visible panel if current becomes hidden
   useEffect(() => {
     if (!visibleItems.find((i) => i.id === activePanel) && visibleItems.length > 0) {
@@ -144,6 +157,11 @@ export function DroneConfigureTab({ droneId, droneName, isConnected }: DroneConf
           <h2 className="text-xs font-semibold uppercase tracking-wider text-text-secondary">
             Flight Controller
           </h2>
+          {firmwareLabel && (
+            <span className="mt-1 inline-block text-[10px] font-medium px-1.5 py-0.5 rounded bg-accent-primary/15 text-accent-primary">
+              {firmwareLabel}
+            </span>
+          )}
         </div>
         <div className="flex flex-col py-1">
           {[...sections.entries()].map(([section, items]) => (
