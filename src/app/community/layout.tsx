@@ -11,6 +11,7 @@ const tabs = [
   { label: "Requests", href: "/community/requests" },
   { label: "Kanban", href: "/community/kanban", adminOnly: true },
   { label: "Roadmap", href: "/community/roadmap" },
+  { label: "Contact", href: "/community/contact" },
 ];
 
 function CommunityLayoutInner({ children }: { children: React.ReactNode }) {
@@ -58,12 +59,26 @@ export default function CommunityLayout({
   if (!convexAvailable) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-center space-y-2 p-8">
+        <div className="text-center space-y-3 p-8 max-w-md">
           <p className="text-text-secondary text-sm">
-            Community features require a Convex backend.
+            Community data (changelog, roadmap, feature requests, contact) is
+            live on the hosted version at{" "}
+            <a
+              href="https://altnautica.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent-primary hover:underline"
+            >
+              altnautica.com
+            </a>
           </p>
           <p className="text-text-tertiary text-xs">
-            Set <code className="text-accent-primary">NEXT_PUBLIC_CONVEX_URL</code> to enable.
+            Disabled by default in local builds. To run your own internal
+            community board, set up a Convex backend and configure{" "}
+            <code className="text-accent-primary">NEXT_PUBLIC_CONVEX_URL</code>.
+          </p>
+          <p className="text-text-tertiary text-xs">
+            Completely optional. The GCS works without it.
           </p>
         </div>
       </div>
