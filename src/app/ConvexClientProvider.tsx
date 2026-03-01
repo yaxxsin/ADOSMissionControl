@@ -3,6 +3,7 @@
 import { ReactNode, createContext, useContext, useMemo } from "react";
 import { ConvexReactClient } from "convex/react";
 import { ConvexAuthNextjsProvider } from "@convex-dev/auth/nextjs";
+import { AuthBridge } from "@/components/auth/AuthBridge";
 
 const CONVEX_URL = process.env.NEXT_PUBLIC_CONVEX_URL;
 
@@ -31,6 +32,7 @@ export default function ConvexClientProvider({
   return (
     <ConvexAvailableContext.Provider value={true}>
       <ConvexAuthNextjsProvider client={client}>
+        <AuthBridge />
         {children}
       </ConvexAuthNextjsProvider>
     </ConvexAvailableContext.Provider>

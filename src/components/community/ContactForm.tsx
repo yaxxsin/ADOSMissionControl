@@ -38,7 +38,12 @@ export function ContactForm() {
       setSubject("");
       setMessage("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send message");
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("Not authenticated")) {
+        setError("Please sign in to send a message.");
+      } else {
+        setError("Failed to send message. Please try again.");
+      }
     } finally {
       setSubmitting(false);
     }

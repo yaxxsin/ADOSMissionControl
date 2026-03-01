@@ -3,6 +3,7 @@ import "./globals.css";
 import { CommandShell } from "@/components/layout/CommandShell";
 import { ToastProvider } from "@/components/ui/toast";
 import ConvexClientProvider from "./ConvexClientProvider";
+import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 
 export const metadata: Metadata = {
   title: "ADOS Mission Control",
@@ -21,12 +22,14 @@ export default function RootLayout({
   );
 
   return (
-    <html lang="en" className="dark">
-      <body className="h-dvh overflow-hidden bg-bg-primary text-text-primary font-body">
-        <ConvexClientProvider>
-          {content}
-        </ConvexClientProvider>
-      </body>
-    </html>
+    <ConvexAuthNextjsServerProvider>
+      <html lang="en" className="dark">
+        <body className="h-dvh overflow-hidden bg-bg-primary text-text-primary font-body">
+          <ConvexClientProvider>
+            {content}
+          </ConvexClientProvider>
+        </body>
+      </html>
+    </ConvexAuthNextjsServerProvider>
   );
 }

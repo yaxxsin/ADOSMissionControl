@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Settings, AlertTriangle, LogOut, CloudOff, Zap, MessageSquareText } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
 import { CommandNav } from "./CommandNav";
@@ -40,6 +40,13 @@ export function CommandShell({ children }: { children: React.ReactNode }) {
   const authSignOut = useAuthStore((s) => s.signOut);
   const [signInOpen, setSignInOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+
+  // Listen for sign-in requests from AuthGate and other components
+  useEffect(() => {
+    const handler = () => setSignInOpen(true);
+    window.addEventListener("open-signin", handler);
+    return () => window.removeEventListener("open-signin", handler);
+  }, []);
 
   return (
     <div className="flex flex-col h-dvh">
@@ -140,7 +147,17 @@ export function CommandShell({ children }: { children: React.ReactNode }) {
                     )}
                   </div>
                   <button
-                    onClick={() => { authSignOut(); setUserMenuOpen(false); }}
+                    onClick={() => {
+                      // Clear server-side auth cookies
+                      fetch("/api/auth", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ action: "auth:signOut", args: {} }),
+                      }).catch(() => {});
+                      // Clear client-side Zustand state
+                      authSignOut();
+                      setUserMenuOpen(false);
+                    }}
                     className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-bg-primary transition-colors"
                   >
                     <LogOut size={12} />

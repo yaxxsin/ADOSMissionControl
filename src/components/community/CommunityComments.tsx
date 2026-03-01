@@ -32,7 +32,12 @@ export function CommunityComments({ targetType, targetId }: CommunityCommentsPro
       await createComment({ targetType, targetId, body: body.trim() });
       setBody("");
     } catch (err) {
-      console.error("Failed to create comment:", err);
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("Not authenticated")) {
+        console.error("Comment failed: not authenticated");
+      } else {
+        console.error("Failed to create comment:", err);
+      }
     } finally {
       setSubmitting(false);
     }

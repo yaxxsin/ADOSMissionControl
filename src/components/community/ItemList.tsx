@@ -77,13 +77,20 @@ export function ItemList() {
           </div>
 
           {/* Submit button */}
-          {isAuthenticated && (
+          {isAuthenticated ? (
             <button
               onClick={() => setSubmitOpen(true)}
               className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-accent-primary text-bg-primary rounded hover:bg-accent-primary/90 transition-colors"
             >
               <Plus size={12} />
               Submit
+            </button>
+          ) : (
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent("open-signin"))}
+              className="px-2 py-1 text-xs text-accent-primary hover:underline"
+            >
+              Sign in to submit
             </button>
           )}
         </div>

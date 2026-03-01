@@ -55,7 +55,14 @@ export function ItemSubmitForm({ defaultType = "feature", onClose }: ItemSubmitF
       });
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to submit");
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("Not authenticated")) {
+        setError("Please sign in to submit a request.");
+      } else if (msg.includes("Profile required")) {
+        setError("Please sign in again to create your profile.");
+      } else {
+        setError("Failed to submit. Please try again.");
+      }
     } finally {
       setSubmitting(false);
     }

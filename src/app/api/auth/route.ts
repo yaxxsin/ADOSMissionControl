@@ -77,6 +77,14 @@ function isCorsRequest(request: NextRequest): boolean {
   );
 }
 
+function sanitizeAuthError(msg: string): string {
+  if (msg.includes("InvalidSecret")) return "Incorrect password. Please try again.";
+  if (msg.includes("InvalidAccountId") || msg.includes("Could not find")) return "No account found with this email.";
+  if (msg.includes("TooManyFailedAttempts")) return "Too many failed attempts. Try again later.";
+  if (msg.includes("already exists") || msg.includes("UNIQUE")) return "An account with this email already exists.";
+  return "Authentication failed. Please try again.";
+}
+
 export async function POST(request: NextRequest) {
   // CORS check — reject cross-origin requests
   if (isCorsRequest(request)) {
@@ -125,7 +133,7 @@ export async function POST(request: NextRequest) {
       console.error("Hit error while running `auth:signIn`:");
       console.error(error);
       const response = jsonResponse(
-        { error: error instanceof Error ? error.message : "Unknown error" },
+        { error: sanitizeAuthError(error instanceof Error ? error.message : "") },
         400,
       );
       await setAuthCookies(response, null);
