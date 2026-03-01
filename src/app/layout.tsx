@@ -21,15 +21,23 @@ export default function RootLayout({
     </ToastProvider>
   );
 
-  return (
-    <ConvexAuthNextjsServerProvider>
-      <html lang="en" className="dark">
-        <body className="h-dvh overflow-hidden bg-bg-primary text-text-primary font-body">
-          <ConvexClientProvider>
-            {content}
-          </ConvexClientProvider>
-        </body>
-      </html>
-    </ConvexAuthNextjsServerProvider>
+  const body = (
+    <html lang="en" className="dark">
+      <body className="h-dvh overflow-hidden bg-bg-primary text-text-primary font-body">
+        <ConvexClientProvider>
+          {content}
+        </ConvexClientProvider>
+      </body>
+    </html>
   );
+
+  if (process.env.NEXT_PUBLIC_CONVEX_URL) {
+    return (
+      <ConvexAuthNextjsServerProvider>
+        {body}
+      </ConvexAuthNextjsServerProvider>
+    );
+  }
+
+  return body;
 }
