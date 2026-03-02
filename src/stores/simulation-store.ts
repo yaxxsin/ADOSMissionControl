@@ -20,6 +20,8 @@ interface SimulationStoreState {
   elapsed: number;
   totalDuration: number;
   cameraMode: CameraMode;
+  /** ID of the library plan being simulated (for plan-to-simulate tracking). */
+  sourceLibraryPlanId: string | null;
 
   play: () => void;
   pause: () => void;
@@ -30,6 +32,7 @@ interface SimulationStoreState {
   setSpeed: (speed: number) => void;
   setCameraMode: (mode: CameraMode) => void;
   setTotalDuration: (duration: number) => void;
+  setSourcePlanId: (id: string | null) => void;
   syncFromClock: () => void;
   reset: () => void;
 }
@@ -73,6 +76,7 @@ export const useSimulationStore = create<SimulationStoreState>()((set, get) => (
   elapsed: 0,
   totalDuration: 0,
   cameraMode: "topdown",
+  sourceLibraryPlanId: null,
 
   play: () => {
     const { elapsed, totalDuration } = get();
@@ -133,6 +137,8 @@ export const useSimulationStore = create<SimulationStoreState>()((set, get) => (
 
   setCameraMode: (cameraMode) => set({ cameraMode }),
 
+  setSourcePlanId: (sourceLibraryPlanId) => set({ sourceLibraryPlanId }),
+
   setTotalDuration: (totalDuration) => {
     set({ totalDuration });
     if (_viewer && !_viewer.isDestroyed() && _startJulian) {
@@ -168,6 +174,7 @@ export const useSimulationStore = create<SimulationStoreState>()((set, get) => (
       elapsed: 0,
       totalDuration: 0,
       cameraMode: "topdown",
+      sourceLibraryPlanId: null,
     });
     if (_viewer && !_viewer.isDestroyed()) {
       _viewer.clock.shouldAnimate = false;

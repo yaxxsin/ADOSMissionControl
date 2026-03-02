@@ -121,8 +121,16 @@ export function useKeyboardShortcuts({
         return;
       }
 
-      // Escape — collapse expanded waypoint or reset tool
+      // Escape — if drawing tool active, cancel drawing and switch to select.
+      // Otherwise collapse expanded waypoint or reset tool.
       if (e.key === "Escape") {
+        const isDrawing = activeTool === "polygon" || activeTool === "circle" || activeTool === "measure";
+        if (isDrawing) {
+          // DrawingManager handles the actual draw cancellation via its own keydown listener.
+          // We just switch back to select mode.
+          setActiveTool("select");
+          return;
+        }
         if (expandedWaypointId) {
           setExpandedWaypoint(null);
         } else if (activeTool !== "select") {

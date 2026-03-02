@@ -70,6 +70,10 @@ export interface DroneProtocol {
   uploadFence?(points: Array<{ lat: number; lon: number }>): Promise<CommandResult>;
   downloadFence?(): Promise<Array<{ idx: number; lat: number; lon: number }>>;
 
+  // ── Rally Point Operations ───────────────────────────────
+  uploadRallyPoints?(points: Array<{ lat: number; lon: number; alt: number }>): Promise<CommandResult>;
+  downloadRallyPoints?(): Promise<Array<{ lat: number; lon: number; alt: number }>>;
+
   // ── Guided Flight ─────────────────────────────────────────
   sendPositionTarget?(lat: number, lon: number, alt: number): void;
   sendAttitudeTarget?(roll: number, pitch: number, yaw: number, thrust: number): void;

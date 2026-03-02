@@ -201,7 +201,7 @@ export function FlightPlanLibrary({ context, onPlanLoaded, onSave, onPlanRenamed
         <input
           ref={fileRef}
           type="file"
-          accept=".altmission,.waypoints,.plan,.json"
+          accept=".altmission,.waypoints,.plan,.json,.kml,.kmz,.csv"
           className="hidden"
           onChange={handleFileChange}
         />

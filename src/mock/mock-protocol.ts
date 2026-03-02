@@ -387,6 +387,21 @@ export class MockProtocol implements DroneProtocol {
     return MOCK_FENCE_POLYGON;
   }
 
+  // ── Rally Point Operations ────────────────────────────────
+
+  private rallyPoints: Array<{ lat: number; lon: number; alt: number }> = [];
+
+  async uploadRallyPoints(points: Array<{ lat: number; lon: number; alt: number }>): Promise<CommandResult> {
+    await new Promise((r) => setTimeout(r, 300));
+    this.rallyPoints = [...points];
+    this.emitStatusText(6, `${points.length} rally points uploaded`);
+    return ok("Rally points uploaded");
+  }
+
+  async downloadRallyPoints(): Promise<Array<{ lat: number; lon: number; alt: number }>> {
+    return [...this.rallyPoints];
+  }
+
   // ── Guided Flight ──────────────────────────────────────
 
   sendPositionTarget(_lat: number, _lon: number, _alt: number): void {

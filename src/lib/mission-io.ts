@@ -15,6 +15,10 @@
 
 import { get, set, del } from "idb-keyval";
 import type { Waypoint, WaypointCommand, SuiteType } from "@/lib/types";
+import { parseKML } from "@/lib/formats/kml-parser";
+import { parseKMZ } from "@/lib/formats/kmz-handler";
+import { exportKML, exportKMZ } from "@/lib/formats/kml-exporter";
+import { downloadCSV, parseCSV } from "@/lib/formats/csv-handler";
 
 const AUTOSAVE_KEY = "altcmd_autosave";
 const RECENT_KEY = "altcmd_recent_missions";
@@ -25,7 +29,10 @@ const cmdMap: Record<WaypointCommand, number> = {
   WAYPOINT: 16, SPLINE_WAYPOINT: 82, LOITER: 17, LOITER_TURNS: 18, LOITER_TIME: 19,
   RTL: 20, LAND: 21, TAKEOFF: 22, ROI: 201, DO_SET_SPEED: 178,
   DO_SET_CAM_TRIGG: 206, DO_DIGICAM: 203, DO_JUMP: 177, DELAY: 112,
-  CONDITION_YAW: 115,
+  CONDITION_YAW: 115, DO_SET_SERVO: 183, DO_FENCE_ENABLE: 207,
+  DO_MOUNT_CONTROL: 205, DO_GRIPPER: 211, DO_WINCH: 212,
+  NAV_PAYLOAD_PLACE: 94, CONDITION_DISTANCE: 114, DO_SET_HOME: 179,
+  DO_AUX_FUNCTION: 218,
 };
 
 /** MAVLink command number → string mapping. */
@@ -383,23 +390,58 @@ export function parseQGCPlan(text: string): Waypoint[] {
 
 /** Detect mission file format by extension and parse appropriately. */
 export async function importMissionFile(file: File): Promise<{ waypoints: Waypoint[]; metadata?: MissionMetadata }> {
-  const text = await file.text();
   const ext = file.name.split(".").pop()?.toLowerCase();
 
   if (ext === "waypoints") {
+    const text = await file.text();
     return { waypoints: parseWaypointsFile(text) };
   }
 
   if (ext === "plan") {
+    const text = await file.text();
     return { waypoints: parseQGCPlan(text) };
   }
 
+  if (ext === "kml") {
+    const text = await file.text();
+    const result = parseKML(text);
+    return { waypoints: result.waypoints };
+  }
+
+  if (ext === "kmz") {
+    const result = await parseKMZ(file);
+    return { waypoints: result.waypoints };
+  }
+
+  if (ext === "csv") {
+    const text = await file.text();
+    return { waypoints: parseCSV(text) };
+  }
+
   // Default: try .altmission / .json
+  const text = await file.text();
   const data = JSON.parse(text) as MissionFile;
   if (!data.version || !data.waypoints || !Array.isArray(data.waypoints)) {
     throw new Error("Invalid mission file format");
   }
   return { waypoints: data.waypoints, metadata: data.metadata };
+}
+
+// ── KML/KMZ/CSV Export Wrappers ─────────────────────────────
+
+/** Export waypoints as a .kml file. */
+export function exportMissionKML(waypoints: Waypoint[], name: string): void {
+  exportKML(waypoints, name);
+}
+
+/** Export waypoints as a .kmz file. */
+export async function exportMissionKMZ(waypoints: Waypoint[], name: string): Promise<void> {
+  await exportKMZ(waypoints, name);
+}
+
+/** Export waypoints as a .csv file. */
+export function exportMissionCSV(waypoints: Waypoint[], name: string): void {
+  downloadCSV(waypoints, name);
 }
 
 // ── Recent missions ──────────────────────────────────────────

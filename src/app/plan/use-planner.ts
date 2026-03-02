@@ -22,9 +22,15 @@ import {
   clearAutoSave,
   exportWaypointsFormat,
   exportQGCPlan,
+  exportMissionKML,
+  exportMissionCSV,
 } from "@/lib/mission-io";
+import { useDrawingStore } from "@/stores/drawing-store";
+import { useRallyStore } from "@/stores/rally-store";
+import { usePatternStore } from "@/stores/pattern-store";
 import type { ContextMenuItem } from "@/components/planner/MapContextMenu";
 import type { SuiteType, Waypoint } from "@/lib/types";
+import type { DrawnPolygon, DrawnCircle } from "@/lib/drawing/types";
 
 /** Clamp a latitude to [-90, 90]. */
 function clampLat(lat: number): number {
@@ -90,6 +96,18 @@ export function usePlanner() {
   // Plan library integration
   const activePlanId = usePlanLibraryStore((s) => s.activePlanId);
   const isDirty = usePlanLibraryStore((s) => s.isDirty);
+
+  // Rally point state
+  const rallyPoints = useRallyStore((s) => s.points);
+  const addRallyPoint = useRallyStore((s) => s.addPoint);
+  const [addingRallyPoint, setAddingRallyPoint] = useState(false);
+
+  // Drawing store
+  const drawingMode = useDrawingStore((s) => s.drawingMode);
+  const drawnPolygons = useDrawingStore((s) => s.polygons);
+  const drawnCircles = useDrawingStore((s) => s.circles);
+  const measureLine = useDrawingStore((s) => s.measureLine);
+  const clearDrawings = useDrawingStore((s) => s.clearAll);
 
   // ── Autosave recovery ─────────────────────────────────────
   const autoSaveChecked = useRef(false);
@@ -161,6 +179,17 @@ export function usePlanner() {
   // ── Map handlers ──────────────────────────────────────────
   const handleMapClick = useCallback(
     (lat: number, lon: number) => {
+      // Rally point placement mode
+      if (addingRallyPoint) {
+        addRallyPoint({
+          id: randomId(),
+          lat: clampLat(lat),
+          lon: clampLon(lon),
+          alt: clampAlt(defaultAlt),
+        });
+        setAddingRallyPoint(false);
+        return;
+      }
       if (!activePlanId) {
         toast("Create or select a flight plan first", "info");
         return;
@@ -175,7 +204,7 @@ export function usePlanner() {
       };
       addWaypoint(wp);
     },
-    [activePlanId, addWaypoint, defaultAlt, defaultSpeed, toast]
+    [activePlanId, addWaypoint, addRallyPoint, addingRallyPoint, defaultAlt, defaultSpeed, toast]
   );
 
   const handleMapRightClick = useCallback(
@@ -188,6 +217,8 @@ export function usePlanner() {
           { id: "add-land", label: "Add Land" },
           { id: "add-roi", label: "Set ROI" },
           { id: "div1", label: "", divider: true },
+          { id: "add-rally", label: "Add Rally Point Here" },
+          { id: "div2", label: "", divider: true },
           { id: "center", label: "Center Map Here" },
         ],
       });
@@ -244,6 +275,14 @@ export function usePlanner() {
         case "add-roi":
           addWaypoint(makeWp("ROI"));
           break;
+        case "add-rally":
+          addRallyPoint({
+            id: randomId(),
+            lat: clampLat(lat ?? 0),
+            lon: clampLon(lon ?? 0),
+            alt: clampAlt(defaultAlt),
+          });
+          break;
         case "center":
           break;
         case "edit":
@@ -274,7 +313,7 @@ export function usePlanner() {
       }
       setContextMenu(null);
     },
-    [contextMenu, activePlanId, addWaypoint, insertWaypoint, removeWaypoint, defaultAlt, waypoints, setSelectedWaypoint, setExpandedWaypoint, toast]
+    [contextMenu, activePlanId, addWaypoint, addRallyPoint, insertWaypoint, removeWaypoint, defaultAlt, waypoints, setSelectedWaypoint, setExpandedWaypoint, toast]
   );
 
   const handleWaypointClick = useCallback(
@@ -356,6 +395,18 @@ export function usePlanner() {
     toast("Exported (.plan)", "success");
   }, [waypoints, missionName, toast]);
 
+  /** Export as .kml file download. */
+  const handleExportKML = useCallback(() => {
+    exportMissionKML(waypoints, missionName || "mission");
+    toast("Exported (.kml)", "success");
+  }, [waypoints, missionName, toast]);
+
+  /** Export as .csv file download. */
+  const handleExportCSV = useCallback(() => {
+    exportMissionCSV(waypoints, missionName || "mission");
+    toast("Exported (.csv)", "success");
+  }, [waypoints, missionName, toast]);
+
   /** Callback from FlightPlanLibrary when a plan is selected/loaded. */
   const handlePlanLoaded = useCallback(
     (plan: { name: string; droneId?: string; suiteType?: string }) => {
@@ -398,6 +449,97 @@ export function usePlanner() {
   const handleUpload = useCallback(() => {
     uploadMission();
   }, [uploadMission]);
+
+  /** Handle a completed drawing shape (polygon or circle). */
+  const handleDrawingComplete = useCallback(
+    (shape: DrawnPolygon | DrawnCircle) => {
+      setActiveTool("select");
+
+      const patternStore = usePatternStore.getState();
+      const patternType = patternStore.activePatternType;
+
+      if ("vertices" in shape) {
+        // Polygon drawn — route to survey pattern if active
+        if (patternType === "survey") {
+          patternStore.updateSurveyConfig({ polygon: shape.vertices });
+          toast(`Survey area set (${shape.vertices.length} vertices)`, "success");
+        } else {
+          toast(`Polygon drawn (${shape.vertices.length} vertices)`, "success");
+        }
+      } else {
+        // Circle drawn — route to orbit pattern if active
+        if (patternType === "orbit") {
+          patternStore.updateOrbitConfig({ center: shape.center, radius: shape.radius });
+          toast(`Orbit area set (r=${Math.round(shape.radius)}m)`, "success");
+        } else {
+          toast(`Circle drawn (r=${Math.round(shape.radius)}m)`, "success");
+        }
+      }
+    },
+    [setActiveTool, toast]
+  );
+
+  /** Apply generated pattern waypoints to the mission. */
+  const handlePatternApply = useCallback(() => {
+    const patternStore = usePatternStore.getState();
+    const result = patternStore.patternResult;
+    if (!result || result.waypoints.length === 0) {
+      toast("No pattern generated yet", "info");
+      return;
+    }
+    if (!activePlanId) {
+      toast("Create or select a flight plan first", "info");
+      return;
+    }
+
+    // Convert pattern waypoints to mission waypoints
+    const newWaypoints: Waypoint[] = result.waypoints.map((pw) => ({
+      id: randomId(),
+      lat: pw.lat,
+      lon: pw.lon,
+      alt: pw.alt,
+      speed: pw.speed,
+      command: (pw.command ?? "WAYPOINT") as Waypoint["command"],
+      param1: pw.param1,
+      param2: pw.param2,
+    }));
+
+    // Optionally prepend TAKEOFF if first waypoint isn't one
+    const firstCmd = newWaypoints[0]?.command;
+    if (firstCmd !== "TAKEOFF") {
+      const takeoffWp: Waypoint = {
+        id: randomId(),
+        lat: newWaypoints[0].lat,
+        lon: newWaypoints[0].lon,
+        alt: newWaypoints[0].alt,
+        command: "TAKEOFF",
+      };
+      newWaypoints.unshift(takeoffWp);
+    }
+
+    // Append RTL at end
+    const lastWp = newWaypoints[newWaypoints.length - 1];
+    newWaypoints.push({
+      id: randomId(),
+      lat: lastWp.lat,
+      lon: lastWp.lon,
+      alt: 0,
+      command: "RTL",
+    });
+
+    setWaypoints(newWaypoints);
+    patternStore.clear();
+
+    const stats = result.stats;
+    const distStr = stats.totalDistance >= 1000
+      ? `${(stats.totalDistance / 1000).toFixed(1)} km`
+      : `${Math.round(stats.totalDistance)} m`;
+    const timeStr = stats.estimatedTime >= 60
+      ? `${Math.round(stats.estimatedTime / 60)} min`
+      : `${Math.round(stats.estimatedTime)} sec`;
+
+    toast(`Pattern applied: ${newWaypoints.length} waypoints, ${distStr}, ~${timeStr}`, "success");
+  }, [activePlanId, setWaypoints, toast]);
 
   const handleAddManualWaypoint = useCallback(() => {
     if (!activePlanId) {
@@ -458,6 +600,8 @@ export function usePlanner() {
     handleSaveAs,
     handleExportWaypoints,
     handleExportPlan,
+    handleExportKML,
+    handleExportCSV,
     handlePlanLoaded,
     handlePlanRenamed,
     handleNewPlan,
@@ -465,6 +609,20 @@ export function usePlanner() {
     handleReverseWaypoints,
     handleUpload,
     handleAddManualWaypoint,
+
+    // Drawing state
+    drawingMode,
+    drawnPolygons,
+    drawnCircles,
+    measureLine,
+    clearDrawings,
+    handleDrawingComplete,
+    handlePatternApply,
+
+    // Rally points
+    rallyPoints,
+    addingRallyPoint,
+    setAddingRallyPoint,
 
     // Store actions passed through
     undo, redo,

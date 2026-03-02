@@ -2,16 +2,22 @@
  * @module PlannerMap
  * @description Leaflet-based mission planner map component. Renders waypoint markers
  * (draggable in select mode), path polyline, segment distance/bearing labels,
- * and handles click/right-click/drag events. Uses dark CARTO tiles.
+ * drawing overlays (polygon, circle, measure), and handles click/right-click/drag events.
+ * Uses dark CARTO tiles.
  * @license GPL-3.0-only
  */
 "use client";
 
-import { useEffect, useCallback, useMemo, useState } from "react";
+import { useEffect, useCallback, useMemo, useState, useRef } from "react";
 import dynamic from "next/dynamic";
 import type { Waypoint, PlannerTool } from "@/lib/types";
+import type { RallyPoint } from "@/stores/rally-store";
 import { haversineDistance, bearing } from "@/lib/telemetry-utils";
 import { DEFAULT_CENTER, MAP_COLORS } from "@/lib/map-constants";
+import { DrawingManager } from "@/lib/drawing/drawing-manager";
+import { useDrawingStore } from "@/stores/drawing-store";
+import { polygonArea } from "@/lib/drawing/geo-utils";
+import { randomId } from "@/lib/utils";
 import L from "leaflet";
 
 const MapContainer = dynamic(
@@ -39,6 +45,8 @@ const DARK_TILES = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.pn
 const ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>';
 
+const DRAWING_TOOLS: PlannerTool[] = ["polygon", "circle", "measure"];
+
 function makeWaypointIcon(index: number, selected: boolean): L.DivIcon {
   const fill = selected ? MAP_COLORS.accentSelected : MAP_COLORS.accentPrimary;
   const stroke = selected ? MAP_COLORS.accentPrimary : MAP_COLORS.foreground;
@@ -63,6 +71,18 @@ function makeSegmentLabel(text: string): L.DivIcon {
   });
 }
 
+function makeRallyIcon(index: number): L.DivIcon {
+  return L.divIcon({
+    className: "",
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+    html: `<svg width="22" height="22" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="11,2 20,19 2,19" fill="#f97316" stroke="#fafafa" stroke-width="1.2"/>
+      <text x="11" y="16" text-anchor="middle" fill="#fff" font-size="9" font-family="JetBrains Mono, monospace" font-weight="600">R${index + 1}</text>
+    </svg>`,
+  });
+}
+
 function formatDist(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(1)}km` : `${Math.round(m)}m`;
 }
@@ -80,6 +100,7 @@ interface PlannerMapProps {
   activeTool: PlannerTool;
   selectedWaypointId: string | null;
   hasActivePlan: boolean;
+  rallyPoints?: RallyPoint[];
   onMapClick: (lat: number, lon: number) => void;
   onMapRightClick: (lat: number, lon: number, x: number, y: number) => void;
   onWaypointClick: (id: string) => void;
@@ -92,6 +113,7 @@ export function PlannerMap({
   activeTool,
   selectedWaypointId,
   hasActivePlan,
+  rallyPoints = [],
   onMapClick,
   onMapRightClick,
   onWaypointClick,
@@ -100,15 +122,95 @@ export function PlannerMap({
 }: PlannerMapProps) {
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const [zoom, setZoom] = useState(13);
+  const drawingManagerRef = useRef<DrawingManager | null>(null);
 
-  // Map click handler
+  const drawingMode = useDrawingStore((s) => s.drawingMode);
+  const setDrawingMode = useDrawingStore((s) => s.setDrawingMode);
+  const addPolygon = useDrawingStore((s) => s.addPolygon);
+  const addCircle = useDrawingStore((s) => s.addCircle);
+  const setMeasureLine = useDrawingStore((s) => s.setMeasureLine);
+  const setActiveDrawingVertices = useDrawingStore((s) => s.setActiveDrawingVertices);
+
+  const isDrawingTool = DRAWING_TOOLS.includes(activeTool);
+
+  // Initialize DrawingManager when map is ready
+  useEffect(() => {
+    if (!mapInstance) return;
+
+    const manager = new DrawingManager(mapInstance);
+    drawingManagerRef.current = manager;
+
+    return () => {
+      manager.destroy();
+      drawingManagerRef.current = null;
+    };
+  }, [mapInstance]);
+
+  // Update DrawingManager callbacks (they depend on store actions)
+  useEffect(() => {
+    const manager = drawingManagerRef.current;
+    if (!manager) return;
+
+    manager.setCallbacks({
+      onPolygonComplete: (vertices) => {
+        const id = randomId();
+        const area = polygonArea(vertices);
+        addPolygon({ id, vertices, area });
+        setDrawingMode(null);
+        setActiveDrawingVertices([]);
+      },
+      onCircleComplete: (center, radius) => {
+        const id = randomId();
+        addCircle({ id, center, radius });
+        setDrawingMode(null);
+      },
+      onMeasureUpdate: (points, segmentDistances, totalDistance) => {
+        setMeasureLine({ points, segmentDistances, totalDistance });
+      },
+      onVerticesUpdate: (vertices) => {
+        setActiveDrawingVertices(vertices);
+      },
+      onCancel: () => {
+        setDrawingMode(null);
+        setActiveDrawingVertices([]);
+      },
+    });
+  }, [addPolygon, addCircle, setMeasureLine, setDrawingMode, setActiveDrawingVertices]);
+
+  // Route activeTool changes to DrawingManager
+  useEffect(() => {
+    const manager = drawingManagerRef.current;
+    if (!manager) return;
+
+    if (activeTool === "polygon") {
+      setDrawingMode("polygon");
+      manager.startPolygonDraw();
+    } else if (activeTool === "circle") {
+      setDrawingMode("circle");
+      manager.startCircleDraw();
+    } else if (activeTool === "measure") {
+      setDrawingMode("measure");
+      setMeasureLine(null);
+      manager.startMeasure();
+    } else {
+      // select or waypoint: cancel any active drawing
+      if (manager.getMode() !== null) {
+        manager.cancelDraw();
+        setDrawingMode(null);
+        setActiveDrawingVertices([]);
+      }
+    }
+  }, [activeTool, setDrawingMode, setMeasureLine, setActiveDrawingVertices]);
+
+  // Map click handler: only fire for waypoint tool (not drawing tools)
   useEffect(() => {
     if (!mapInstance) return;
 
     const clickHandler = (e: L.LeafletMouseEvent) => {
-      if (activeTool === "waypoint" || activeTool === "polygon" || activeTool === "circle") {
+      if (activeTool === "waypoint") {
         onMapClick(e.latlng.lat, e.latlng.lng);
       }
+      // Drawing tools handle their own click events via DrawingManager
     };
 
     const contextHandler = (e: L.LeafletMouseEvent) => {
@@ -220,16 +322,39 @@ export function PlannerMap({
             }}
           />
         ))}
+
+        {/* Rally point markers (orange triangles) */}
+        {rallyPoints.map((rp, i) => (
+          <Marker
+            key={`rally-${rp.id}`}
+            position={[rp.lat, rp.lon]}
+            icon={makeRallyIcon(i)}
+            interactive={false}
+          />
+        ))}
       </MapContainer>
 
       {/* Instructions overlay */}
-      {waypoints.length === 0 && (
+      {waypoints.length === 0 && !isDrawingTool && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
           <div className="bg-bg-secondary/90 border border-border-default px-3 py-1.5">
             <span className="text-xs text-text-secondary font-mono">
               {hasActivePlan
                 ? "Click on map to add waypoints"
                 : "Create or select a flight plan to start"}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Drawing mode instructions */}
+      {isDrawingTool && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
+          <div className="bg-bg-secondary/90 border border-accent-primary/30 px-3 py-1.5">
+            <span className="text-xs text-accent-primary font-mono">
+              {activeTool === "polygon" && "Click to place vertices, double-click to close. Esc to cancel."}
+              {activeTool === "circle" && "Click and drag to draw circle. Esc to cancel."}
+              {activeTool === "measure" && "Click to add points, double-click or Esc to finish."}
             </span>
           </div>
         </div>

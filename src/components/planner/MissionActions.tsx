@@ -7,7 +7,8 @@
  */
 "use client";
 
-import { Upload, Save, MoreHorizontal, Download, FileDown, FileOutput, Copy, ArrowDownUp, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Upload, Save, MoreHorizontal, Download, FileDown, FileOutput, FileSpreadsheet, Globe, Copy, ArrowDownUp, Trash2, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 
@@ -21,6 +22,8 @@ interface MissionActionsProps {
   onDownloadFromDrone: () => void;
   onExportWaypoints: () => void;
   onExportPlan: () => void;
+  onExportKML: () => void;
+  onExportCSV: () => void;
   onSaveAs: () => void;
   onReverseWaypoints: () => void;
   onDiscard: () => void;
@@ -36,15 +39,21 @@ export function MissionActions({
   onDownloadFromDrone,
   onExportWaypoints,
   onExportPlan,
+  onExportKML,
+  onExportCSV,
   onSaveAs,
   onReverseWaypoints,
   onDiscard,
 }: MissionActionsProps) {
+  const router = useRouter();
+
   const overflowItems = [
     { id: "download-drone", label: "Download from Drone", icon: <Download size={12} /> },
     { id: "div1", label: "", divider: true },
     { id: "export-waypoints", label: "Export .waypoints", icon: <FileDown size={12} /> },
     { id: "export-plan", label: "Export .plan (QGC)", icon: <FileOutput size={12} /> },
+    { id: "export-kml", label: "Export .kml", icon: <Globe size={12} /> },
+    { id: "export-csv", label: "Export .csv", icon: <FileSpreadsheet size={12} /> },
     { id: "save-as", label: "Save As New Plan", icon: <Copy size={12} /> },
     { id: "div2", label: "", divider: true },
     { id: "reverse", label: "Reverse Waypoints", icon: <ArrowDownUp size={12} /> },
@@ -56,6 +65,8 @@ export function MissionActions({
     if (id === "download-drone") onDownloadFromDrone();
     else if (id === "export-waypoints") onExportWaypoints();
     else if (id === "export-plan") onExportPlan();
+    else if (id === "export-kml") onExportKML();
+    else if (id === "export-csv") onExportCSV();
     else if (id === "save-as") onSaveAs();
     else if (id === "reverse") onReverseWaypoints();
     else if (id === "discard") onDiscard();
@@ -93,6 +104,16 @@ export function MissionActions({
           align="right"
         />
       </div>
+      <Button
+        variant="ghost"
+        size="md"
+        className="w-full"
+        icon={<Play size={14} />}
+        disabled={!hasWaypoints}
+        onClick={() => router.push("/simulate")}
+      >
+        Simulate in 3D
+      </Button>
     </div>
   );
 }

@@ -39,6 +39,12 @@ npm run lint     # ESLint
 | Board profile | in `board-profiles.ts` | `src/lib/board-profiles.ts` |
 | Mock params | in `mock-params.ts` | `src/mock/mock-params.ts` |
 | Mock protocol | in `mock-protocol.ts` | `src/mock/mock-protocol.ts` |
+| Drawing utilities | `kebab-case` | `src/lib/drawing/` |
+| Pattern generators | `kebab-case-generator` | `src/lib/patterns/` |
+| Terrain utilities | `kebab-case` | `src/lib/terrain/` |
+| File format handlers | `kebab-case` | `src/lib/formats/` |
+| Mission validation | `kebab-case` | `src/lib/validation/` |
+| Mission transforms | `kebab-case` | `src/lib/transforms/` |
 
 ---
 
@@ -153,6 +159,40 @@ When you need to understand a system, read these files:
 | Timer group diagram | `src/components/fc/TimerGroupDiagram.tsx` — visual timer group conflict detection |
 | Shared panel UI | `src/components/fc/PanelHeader.tsx` — loading/error/refresh header for all FC panels |
 | Utility functions | `src/lib/utils.ts` — `cn()`, `isDemoMode()`, `formatDate()`, `clamp()` |
+| Drawing tools | `src/lib/drawing/drawing-manager.ts` — Leaflet polygon/circle/measure drawing |
+| Geodetic math | `src/lib/drawing/geo-utils.ts` — polygon area, centroid, clipping, offset |
+| Pattern generators | `src/lib/patterns/survey-generator.ts`, `orbit-generator.ts`, `corridor-generator.ts` |
+| Pattern store | `src/stores/pattern-store.ts` — active pattern, preview, apply to mission |
+| GSD calculator | `src/lib/patterns/gsd-calculator.ts` — camera profiles, GSD/footprint/spacing |
+| Terrain provider | `src/lib/terrain/terrain-provider.ts` — Open Elevation API with LRU cache |
+| Geofence protocol | `src/stores/geofence-store.ts` — fence upload/download, polygon/circle |
+| Rally points | `src/stores/rally-store.ts` — rally point CRUD + protocol upload/download |
+| Mission validation | `src/lib/validation/mission-validator.ts` — pre-upload checks |
+| File formats | `src/lib/formats/kml-parser.ts`, `csv-handler.ts` — KML/KMZ/CSV I/O |
+| Mission transforms | `src/lib/transforms/mission-transforms.ts` — move/rotate/scale |
+
+---
+
+## Checklist: New Pattern Generator
+
+1. Create `src/lib/patterns/my-pattern-generator.ts` — pure function, no side effects
+2. Define config interface in `src/lib/patterns/types.ts`
+3. Return `PatternResult` with waypoints array and stats
+4. Add to dispatcher in `src/lib/patterns/index.ts`
+5. Add UI controls in `src/components/planner/PatternEditor.tsx`
+6. Add preview rendering in `src/components/planner/PatternOverlay.tsx`
+7. Test: draw boundary → select pattern → configure → generate → apply → verify waypoints
+
+---
+
+## Checklist: New File Format
+
+1. Create parser in `src/lib/formats/my-format.ts` — `parse(text/buffer): Waypoint[]`
+2. Create exporter if needed — `export(waypoints): string/Blob`
+3. Add format detection to `src/lib/mission-io.ts` `importMissionFile()` (by file extension)
+4. Add export function call in `src/lib/mission-io.ts`
+5. Add UI option in `src/components/planner/MissionActions.tsx`
+6. Handle coordinate order differences (KML uses lon,lat; we use lat,lon)
 
 ---
 
@@ -171,3 +211,7 @@ When you need to understand a system, read these files:
 - **Zustand `getState()` is synchronous** — Use it in callbacks and event handlers. Use selectors (`useStore(s => s.field)`) in React components for reactivity.
 - **Electron: no proxy needed for standalone** — The Next.js standalone server serves `/_next/static/*` natively when `.next/static/` is copied into the standalone directory. No HTTP proxy layer required. `server.ts` just forks the standalone server on a single port. Always use `127.0.0.1` (not `localhost`) to avoid IPv6 resolution issues on macOS.
 - **Electron: always use `127.0.0.1`** — `window.ts`, `main.ts`, and `server.ts` all use `127.0.0.1` instead of `localhost`. macOS can resolve `localhost` to `::1` (IPv6), causing ECONNREFUSED when the server only listens on IPv4.
+- **KML uses lon,lat order** — KML coordinates are `lon,lat,alt`. Leaflet and our Waypoint type use `lat,lon`. Always swap when importing/exporting KML.
+- **Terrain provider caching** — `terrain-provider.ts` uses an LRU cache keyed by rounded lat,lon (4 decimal places). Cache hit rate is high for survey patterns where many waypoints are close together. Falls back to elevation 0 when offline.
+- **Pattern generators are pure functions** — They take config objects and return waypoint arrays. No store access, no side effects. This makes them testable and composable.
+- **Drawing manager is not a React component** — `drawing-manager.ts` interfaces directly with the Leaflet map instance. It's instantiated in a `useEffect` in `PlannerMap.tsx` and cleaned up on unmount.

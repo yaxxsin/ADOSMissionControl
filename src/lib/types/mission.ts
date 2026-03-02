@@ -16,13 +16,17 @@ export interface Waypoint {
   param1?: number;
   param2?: number;
   param3?: number;
+  groundElevation?: number;  // terrain elevation MSL at this waypoint
 }
 
 /** MAVLink command types supported in mission waypoints. */
 export type WaypointCommand =
   | "WAYPOINT" | "SPLINE_WAYPOINT" | "LOITER" | "LOITER_TIME" | "LOITER_TURNS"
   | "TAKEOFF" | "LAND" | "RTL" | "ROI" | "DO_SET_SPEED"
-  | "DO_SET_CAM_TRIGG" | "DO_DIGICAM" | "DO_JUMP" | "DELAY" | "CONDITION_YAW";
+  | "DO_SET_CAM_TRIGG" | "DO_DIGICAM" | "DO_JUMP" | "DELAY" | "CONDITION_YAW"
+  | "DO_SET_SERVO" | "DO_FENCE_ENABLE" | "DO_MOUNT_CONTROL" | "DO_GRIPPER"
+  | "DO_WINCH" | "NAV_PAYLOAD_PLACE" | "CONDITION_DISTANCE" | "DO_SET_HOME"
+  | "DO_AUX_FUNCTION";
 
 /** Available tools in the map toolbar. */
 export type PlannerTool = "select" | "waypoint" | "polygon" | "circle" | "measure";

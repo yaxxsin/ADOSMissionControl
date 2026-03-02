@@ -9,12 +9,14 @@
 
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 import { useMissionStore } from "@/stores/mission-store";
 import { usePlannerStore } from "@/stores/planner-store";
 import { useSimulationStore } from "@/stores/simulation-store";
 import { useSimulationKeyboard } from "@/hooks/use-simulation-keyboard";
 import { SimulateLeftPanel } from "@/components/simulation/SimulateLeftPanel";
+import { Button } from "@/components/ui/button";
 
 const SimulationViewer = dynamic(
   () =>
@@ -31,6 +33,7 @@ export default function SimulatePage() {
   const waypoints = useMissionStore((s) => s.waypoints);
   const defaultSpeed = usePlannerStore((s) => s.defaultSpeed);
   const [panelCollapsed, setPanelCollapsed] = useState(false);
+  const router = useRouter();
 
   useSimulationKeyboard(true);
 
@@ -43,6 +46,18 @@ export default function SimulatePage() {
     <div className="flex-1 flex h-full overflow-hidden">
       {/* Left panel */}
       <SimulateLeftPanel />
+
+      {/* Edit Plan button - top-left overlay */}
+      <div className="absolute top-3 left-[260px] z-10">
+        <Button
+          variant="secondary"
+          size="sm"
+          icon={<Pencil size={12} />}
+          onClick={() => router.push("/plan")}
+        >
+          Edit Plan
+        </Button>
+      </div>
 
       {/* 3D Viewer */}
       <SimulationViewer waypoints={waypoints} defaultSpeed={defaultSpeed} />

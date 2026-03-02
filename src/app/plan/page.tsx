@@ -13,6 +13,10 @@ import { MissionEditor } from "@/components/planner/MissionEditor";
 import { WaypointList } from "@/components/planner/WaypointList";
 import { GeofenceEditor } from "@/components/planner/GeofenceEditor";
 import { DefaultsSection } from "@/components/planner/DefaultsSection";
+import { RallyPointEditor } from "@/components/planner/RallyPointEditor";
+import { ValidationPanel } from "@/components/planner/ValidationPanel";
+import { TerrainProfileChart } from "@/components/planner/TerrainProfileChart";
+import { TransformPanel } from "@/components/planner/TransformPanel";
 import { MapToolbar } from "@/components/planner/MapToolbar";
 import { MapContextMenu } from "@/components/planner/MapContextMenu";
 import { MissionStatsBar } from "@/components/planner/MissionStatsBar";
@@ -75,6 +79,7 @@ export default function MissionPlannerPage() {
               activeTool={p.activeTool}
               selectedWaypointId={p.selectedWaypointId}
               hasActivePlan={!!p.activePlanId}
+              rallyPoints={p.rallyPoints}
               onMapClick={p.handleMapClick}
               onMapRightClick={p.handleMapRightClick}
               onWaypointClick={p.handleWaypointClick}
@@ -197,6 +202,36 @@ export default function MissionPlannerPage() {
                     onActionChange={p.setGeofenceAction}
                   />
                 </CollapsibleSection>
+
+                <CollapsibleSection
+                  title="Rally Points"
+                  count={p.rallyPoints.length}
+                >
+                  <RallyPointEditor
+                    addingRallyPoint={p.addingRallyPoint}
+                    onToggleAdding={p.setAddingRallyPoint}
+                  />
+                </CollapsibleSection>
+
+                <CollapsibleSection title="Terrain Profile">
+                  <TerrainProfileChart waypoints={p.waypoints} />
+                </CollapsibleSection>
+
+                <CollapsibleSection title="Transform">
+                  <TransformPanel />
+                </CollapsibleSection>
+
+                <CollapsibleSection title="Validation" defaultOpen={true}>
+                  <ValidationPanel
+                    waypoints={p.waypoints}
+                    geofenceEnabled={p.geofenceEnabled}
+                    geofenceMaxAlt={p.geofenceMaxAlt}
+                    onSelectWaypoint={(id) => {
+                      p.setSelectedWaypoint(id);
+                      p.setExpandedWaypoint(id);
+                    }}
+                  />
+                </CollapsibleSection>
               </div>
 
               <MissionActions
@@ -209,6 +244,8 @@ export default function MissionPlannerPage() {
                 onDownloadFromDrone={p.downloadMission}
                 onExportWaypoints={p.handleExportWaypoints}
                 onExportPlan={p.handleExportPlan}
+                onExportKML={p.handleExportKML}
+                onExportCSV={p.handleExportCSV}
                 onSaveAs={p.handleSaveAs}
                 onReverseWaypoints={p.handleReverseWaypoints}
                 onDiscard={p.handleClearAll}

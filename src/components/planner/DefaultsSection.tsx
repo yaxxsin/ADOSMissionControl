@@ -82,6 +82,11 @@ export function DefaultsSection({
           onChange={(v) => onFrameChange(v as AltitudeFrame)}
         />
       </div>
+      {defaultFrame === "terrain" && (
+        <p className="text-[10px] text-text-tertiary font-mono px-0.5">
+          Waypoint altitudes will be adjusted to maintain constant height above ground
+        </p>
+      )}
     </div>
   );
 }
