@@ -56,11 +56,9 @@ export function unbindSimViewer() {
 
 function seekClock(seconds: number) {
   if (_viewer && !_viewer.isDestroyed() && _startJulian) {
-    _viewer.clock.currentTime = JulianDate.addSeconds(
-      _startJulian,
-      seconds,
-      _scratchJulian
-    );
+    JulianDate.addSeconds(_startJulian, seconds, _scratchJulian);
+    // Clone to avoid aliasing — Clock stores currentTime by reference
+    _viewer.clock.currentTime = JulianDate.clone(_scratchJulian);
     requestRender();
   }
 }

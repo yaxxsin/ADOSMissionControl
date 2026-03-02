@@ -25,6 +25,11 @@ export function ChangelogEntry({ entry, onEdit, onDelete }: ChangelogEntryProps)
             <span className="px-1.5 py-0.5 text-[10px] font-mono font-semibold bg-accent-primary/10 text-accent-primary rounded">
               {entry.version}
             </span>
+            {entry.repo && (
+              <span className="px-1.5 py-0.5 text-[10px] font-mono text-text-secondary bg-bg-tertiary rounded">
+                {entry.repo}
+              </span>
+            )}
             {entry.commitUrl && (
               <a
                 href={entry.commitUrl}

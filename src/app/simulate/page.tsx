@@ -51,7 +51,6 @@ export default function SimulatePage() {
       {!panelCollapsed && (
         <SimulationPanel
           waypoints={waypoints}
-          defaultSpeed={defaultSpeed}
           onClose={() => setPanelCollapsed(true)}
         />
       )}

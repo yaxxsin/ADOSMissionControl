@@ -19,7 +19,6 @@ import { AltitudeProfile } from "./AltitudeProfile";
 
 interface SimulationPanelProps {
   waypoints: Waypoint[];
-  defaultSpeed: number;
   onClose: () => void;
 }
 

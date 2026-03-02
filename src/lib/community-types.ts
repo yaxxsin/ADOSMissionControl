@@ -50,6 +50,7 @@ export interface ChangelogEntry {
   commitUrl?: string;
   commitDate?: number;
   editedByAdmin?: boolean;
+  repo?: string;
   _creationTime: number;
 }
 

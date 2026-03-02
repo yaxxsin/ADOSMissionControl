@@ -59,7 +59,7 @@ export function DroneEntity({ viewer, positionProperty, headingProperty, useAbso
       if (viewer && !viewer.isDestroyed()) viewer.entities.removeById(DRONE_ENTITY_ID);
       droneRef.current = null;
     };
-  }, [viewer, positionProperty, headingProperty]);
+  }, [viewer, positionProperty, headingProperty, useAbsoluteAlt]);
 
   return null;
 }

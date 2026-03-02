@@ -174,50 +174,45 @@ export default function CesiumScene({
     let cancelled = false;
     let rafId: number | undefined;
 
-    async function switchImagery() {
-      if (!viewer || viewer.isDestroyed()) return;
+    // Create layer synchronously via fromProviderAsync (handles async loading internally)
+    const newLayer =
+      imageryMode === "satellite"
+        ? ImageryLayer.fromProviderAsync(IonImageryProvider.fromAssetId(2))
+        : createDarkCartoLayer();
 
-      let newLayer: ImageryLayer;
-      if (imageryMode === "satellite") {
-        const provider = await IonImageryProvider.fromAssetId(2);
-        if (cancelled) return;
-        newLayer = new ImageryLayer(provider);
+    // Add new layer at alpha 0
+    newLayer.alpha = 0;
+    viewer.imageryLayers.add(newLayer);
+
+    // Cross-fade over 300ms
+    const startTime = performance.now();
+    const duration = 300;
+
+    function animate(now: number) {
+      if (cancelled || !viewer || viewer.isDestroyed()) return;
+      const progress = Math.min((now - startTime) / duration, 1);
+      newLayer.alpha = progress;
+      viewer.scene.requestRender();
+
+      if (progress < 1) {
+        rafId = requestAnimationFrame(animate);
       } else {
-        newLayer = createDarkCartoLayer();
-      }
-
-      // Add new layer at alpha 0
-      newLayer.alpha = 0;
-      viewer.imageryLayers.add(newLayer);
-
-      // Cross-fade over 300ms
-      const startTime = performance.now();
-      const duration = 300;
-
-      function animate(now: number) {
-        if (cancelled || !viewer || viewer.isDestroyed()) return;
-        const progress = Math.min((now - startTime) / duration, 1);
-        newLayer.alpha = progress;
-        viewer.scene.requestRender();
-
-        if (progress < 1) {
-          rafId = requestAnimationFrame(animate);
-        } else {
-          // Remove all old layers (everything except the new one)
-          while (viewer.imageryLayers.length > 1) {
-            viewer.imageryLayers.remove(viewer.imageryLayers.get(0));
-          }
+        // Remove all old layers (everything except the new one)
+        while (viewer.imageryLayers.length > 1) {
+          viewer.imageryLayers.remove(viewer.imageryLayers.get(0));
         }
       }
-
-      rafId = requestAnimationFrame(animate);
     }
 
-    switchImagery();
+    rafId = requestAnimationFrame(animate);
 
     return () => {
       cancelled = true;
       if (rafId !== undefined) cancelAnimationFrame(rafId);
+      // Remove the new layer if animation didn't finish (rapid toggle cleanup)
+      if (viewer && !viewer.isDestroyed()) {
+        try { viewer.imageryLayers.remove(newLayer); } catch { /* already removed */ }
+      }
     };
   }, [imageryMode]);
 
@@ -237,6 +232,8 @@ export default function CesiumScene({
         viewer.scene.primitives.add(tileset);
         tilesetRef.current = tileset;
         viewer.scene.requestRender();
+      }).catch(() => {
+        // Silently ignore — buildings are a non-critical enhancement
       });
     } else {
       // Remove existing tileset if present
