@@ -116,3 +116,12 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* Changelog markdown body */
+.changelog-body strong { font-weight: 600; color: var(--alt-text-primary); }
+.changelog-body ul, .changelog-body ol { padding-left: 1.25rem; margin: 0.25rem 0; }
+.changelog-body li { list-style: disc; margin: 0.125rem 0; }
+.changelog-body code { font-family: var(--font-mono); background: var(--alt-bg-tertiary); padding: 0.125rem 0.25rem; border-radius: 2px; font-size: 0.9em; }
+.changelog-body a { color: var(--alt-accent-primary); text-decoration: underline; }
+.changelog-body p { margin: 0.25rem 0; }
+.changelog-body h3, .changelog-body h4 { font-weight: 600; color: var(--alt-text-primary); margin-top: 0.5rem; }

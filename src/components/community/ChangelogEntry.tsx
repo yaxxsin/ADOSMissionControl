@@ -25,11 +25,21 @@ export function ChangelogEntry({ entry, onEdit, onDelete }: ChangelogEntryProps)
             <span className="px-1.5 py-0.5 text-[10px] font-mono font-semibold bg-accent-primary/10 text-accent-primary rounded">
               {entry.version}
             </span>
+            {entry.commitUrl && (
+              <a
+                href={entry.commitUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] font-mono text-accent-primary hover:underline"
+              >
+                {entry.commitSha?.slice(0, 7)}
+              </a>
+            )}
             <h3 className="text-sm font-medium text-text-primary">{entry.title}</h3>
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <span className="text-[10px] text-text-tertiary">
-              {formatDate(entry.publishedAt)}
+              {formatDate(entry.commitDate ?? entry.publishedAt)}
             </span>
             {isAdmin && onEdit && onDelete && (
               <div className="flex items-center gap-1 ml-2">
@@ -52,9 +62,16 @@ export function ChangelogEntry({ entry, onEdit, onDelete }: ChangelogEntryProps)
           </div>
         </div>
 
-        <div className="text-xs text-text-secondary whitespace-pre-wrap leading-relaxed">
-          {entry.body}
-        </div>
+        {entry.bodyHtml ? (
+          <div
+            className="text-xs text-text-secondary leading-relaxed changelog-body"
+            dangerouslySetInnerHTML={{ __html: entry.bodyHtml }}
+          />
+        ) : (
+          <div className="text-xs text-text-secondary whitespace-pre-wrap leading-relaxed">
+            {entry.body}
+          </div>
+        )}
 
         {entry.tags && entry.tags.length > 0 && (
           <div className="flex gap-1 flex-wrap">

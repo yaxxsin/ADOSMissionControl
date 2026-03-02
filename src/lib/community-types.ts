@@ -40,10 +40,16 @@ export interface ChangelogEntry {
   version: string;
   title: string;
   body: string;
+  bodyHtml?: string;
   publishedAt: number;
   authorName?: string;
   tags?: string[];
   published: boolean;
+  source?: "auto" | "manual";
+  commitSha?: string;
+  commitUrl?: string;
+  commitDate?: number;
+  editedByAdmin?: boolean;
   _creationTime: number;
 }
 
