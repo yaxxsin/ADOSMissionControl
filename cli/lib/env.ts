@@ -4,7 +4,6 @@ import { ENV_FILE, ENV_EXAMPLE } from './paths.js';
 export const ENV_KEYS = [
   'NEXT_PUBLIC_DEMO_MODE',
   'NEXT_PUBLIC_CONVEX_URL',
-  'NEXT_PUBLIC_CESIUM_ION_TOKEN',
 ] as const;
 
 export type EnvKey = (typeof ENV_KEYS)[number];
@@ -12,7 +11,6 @@ export type EnvKey = (typeof ENV_KEYS)[number];
 export const ENV_DESCRIPTIONS: Record<EnvKey, string> = {
   NEXT_PUBLIC_DEMO_MODE: 'Demo mode — mock flight engine with simulated drones',
   NEXT_PUBLIC_CONVEX_URL: 'Convex backend URL (optional — cloud fleet management)',
-  NEXT_PUBLIC_CESIUM_ION_TOKEN: 'Cesium Ion token (optional — 3D mission simulation)',
 };
 
 export function readEnvFile(filePath = ENV_FILE): Map<string, string> {

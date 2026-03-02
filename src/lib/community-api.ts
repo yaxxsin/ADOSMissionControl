@@ -39,4 +39,7 @@ export const communityApi = {
   profiles: {
     getMyProfile: makeFunctionReference<"query">("profiles:getMyProfile"),
   },
+  clientConfig: {
+    get: makeFunctionReference<"query">("clientConfig:getClientConfig"),
+  },
 };

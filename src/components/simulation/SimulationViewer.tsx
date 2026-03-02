@@ -10,6 +10,7 @@
 "use client";
 
 import { useEffect, useMemo, useCallback, useState } from "react";
+import { useQuery } from "convex/react";
 import type { Viewer as CesiumViewer } from "cesium";
 import type { Waypoint } from "@/lib/types";
 import { computeFlightPlan } from "@/lib/simulation-utils";
@@ -18,6 +19,8 @@ import { useSimulationStore } from "@/stores/simulation-store";
 import { useSimClock } from "@/hooks/use-sim-clock";
 import { useSimCamera } from "@/hooks/use-sim-camera";
 import { useSimCompletion } from "@/hooks/use-sim-completion";
+import { useConvexAvailable } from "@/app/ConvexClientProvider";
+import { communityApi } from "@/lib/community-api";
 
 import CesiumScene from "./CesiumScene";
 import { FlightPathEntity } from "./FlightPathEntity";
@@ -28,6 +31,18 @@ import { PlaybackControls } from "./PlaybackControls";
 import { SimulationHUD } from "./SimulationHUD";
 import { CameraModeSelector } from "./CameraModeSelector";
 
+/** Fetches Cesium Ion token from Convex. Only mount when Convex is available. */
+function ConvexCesiumToken({ onToken }: { onToken: (token: string | null) => void }) {
+  const config = useQuery(communityApi.clientConfig.get, {});
+  useEffect(() => {
+    // config is undefined while loading, null if query not found
+    if (config !== undefined) {
+      onToken((config as { cesiumIonToken?: string } | null)?.cesiumIonToken ?? null);
+    }
+  }, [config, onToken]);
+  return null;
+}
+
 interface SimulationViewerProps {
   waypoints: Waypoint[];
   defaultSpeed: number;
@@ -36,6 +51,11 @@ interface SimulationViewerProps {
 export function SimulationViewer({ waypoints, defaultSpeed }: SimulationViewerProps) {
   const [viewer, setViewer] = useState<CesiumViewer | null>(null);
   const [viewerError, setViewerError] = useState<string | null>(null);
+  const convexAvailable = useConvexAvailable();
+  const [cesiumToken, setCesiumToken] = useState<string | undefined>(undefined);
+  const handleCesiumToken = useCallback((t: string | null) => {
+    setCesiumToken(t ?? undefined);
+  }, []);
 
   const flightPlan = useMemo(
     () => computeFlightPlan(waypoints, defaultSpeed),
@@ -67,7 +87,8 @@ export function SimulationViewer({ waypoints, defaultSpeed }: SimulationViewerPr
 
   return (
     <div className="flex-1 relative min-w-0 h-full">
-      <CesiumScene onReady={handleViewerReady} onError={(e) => setViewerError(e.message)} />
+      {convexAvailable && <ConvexCesiumToken onToken={handleCesiumToken} />}
+      <CesiumScene cesiumToken={cesiumToken} onReady={handleViewerReady} onError={(e) => setViewerError(e.message)} />
 
       <FlightPathEntity viewer={viewer} waypoints={waypoints} />
       <WaypointEntities viewer={viewer} waypoints={waypoints} />

@@ -7,11 +7,6 @@ import pc from 'picocolors';
 import { readEnvFile, writeEnvFile, createFromExample, ENV_KEYS, ENV_DESCRIPTIONS } from '../lib/env.js';
 import { ENV_FILE } from '../lib/paths.js';
 
-function maskValue(value: string): string {
-  if (!value || value.length <= 8) return value || pc.dim('(not set)');
-  return '****' + value.slice(-4);
-}
-
 export async function configCommand(): Promise<void> {
   p.intro(pc.cyan('Environment Configuration'));
 
@@ -22,7 +17,6 @@ export async function configCommand(): Promise<void> {
         { value: 'view', label: 'View current config' },
         { value: 'demo', label: 'Toggle demo mode' },
         { value: 'convex', label: 'Set Convex URL' },
-        { value: 'cesium', label: 'Set Cesium Ion token' },
         { value: 'reset', label: 'Reset to defaults', hint: 'from .env.example' },
         { value: 'done', label: 'Done' },
       ],
@@ -40,7 +34,7 @@ export async function configCommand(): Promise<void> {
         const lines: string[] = [];
         for (const key of ENV_KEYS) {
           const val = env.get(key);
-          const display = key === 'NEXT_PUBLIC_CESIUM_ION_TOKEN' ? maskValue(val ?? '') : (val || pc.dim('(not set)'));
+          const display = val || pc.dim('(not set)');
           lines.push(`${pc.bold(key)}\n  ${ENV_DESCRIPTIONS[key]}\n  Value: ${display}`);
         }
         p.note(lines.join('\n\n'), 'Current Config');
@@ -79,24 +73,6 @@ export async function configCommand(): Promise<void> {
         }
         writeEnvFile(ENV_FILE, env);
         p.log.success('Convex URL updated');
-        break;
-      }
-
-      case 'cesium': {
-        const current = env.get('NEXT_PUBLIC_CESIUM_ION_TOKEN') ?? '';
-        const value = await p.text({
-          message: 'Enter Cesium Ion access token:',
-          placeholder: 'eyJ...',
-          initialValue: current,
-        });
-        if (p.isCancel(value)) break;
-        if (value) {
-          env.set('NEXT_PUBLIC_CESIUM_ION_TOKEN', value);
-        } else {
-          env.delete('NEXT_PUBLIC_CESIUM_ION_TOKEN');
-        }
-        writeEnvFile(ENV_FILE, env);
-        p.log.success('Cesium Ion token updated');
         break;
       }
 

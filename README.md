@@ -188,7 +188,8 @@ All optional. Command works standalone with zero config.
 |----------|---------|-------------|
 | `NEXT_PUBLIC_DEMO_MODE` | `false` | 5 simulated drones with full mock MAVLink |
 | `NEXT_PUBLIC_CONVEX_URL` | — | Convex backend for cloud fleet management |
-| `NEXT_PUBLIC_CESIUM_ION_TOKEN` | — | Cesium Ion token for 3D simulation terrain |
+
+For 3D simulation with Cesium World Terrain, set `CESIUM_ION_TOKEN` in the Convex dashboard (Settings > Environment Variables). Get a free token at [ion.cesium.com](https://ion.cesium.com). Without it, the simulation view falls back to ArcGIS elevation data.
 
 Use `npm run cli config` to set these interactively, or create `.env.local` manually.
 

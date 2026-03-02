@@ -33,9 +33,11 @@ import "cesium/Build/Cesium/Widgets/widgets.css";
 interface CesiumSceneProps {
   onReady?: (viewer: CesiumViewer) => void;
   onError?: (error: Error) => void;
+  /** Cesium Ion access token. When set, enables Cesium World Terrain. Otherwise falls back to ArcGIS elevation. */
+  cesiumToken?: string;
 }
 
-export default function CesiumScene({ onReady, onError }: CesiumSceneProps) {
+export default function CesiumScene({ onReady, onError, cesiumToken }: CesiumSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -44,7 +46,7 @@ export default function CesiumScene({ onReady, onError }: CesiumSceneProps) {
     let viewer: InstanceType<typeof Viewer> | null = null;
 
     try {
-      const token = process.env.NEXT_PUBLIC_CESIUM_ION_TOKEN;
+      const token = cesiumToken;
       if (token) {
         Ion.defaultAccessToken = token;
       }
@@ -124,8 +126,9 @@ export default function CesiumScene({ onReady, onError }: CesiumSceneProps) {
     return () => {
       if (viewer && !viewer.isDestroyed()) viewer.destroy();
     };
+    // Re-create viewer when token changes (e.g. loaded from Convex after mount)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [cesiumToken]);
 
   return <div ref={containerRef} className="w-full h-full absolute inset-0" />;
 }
