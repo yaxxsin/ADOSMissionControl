@@ -2,6 +2,8 @@
  * @module FlightPathEntity
  * @description Renders the 3D flight path with terrain-resolved altitude,
  * ground track shadow, altitude pillars at waypoints, and distance/altitude labels.
+ * Color-codes path segments by command type: transit (blue), survey (green),
+ * orbit/ROI (yellow), takeoff/land (white).
  * Falls back to clamped-to-ground path when resolved positions are unavailable.
  * @license GPL-3.0-only
  */
@@ -21,7 +23,7 @@ import {
   type Viewer as CesiumViewer,
   type Entity,
 } from "cesium";
-import type { Waypoint } from "@/lib/types";
+import type { Waypoint, WaypointCommand } from "@/lib/types";
 import { MAP_COLORS } from "@/lib/map-constants";
 import { haversineDistance } from "@/lib/telemetry-utils";
 
@@ -46,6 +48,46 @@ function formatDistance(meters: number): string {
   return `${Math.round(meters)} m`;
 }
 
+/** Segment color constants. */
+const SEGMENT_COLORS = {
+  transit: "#3A82FF",  // blue (accent primary)
+  survey: "#22C55E",   // green
+  orbit: "#EAB308",    // yellow
+  takeoffLand: "#FFFFFF", // white
+} as const;
+
+/**
+ * Determine the color for a flight segment based on active state commands.
+ * Tracks DO_SET_CAM_TRIGG and ROI activation across waypoints.
+ */
+function getSegmentColor(camTriggerActive: boolean, roiActive: boolean, cmd: WaypointCommand | undefined): Color {
+  if (cmd === "TAKEOFF" || cmd === "LAND" || cmd === "RTL") {
+    return Color.fromCssColorString(SEGMENT_COLORS.takeoffLand).withAlpha(0.9);
+  }
+  if (roiActive) {
+    return Color.fromCssColorString(SEGMENT_COLORS.orbit).withAlpha(0.9);
+  }
+  if (camTriggerActive) {
+    return Color.fromCssColorString(SEGMENT_COLORS.survey).withAlpha(0.9);
+  }
+  return Color.fromCssColorString(SEGMENT_COLORS.transit).withAlpha(0.9);
+}
+
+/**
+ * Check if any waypoints have special commands that warrant color coding.
+ */
+function hasSpecialCommands(waypoints: Waypoint[]): boolean {
+  return waypoints.some(
+    (wp) =>
+      wp.command === "DO_SET_CAM_TRIGG" ||
+      wp.command === "DO_DIGICAM" ||
+      wp.command === "ROI" ||
+      wp.command === "TAKEOFF" ||
+      wp.command === "LAND" ||
+      wp.command === "RTL"
+  );
+}
+
 export function FlightPathEntity({
   viewer,
   waypoints,
@@ -61,18 +103,62 @@ export function FlightPathEntity({
     const entities: Entity[] = [];
     const accentColor = Color.fromCssColorString(MAP_COLORS.accentPrimary);
     const mutedColor = Color.fromCssColorString(MAP_COLORS.muted);
+    const useColorCoding = hasSpecialCommands(waypoints);
 
     if (resolvedPositions && resolvedPositions.length >= 2) {
-      // ── Elevated 3D flight path ──────────────────────────────
-      const pathEntity = viewer.entities.add({
-        polyline: {
-          positions: resolvedPositions,
-          width: 3,
-          material: accentColor.withAlpha(0.9),
-          clampToGround: false,
-        },
-      });
-      entities.push(pathEntity);
+      // ── Color-coded elevated 3D flight path ────────────────────
+      if (useColorCoding && waypointIndices && waypointIndices.length === waypoints.length) {
+        let camTriggerActive = false;
+        let roiActive = false;
+
+        for (let i = 0; i < waypoints.length - 1; i++) {
+          const wp = waypoints[i];
+          const cmd = wp.command ?? "WAYPOINT";
+
+          // Track state changes
+          if (cmd === "DO_SET_CAM_TRIGG") {
+            camTriggerActive = (wp.param1 ?? 0) > 0;
+          }
+          if (cmd === "ROI") {
+            roiActive = true;
+          }
+          // ROI is cancelled by a WAYPOINT after it
+          if (cmd === "WAYPOINT" && roiActive && i > 0 && waypoints[i - 1].command !== "ROI") {
+            roiActive = false;
+          }
+
+          const startIdx = waypointIndices[i];
+          const endIdx = waypointIndices[i + 1];
+          if (startIdx === undefined || endIdx === undefined) continue;
+
+          // Get positions for this segment (including terrain sub-samples)
+          const segPositions = resolvedPositions.slice(startIdx, endIdx + 1);
+          if (segPositions.length < 2) continue;
+
+          const segColor = getSegmentColor(camTriggerActive, roiActive, cmd);
+
+          const segEntity = viewer.entities.add({
+            polyline: {
+              positions: segPositions,
+              width: 3,
+              material: segColor,
+              clampToGround: false,
+            },
+          });
+          entities.push(segEntity);
+        }
+      } else {
+        // Single-color fallback
+        const pathEntity = viewer.entities.add({
+          polyline: {
+            positions: resolvedPositions,
+            width: 3,
+            material: accentColor.withAlpha(0.9),
+            clampToGround: false,
+          },
+        });
+        entities.push(pathEntity);
+      }
 
       // ── Ground track (dashed shadow) ─────────────────────────
       const groundTrack = viewer.entities.add({

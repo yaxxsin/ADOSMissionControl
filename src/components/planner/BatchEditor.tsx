@@ -13,6 +13,7 @@ import { Trash2, MountainSnow, Gauge, Command } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useMissionStore } from "@/stores/mission-store";
 import type { WaypointCommand } from "@/lib/types";
 
@@ -37,6 +38,7 @@ export function BatchEditor({ selectedIds, onClearSelection }: BatchEditorProps)
   const [batchAlt, setBatchAlt] = useState<number | null>(null);
   const [batchSpeed, setBatchSpeed] = useState<number | null>(null);
   const [batchCommand, setBatchCommand] = useState<string>("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const count = selectedIds.length;
 
@@ -67,7 +69,15 @@ export function BatchEditor({ selectedIds, onClearSelection }: BatchEditorProps)
     onClearSelection();
   }, [waypoints, selectedIds, setWaypoints, onClearSelection]);
 
-  if (count < 2) return null;
+  if (count < 2) {
+    return (
+      <div className="px-3 py-2">
+        <p className="text-[10px] text-text-tertiary font-mono">
+          Select 2+ waypoints to batch edit (Ctrl+click or Shift+click)
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="px-3 py-2 space-y-2">
@@ -136,10 +146,23 @@ export function BatchEditor({ selectedIds, onClearSelection }: BatchEditorProps)
         size="sm"
         className="w-full text-status-error"
         icon={<Trash2 size={12} />}
-        onClick={deleteSelected}
+        onClick={() => setShowDeleteConfirm(true)}
       >
         Delete {count} Waypoints
       </Button>
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onConfirm={() => {
+          deleteSelected();
+          setShowDeleteConfirm(false);
+        }}
+        onCancel={() => setShowDeleteConfirm(false)}
+        title="Delete Waypoints"
+        message={`Delete ${count} selected waypoints? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+      />
     </div>
   );
 }

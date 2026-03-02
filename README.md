@@ -132,9 +132,17 @@ It replaces desktop-only tools like QGroundControl and Mission Planner with a mo
 
 - Waypoint editor with drag-and-drop on an interactive map
 - Altitude profile visualization with per-waypoint AGL control
-- Geofence editor — inclusion and exclusion zones
+- **Drawing tools** — polygon, circle, and measure tools with geodetic math
+- **Pattern generators** — survey (boustrophedon), orbit, corridor, SAR (expanding square, sector search, parallel track), structure scan
+- **GSD calculator** — camera profiles, auto-compute line spacing from altitude + sidelap
+- **Terrain following** — Open Elevation API with LRU cache, terrain-aware altitude adjustment
+- **Geofence editor** — inclusion/exclusion polygon and circle zones, draw on map, upload to drone
+- **Rally points** — emergency landing locations, map placement, upload/download
+- **Mission validation** — pre-upload rule engine (takeoff check, altitude limits, geofence containment, distance warnings)
+- **Mission transforms** — move, rotate, scale entire missions as geometry operations
+- **Batch editing** — multi-select waypoints (Ctrl+click, Shift+click), bulk altitude/speed/command changes
 - Plan library — save, load, duplicate, and organize missions (IndexedDB)
-- Import/export `.waypoints` and `.plan` file formats
+- Import/export KML, KMZ, CSV, `.waypoints`, and `.plan` file formats
 
 ### Live Telemetry
 

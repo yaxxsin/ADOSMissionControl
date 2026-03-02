@@ -42,9 +42,9 @@ interface ValidationOptions {
 function pointInPolygon(lat: number, lon: number, polygon: [number, number][]): boolean {
   let inside = false;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const [yi, xi] = polygon[i];
-    const [yj, xj] = polygon[j];
-    if ((yi > lon) !== (yj > lon) && lat < ((xj - xi) * (lon - yi)) / (yj - yi) + xi) {
+    const [yi, xi] = polygon[i]; // yi=lat, xi=lon
+    const [yj, xj] = polygon[j]; // yj=lat, xj=lon
+    if ((yi > lat) !== (yj > lat) && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) {
       inside = !inside;
     }
   }

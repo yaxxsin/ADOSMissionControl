@@ -63,8 +63,8 @@ export function parseCSV(text: string): Waypoint[] {
   const lines = text.trim().split(/\r?\n/);
   if (lines.length < 2) return [];
 
-  // Parse header to determine column indices
-  const header = lines[0].toLowerCase().split(",").map((h) => h.trim());
+  // Parse header to determine column indices (use parseCsvLine for quote-aware trimming)
+  const header = parseCsvLine(lines[0].toLowerCase());
   const colIndex: Record<string, number> = {};
   for (let i = 0; i < header.length; i++) {
     colIndex[header[i]] = i;

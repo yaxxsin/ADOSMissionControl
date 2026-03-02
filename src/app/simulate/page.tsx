@@ -7,14 +7,16 @@
  * @license GPL-3.0-only
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Pencil } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil, AlertTriangle, X } from "lucide-react";
 import { useMissionStore } from "@/stores/mission-store";
 import { usePlannerStore } from "@/stores/planner-store";
 import { useSimulationStore } from "@/stores/simulation-store";
+import { useGeofenceStore } from "@/stores/geofence-store";
 import { useSimulationKeyboard } from "@/hooks/use-simulation-keyboard";
+import { validateMission } from "@/lib/validation/mission-validator";
 import { SimulateLeftPanel } from "@/components/simulation/SimulateLeftPanel";
 import { Button } from "@/components/ui/button";
 
@@ -32,10 +34,36 @@ const SimulationPanel = dynamic(
 export default function SimulatePage() {
   const waypoints = useMissionStore((s) => s.waypoints);
   const defaultSpeed = usePlannerStore((s) => s.defaultSpeed);
+  const geofenceEnabled = useGeofenceStore((s) => s.enabled);
+  const geofencePolygon = useGeofenceStore((s) => s.polygonPoints);
+  const geofenceCircleCenter = useGeofenceStore((s) => s.circleCenter);
+  const geofenceCircleRadius = useGeofenceStore((s) => s.circleRadius);
+  const geofenceMaxAlt = useGeofenceStore((s) => s.maxAltitude);
   const [panelCollapsed, setPanelCollapsed] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
   const router = useRouter();
 
   useSimulationKeyboard(true);
+
+  // Validate mission
+  const validation = useMemo(() => {
+    if (waypoints.length === 0) return null;
+    return validateMission(waypoints, {
+      geofence: geofenceEnabled
+        ? {
+            polygonPoints: geofencePolygon.length >= 3 ? geofencePolygon : undefined,
+            circleCenter: geofenceCircleCenter ?? undefined,
+            circleRadius: geofenceCircleRadius,
+            maxAltitude: geofenceMaxAlt,
+          }
+        : undefined,
+    });
+  }, [waypoints, geofenceEnabled, geofencePolygon, geofenceCircleCenter, geofenceCircleRadius, geofenceMaxAlt]);
+
+  // Reset banner when waypoints change
+  useEffect(() => {
+    setBannerDismissed(false);
+  }, [waypoints]);
 
   // Reset simulation state on unmount (navigating away)
   useEffect(() => {
@@ -58,6 +86,38 @@ export default function SimulatePage() {
           Edit Plan
         </Button>
       </div>
+
+      {/* Validation warning banner */}
+      {validation && !bannerDismissed && (validation.errors.length > 0 || validation.warnings.length > 0) && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 max-w-md">
+          <div
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg border backdrop-blur-md text-xs font-mono ${
+              validation.errors.length > 0
+                ? "bg-red-500/15 border-red-500/30 text-red-400"
+                : "bg-yellow-500/15 border-yellow-500/30 text-yellow-400"
+            }`}
+          >
+            <AlertTriangle size={14} className="shrink-0" />
+            <span className="flex-1">
+              {validation.errors.length > 0
+                ? `Mission has ${validation.errors.length} error${validation.errors.length > 1 ? "s" : ""}`
+                : `Mission has ${validation.warnings.length} warning${validation.warnings.length > 1 ? "s" : ""}`}
+            </span>
+            <button
+              onClick={() => router.push("/plan")}
+              className="text-accent-primary hover:text-accent-primary/80 whitespace-nowrap cursor-pointer"
+            >
+              Edit Plan
+            </button>
+            <button
+              onClick={() => setBannerDismissed(true)}
+              className="text-text-tertiary hover:text-text-primary cursor-pointer"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 3D Viewer */}
       <SimulationViewer waypoints={waypoints} defaultSpeed={defaultSpeed} />

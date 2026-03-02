@@ -19,4 +19,8 @@ export const MAP_COLORS = {
   background: "#0a0a0f",
   /** Muted text — segment labels. */
   muted: "#9ca3af",
+  /** Geofence / danger boundary — red. */
+  fence: "#ef4444",
+  /** Rally point — orange. */
+  rally: "#f97316",
 } as const;

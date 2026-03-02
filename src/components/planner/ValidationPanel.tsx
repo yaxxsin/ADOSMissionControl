@@ -70,7 +70,15 @@ export function ValidationPanel({
     [onSelectWaypoint],
   );
 
-  if (waypoints.length === 0) return null;
+  if (waypoints.length === 0) {
+    return (
+      <div className="px-3 py-2">
+        <p className="text-[10px] text-text-tertiary font-mono">
+          Add waypoints to validate
+        </p>
+      </div>
+    );
+  }
 
   // Waiting for debounce
   if (!result) {

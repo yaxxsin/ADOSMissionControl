@@ -11,10 +11,10 @@
  */
 
 import type { PatternResult, PatternStats } from "./types";
-
-const DEG_TO_RAD = Math.PI / 180;
-const RAD_TO_DEG = 180 / Math.PI;
-const EARTH_RADIUS = 6371000;
+import {
+  haversineDistance,
+  offsetPoint,
+} from "@/lib/drawing/geo-utils";
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -236,40 +236,6 @@ export function generateParallelTrack(config: ParallelTrackConfig): PatternResul
 }
 
 // ── Helpers ───────────────────────────────────────────────────
-
-function offsetPoint(
-  lat: number,
-  lon: number,
-  bearingDeg: number,
-  distanceMeters: number,
-): [number, number] {
-  const latRad = lat * DEG_TO_RAD;
-  const bearingRad = bearingDeg * DEG_TO_RAD;
-  const angDist = distanceMeters / EARTH_RADIUS;
-  const newLatRad = Math.asin(
-    Math.sin(latRad) * Math.cos(angDist) +
-    Math.cos(latRad) * Math.sin(angDist) * Math.cos(bearingRad)
-  );
-  const newLonRad = lon * DEG_TO_RAD + Math.atan2(
-    Math.sin(bearingRad) * Math.sin(angDist) * Math.cos(latRad),
-    Math.cos(angDist) - Math.sin(latRad) * Math.sin(newLatRad)
-  );
-  return [newLatRad * RAD_TO_DEG, newLonRad * RAD_TO_DEG];
-}
-
-function haversineDistance(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-): number {
-  const dLat = (lat2 - lat1) * DEG_TO_RAD;
-  const dLon = (lon2 - lon1) * DEG_TO_RAD;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * DEG_TO_RAD) * Math.cos(lat2 * DEG_TO_RAD) * Math.sin(dLon / 2) ** 2;
-  return 2 * EARTH_RADIUS * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 function computeStats(
   waypoints: PatternResult["waypoints"],

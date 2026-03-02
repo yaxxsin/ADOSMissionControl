@@ -64,12 +64,27 @@ export interface CorridorConfig {
   speed: number;
 }
 
+// ── SAR patterns (re-exported from sar-generators) ───────────
+
+export type { ExpandingSquareConfig, SectorSearchConfig, ParallelTrackConfig } from "./sar-generators";
+
+// ── Structure scan (re-exported from structure-scan-generator) ─
+
+export type { StructureScanConfig } from "./structure-scan-generator";
+
 // ── Discriminated union config ───────────────────────────────
+
+import type { ExpandingSquareConfig, SectorSearchConfig, ParallelTrackConfig } from "./sar-generators";
+import type { StructureScanConfig } from "./structure-scan-generator";
 
 export type PatternConfig =
   | { type: "survey"; config: SurveyConfig }
   | { type: "orbit"; config: OrbitConfig }
-  | { type: "corridor"; config: CorridorConfig };
+  | { type: "corridor"; config: CorridorConfig }
+  | { type: "expandingSquare"; config: ExpandingSquareConfig }
+  | { type: "sectorSearch"; config: SectorSearchConfig }
+  | { type: "parallelTrack"; config: ParallelTrackConfig }
+  | { type: "structureScan"; config: StructureScanConfig };
 
 // ── Result types ─────────────────────────────────────────────
 

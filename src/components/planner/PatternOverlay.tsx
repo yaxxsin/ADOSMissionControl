@@ -37,17 +37,17 @@ const Marker = dynamic(
   { ssr: false }
 );
 
-const FENCE_COLOR = "#ef4444"; // red
+const FENCE_COLOR = MAP_COLORS.fence;
 const PATTERN_COLOR = MAP_COLORS.accentPrimary;
 const TRANSECT_COLOR = "rgba(58, 130, 255, 0.4)";
-const CAPTURE_DOT_COLOR = "#dff140";
+const CAPTURE_DOT_COLOR = MAP_COLORS.accentSelected;
 
 function makeAreaLabel(text: string): L.DivIcon {
   return L.divIcon({
     className: "",
     iconSize: [120, 20],
     iconAnchor: [60, 10],
-    html: `<div style="font-size:10px;font-family:JetBrains Mono,monospace;color:#3a82ff;white-space:nowrap;text-align:center;background:rgba(10,10,15,0.8);padding:2px 6px;border:1px solid rgba(58,130,255,0.3)">${text}</div>`,
+    html: `<div style="font-size:10px;font-family:JetBrains Mono,monospace;color:${MAP_COLORS.accentPrimary};white-space:nowrap;text-align:center;background:rgba(10,10,15,0.8);padding:2px 6px;border:1px solid rgba(58,130,255,0.3)">${text}</div>`,
   });
 }
 

@@ -40,6 +40,10 @@ const GcsMarker = dynamic(
   () => import("@/components/map/GcsMarker").then((m) => ({ default: m.GcsMarker })),
   { ssr: false }
 );
+const PatternOverlay = dynamic(
+  () => import("@/components/planner/PatternOverlay").then((m) => ({ default: m.PatternOverlay })),
+  { ssr: false }
+);
 
 const DARK_TILES = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
 const ATTRIBUTION =
@@ -77,8 +81,8 @@ function makeRallyIcon(index: number): L.DivIcon {
     iconSize: [22, 22],
     iconAnchor: [11, 11],
     html: `<svg width="22" height="22" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
-      <polygon points="11,2 20,19 2,19" fill="#f97316" stroke="#fafafa" stroke-width="1.2"/>
-      <text x="11" y="16" text-anchor="middle" fill="#fff" font-size="9" font-family="JetBrains Mono, monospace" font-weight="600">R${index + 1}</text>
+      <polygon points="11,2 20,19 2,19" fill="${MAP_COLORS.rally}" stroke="${MAP_COLORS.foreground}" stroke-width="1.2"/>
+      <text x="11" y="16" text-anchor="middle" fill="${MAP_COLORS.foreground}" font-size="9" font-family="JetBrains Mono, monospace" font-weight="600">R${index + 1}</text>
     </svg>`,
   });
 }
@@ -297,6 +301,7 @@ export function PlannerMap({
         ))}
 
         <GcsMarker />
+        <PatternOverlay />
 
         {/* Waypoint markers */}
         {waypoints.map((wp, i) => (

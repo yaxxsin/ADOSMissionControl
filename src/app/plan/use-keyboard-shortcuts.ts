@@ -23,6 +23,9 @@ interface UseKeyboardShortcutsParams {
   handleSaveAs?: () => void;
   handleNewPlan?: () => void;
   handleFocusSearch?: () => void;
+  onTogglePatternEditor?: () => void;
+  onToggleValidation?: () => void;
+  onToggleTerrain?: () => void;
 }
 
 const TOOL_MAP: Record<string, PlannerTool> = {
@@ -48,6 +51,9 @@ export function useKeyboardShortcuts({
   handleSaveAs,
   handleNewPlan,
   handleFocusSearch,
+  onTogglePatternEditor,
+  onToggleValidation,
+  onToggleTerrain,
 }: UseKeyboardShortcutsParams): void {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -66,6 +72,23 @@ export function useKeyboardShortcuts({
         if (tool) {
           e.preventDefault();
           setActiveTool(tool);
+          return;
+        }
+
+        // Panel toggle shortcuts
+        if (e.key.toLowerCase() === "t") {
+          e.preventDefault();
+          onToggleTerrain?.();
+          return;
+        }
+        if (e.key.toLowerCase() === "g") {
+          e.preventDefault();
+          onTogglePatternEditor?.();
+          return;
+        }
+        if (e.key.toLowerCase() === "i") {
+          e.preventDefault();
+          onToggleValidation?.();
           return;
         }
       }
@@ -155,5 +178,8 @@ export function useKeyboardShortcuts({
     handleSaveAs,
     handleNewPlan,
     handleFocusSearch,
+    onTogglePatternEditor,
+    onToggleValidation,
+    onToggleTerrain,
   ]);
 }

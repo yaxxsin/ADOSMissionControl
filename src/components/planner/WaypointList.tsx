@@ -9,6 +9,7 @@
 import { useState, useCallback, useRef } from "react";
 import { Plus } from "lucide-react";
 import { WaypointListItem } from "./WaypointListItem";
+import { usePlannerStore } from "@/stores/planner-store";
 import type { Waypoint } from "@/lib/types";
 
 interface WaypointListProps {
@@ -36,6 +37,22 @@ export function WaypointList({
 }: WaypointListProps) {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const dragIndexRef = useRef<number | null>(null);
+
+  const selectedWaypointIds = usePlannerStore((s) => s.selectedWaypointIds);
+  const toggleWaypointSelection = usePlannerStore((s) => s.toggleWaypointSelection);
+  const selectRange = usePlannerStore((s) => s.selectRange);
+
+  const waypointIds = waypoints.map((wp) => wp.id);
+
+  const handleMultiSelect = useCallback((id: string, e: React.MouseEvent) => {
+    if (e.shiftKey && selectedId) {
+      selectRange(selectedId, id, waypointIds);
+    } else if (e.ctrlKey || e.metaKey) {
+      toggleWaypointSelection(id);
+    } else {
+      onSelect(id);
+    }
+  }, [selectedId, waypointIds, selectRange, toggleWaypointSelection, onSelect]);
 
   const handleDragStart = useCallback((index: number) => (e: React.DragEvent) => {
     dragIndexRef.current = index;
@@ -81,8 +98,9 @@ export function WaypointList({
           index={i}
           expanded={expandedId === wp.id}
           selected={selectedId === wp.id}
+          multiSelected={selectedWaypointIds.includes(wp.id)}
           onToggleExpand={() => onExpand(expandedId === wp.id ? null : wp.id)}
-          onSelect={() => onSelect(wp.id)}
+          onSelect={(e) => handleMultiSelect(wp.id, e)}
           onUpdate={(update) => onUpdate(wp.id, update)}
           onRemove={() => onRemove(wp.id)}
           onDragStart={handleDragStart(i)}

@@ -251,18 +251,8 @@ function generateSinglePass(config: SurveyConfig): PatternResult {
     }
   }
 
-  // Stats
+  // Stats — sum all consecutive segment distances
   let totalDistance = 0;
-  for (let i = 1; i < waypoints.length; i++) {
-    const prev = waypoints[i - 1];
-    const curr = waypoints[i];
-    if (prev.command === "WAYPOINT" || curr.command === "WAYPOINT") {
-      totalDistance += haversineDistance(prev.lat, prev.lon, curr.lat, curr.lon);
-    }
-  }
-
-  // Recalculate more accurately: sum actual segment distances
-  totalDistance = 0;
   for (let i = 1; i < waypoints.length; i++) {
     totalDistance += haversineDistance(
       waypoints[i - 1].lat, waypoints[i - 1].lon,

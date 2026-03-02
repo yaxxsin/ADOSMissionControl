@@ -17,6 +17,8 @@ import { RallyPointEditor } from "@/components/planner/RallyPointEditor";
 import { ValidationPanel } from "@/components/planner/ValidationPanel";
 import { TerrainProfileChart } from "@/components/planner/TerrainProfileChart";
 import { TransformPanel } from "@/components/planner/TransformPanel";
+import { PatternEditor } from "@/components/planner/PatternEditor";
+import { BatchEditor } from "@/components/planner/BatchEditor";
 import { MapToolbar } from "@/components/planner/MapToolbar";
 import { MapContextMenu } from "@/components/planner/MapContextMenu";
 import { MissionStatsBar } from "@/components/planner/MissionStatsBar";
@@ -24,6 +26,7 @@ import { MissionActions } from "@/components/planner/MissionActions";
 import { FlightPlanLibrary } from "@/components/library/FlightPlanLibrary";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
+import { usePlannerStore } from "@/stores/planner-store";
 import { usePlanner } from "./use-planner";
 import { useKeyboardShortcuts } from "./use-keyboard-shortcuts";
 
@@ -38,6 +41,8 @@ const AltitudeProfile = dynamic(
 
 export default function MissionPlannerPage() {
   const p = usePlanner();
+  const selectedWaypointIds = usePlannerStore((s) => s.selectedWaypointIds);
+  const clearMultiSelection = usePlannerStore((s) => s.clearMultiSelection);
 
   useKeyboardShortcuts({
     activeTool: p.activeTool,
@@ -53,6 +58,7 @@ export default function MissionPlannerPage() {
     handleSaveAs: p.handleSaveAs,
     handleNewPlan: p.handleNewPlan,
     handleFocusSearch: p.handleFocusSearch,
+    onToggleTerrain: p.toggleAltProfile,
   });
 
   // Resolve active plan name for the right panel header
@@ -157,6 +163,10 @@ export default function MissionPlannerPage() {
                   />
                 </CollapsibleSection>
 
+                <CollapsibleSection title="Flight Patterns">
+                  <PatternEditor />
+                </CollapsibleSection>
+
                 <CollapsibleSection
                   title="Waypoints"
                   defaultOpen={true}
@@ -183,6 +193,15 @@ export default function MissionPlannerPage() {
                   />
                 </CollapsibleSection>
 
+                {selectedWaypointIds.length >= 2 && (
+                  <CollapsibleSection title="Batch Edit" defaultOpen={true}>
+                    <BatchEditor
+                      selectedIds={selectedWaypointIds}
+                      onClearSelection={clearMultiSelection}
+                    />
+                  </CollapsibleSection>
+                )}
+
                 <CollapsibleSection
                   title="Geofence"
                   trailing={
@@ -200,6 +219,9 @@ export default function MissionPlannerPage() {
                     onMaxAltChange={p.setGeofenceMaxAlt}
                     action={p.geofenceAction}
                     onActionChange={p.setGeofenceAction}
+                    onDrawOnMap={(fenceDrawType) =>
+                      p.setActiveTool(fenceDrawType === "polygon" ? "polygon" : "circle")
+                    }
                   />
                 </CollapsibleSection>
 

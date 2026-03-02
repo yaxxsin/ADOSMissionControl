@@ -8,7 +8,7 @@
 
 - **Stack:** Next.js 16 (App Router) + React 19 + Zustand 5 + Tailwind v4 + TypeScript strict
 - **Protocol:** Custom MAVLink v2 binary parser/encoder, `DroneProtocol` abstraction interface
-- **Stores:** 22 Zustand stores with ring-buffered telemetry
+- **Stores:** 27 Zustand stores with ring-buffered telemetry
 - **FC panels:** 25 configuration panels + 10 shared infra components
 - **MAVLink:** 46 message decoders, 17 MAV_CMD handlers
 - **Firmware:** ArduPilot (full), PX4 (partial), Betaflight/iNav (stubs)

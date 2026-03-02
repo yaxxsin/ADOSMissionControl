@@ -22,6 +22,10 @@ interface PlannerStoreState {
   expandedWaypointId: string | null;
   /** ID of the currently selected waypoint, or null. */
   selectedWaypointId: string | null;
+  /** IDs of waypoints selected for batch editing. */
+  selectedWaypointIds: string[];
+  /** Selection mode for waypoint clicks. */
+  selectionMode: "single" | "multi";
   /** Default altitude (m AGL) for new waypoints. */
   defaultAlt: number;
   /** Default speed (m/s) for new waypoints. */
@@ -35,6 +39,12 @@ interface PlannerStoreState {
   toggleAltProfile: () => void;
   setExpandedWaypoint: (id: string | null) => void;
   setSelectedWaypoint: (id: string | null) => void;
+  /** Toggle a waypoint in multi-selection (Ctrl+click). */
+  toggleWaypointSelection: (id: string) => void;
+  /** Select a range of waypoints between two IDs (Shift+click). Requires waypointIds array. */
+  selectRange: (fromId: string, toId: string, waypointIds: string[]) => void;
+  /** Clear multi-selection. */
+  clearMultiSelection: () => void;
   setDefaults: (defaults: Partial<Pick<PlannerStoreState, "defaultAlt" | "defaultSpeed" | "defaultAcceptRadius" | "defaultFrame">>) => void;
 }
 
@@ -46,6 +56,8 @@ export const usePlannerStore = create<PlannerStoreState>()(
   altProfileCollapsed: true,
   expandedWaypointId: null,
   selectedWaypointId: null,
+  selectedWaypointIds: [],
+  selectionMode: "single",
   defaultAlt: 50,
   defaultSpeed: 5,
   defaultAcceptRadius: 2,
@@ -56,6 +68,25 @@ export const usePlannerStore = create<PlannerStoreState>()(
   toggleAltProfile: () => set((s) => ({ altProfileCollapsed: !s.altProfileCollapsed })),
   setExpandedWaypoint: (expandedWaypointId) => set({ expandedWaypointId }),
   setSelectedWaypoint: (selectedWaypointId) => set({ selectedWaypointId }),
+  toggleWaypointSelection: (id) =>
+    set((s) => {
+      const ids = s.selectedWaypointIds.includes(id)
+        ? s.selectedWaypointIds.filter((x) => x !== id)
+        : [...s.selectedWaypointIds, id];
+      return { selectedWaypointIds: ids, selectionMode: ids.length > 0 ? "multi" : "single" };
+    }),
+  selectRange: (fromId, toId, waypointIds) =>
+    set(() => {
+      const fromIdx = waypointIds.indexOf(fromId);
+      const toIdx = waypointIds.indexOf(toId);
+      if (fromIdx === -1 || toIdx === -1) return {};
+      const start = Math.min(fromIdx, toIdx);
+      const end = Math.max(fromIdx, toIdx);
+      const rangeIds = waypointIds.slice(start, end + 1);
+      return { selectedWaypointIds: rangeIds, selectionMode: "multi" };
+    }),
+  clearMultiSelection: () =>
+    set({ selectedWaypointIds: [], selectionMode: "single" }),
   setDefaults: (defaults) => set((s) => ({ ...s, ...defaults })),
     }),
     {

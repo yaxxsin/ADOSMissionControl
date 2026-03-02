@@ -28,6 +28,7 @@ import {
 import { useDrawingStore } from "@/stores/drawing-store";
 import { useRallyStore } from "@/stores/rally-store";
 import { usePatternStore } from "@/stores/pattern-store";
+import { useGeofenceStore } from "@/stores/geofence-store";
 import type { ContextMenuItem } from "@/components/planner/MapContextMenu";
 import type { SuiteType, Waypoint } from "@/lib/types";
 import type { DrawnPolygon, DrawnCircle } from "@/lib/drawing/types";
@@ -457,18 +458,25 @@ export function usePlanner() {
 
       const patternStore = usePatternStore.getState();
       const patternType = patternStore.activePatternType;
+      const geoStore = useGeofenceStore.getState();
 
       if ("vertices" in shape) {
-        // Polygon drawn — route to survey pattern if active
-        if (patternType === "survey") {
+        // Polygon drawn — route to geofence if enabled, else pattern/generic
+        if (geofenceEnabled && geoStore.fenceType === "polygon") {
+          geoStore.setPolygonPoints(shape.vertices);
+          toast(`Geofence polygon set (${shape.vertices.length} vertices)`, "success");
+        } else if (patternType === "survey") {
           patternStore.updateSurveyConfig({ polygon: shape.vertices });
           toast(`Survey area set (${shape.vertices.length} vertices)`, "success");
         } else {
           toast(`Polygon drawn (${shape.vertices.length} vertices)`, "success");
         }
       } else {
-        // Circle drawn — route to orbit pattern if active
-        if (patternType === "orbit") {
+        // Circle drawn — route to geofence if enabled, else pattern/generic
+        if (geofenceEnabled && geoStore.fenceType === "circle") {
+          geoStore.setCircle(shape.center, shape.radius);
+          toast(`Geofence circle set (r=${Math.round(shape.radius)}m)`, "success");
+        } else if (patternType === "orbit") {
           patternStore.updateOrbitConfig({ center: shape.center, radius: shape.radius });
           toast(`Orbit area set (r=${Math.round(shape.radius)}m)`, "success");
         } else {
@@ -476,7 +484,7 @@ export function usePlanner() {
         }
       }
     },
-    [setActiveTool, toast]
+    [setActiveTool, geofenceEnabled, toast]
   );
 
   /** Apply generated pattern waypoints to the mission. */

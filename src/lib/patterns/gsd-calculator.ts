@@ -42,7 +42,7 @@ export function computeGSD(
   sensorWidth: number,
   imageWidth: number,
 ): number {
-  if (focalLength <= 0 || imageWidth <= 0) return 0;
+  if (altitude < 0 || sensorWidth <= 0 || focalLength <= 0 || imageWidth <= 0) return 0;
   // sensorWidth is in mm, altitude in m => multiply by 0.001 to get m, then cancel
   // GSD (m/px) = (sensorWidth_mm * altitude_m) / (focalLength_mm * imageWidth_px)
   return (sensorWidth * altitude) / (focalLength * imageWidth);

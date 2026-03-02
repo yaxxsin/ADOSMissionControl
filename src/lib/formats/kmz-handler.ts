@@ -53,6 +53,7 @@ function extractKmlFromZip(data: Uint8Array): string | null {
     const dataOffset = offset + 30 + fileNameLength + extraFieldLength;
 
     if (fileName.toLowerCase().endsWith(".kml")) {
+      if (dataOffset + compressedSize > data.length) break;
       const fileData = data.slice(dataOffset, dataOffset + compressedSize);
 
       if (compressionMethod === 0) {

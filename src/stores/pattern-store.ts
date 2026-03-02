@@ -13,22 +13,37 @@ import type {
   CorridorConfig,
   PatternResult,
 } from "@/lib/patterns/types";
+import type { ExpandingSquareConfig, SectorSearchConfig, ParallelTrackConfig } from "@/lib/patterns/sar-generators";
+import type { StructureScanConfig } from "@/lib/patterns/structure-scan-generator";
 import { generateSurvey } from "@/lib/patterns/survey-generator";
 import { generateOrbit } from "@/lib/patterns/orbit-generator";
 import { generateCorridor } from "@/lib/patterns/corridor-generator";
+import { generateExpandingSquare, generateSectorSearch, generateParallelTrack } from "@/lib/patterns/sar-generators";
+import { generateStructureScan } from "@/lib/patterns/structure-scan-generator";
+
+type PatternType = "survey" | "orbit" | "corridor" | "expandingSquare" | "sectorSearch" | "parallelTrack" | "structureScan" | null;
 
 interface PatternStoreState {
-  activePatternType: "survey" | "orbit" | "corridor" | null;
+  activePatternType: PatternType;
   surveyConfig: Partial<SurveyConfig>;
   orbitConfig: Partial<OrbitConfig>;
   corridorConfig: Partial<CorridorConfig>;
+  sarExpandingSquareConfig: Partial<ExpandingSquareConfig>;
+  sarSectorSearchConfig: Partial<SectorSearchConfig>;
+  sarParallelTrackConfig: Partial<ParallelTrackConfig>;
+  structureScanConfig: Partial<StructureScanConfig>;
   patternResult: PatternResult | null;
   isGenerating: boolean;
+  error: string | null;
 
-  setPatternType: (type: "survey" | "orbit" | "corridor" | null) => void;
+  setPatternType: (type: PatternType) => void;
   updateSurveyConfig: (update: Partial<SurveyConfig>) => void;
   updateOrbitConfig: (update: Partial<OrbitConfig>) => void;
   updateCorridorConfig: (update: Partial<CorridorConfig>) => void;
+  updateSarExpandingSquareConfig: (update: Partial<ExpandingSquareConfig>) => void;
+  updateSarSectorSearchConfig: (update: Partial<SectorSearchConfig>) => void;
+  updateSarParallelTrackConfig: (update: Partial<ParallelTrackConfig>) => void;
+  updateStructureScanConfig: (update: Partial<StructureScanConfig>) => void;
   generate: () => void;
   clear: () => void;
 }
@@ -60,16 +75,58 @@ const defaultCorridor: Partial<CorridorConfig> = {
   speed: 5,
 };
 
+const defaultExpandingSquare: Partial<ExpandingSquareConfig> = {
+  legSpacing: 50,
+  maxLegs: 20,
+  altitude: 50,
+  speed: 5,
+  startBearing: 0,
+};
+
+const defaultSectorSearch: Partial<SectorSearchConfig> = {
+  radius: 200,
+  sweeps: 3,
+  altitude: 50,
+  speed: 5,
+  startBearing: 0,
+};
+
+const defaultParallelTrack: Partial<ParallelTrackConfig> = {
+  trackLength: 500,
+  trackSpacing: 50,
+  trackCount: 10,
+  bearing: 0,
+  altitude: 50,
+  speed: 5,
+};
+
+const defaultStructureScan: Partial<StructureScanConfig> = {
+  bottomAlt: 10,
+  topAlt: 50,
+  layerSpacing: 10,
+  scanDistance: 15,
+  gimbalPitch: -30,
+  pointsPerLayer: 16,
+  cameraTriggerDistance: 0,
+  speed: 3,
+  direction: "bottom-up",
+};
+
 export const usePatternStore = create<PatternStoreState>()((set, get) => ({
   activePatternType: null,
   surveyConfig: { ...defaultSurvey },
   orbitConfig: { ...defaultOrbit },
   corridorConfig: { ...defaultCorridor },
+  sarExpandingSquareConfig: { ...defaultExpandingSquare },
+  sarSectorSearchConfig: { ...defaultSectorSearch },
+  sarParallelTrackConfig: { ...defaultParallelTrack },
+  structureScanConfig: { ...defaultStructureScan },
   patternResult: null,
   isGenerating: false,
+  error: null,
 
   setPatternType: (type) =>
-    set({ activePatternType: type, patternResult: null }),
+    set({ activePatternType: type, patternResult: null, error: null }),
 
   updateSurveyConfig: (update) =>
     set((s) => ({ surveyConfig: { ...s.surveyConfig, ...update } })),
@@ -80,11 +137,27 @@ export const usePatternStore = create<PatternStoreState>()((set, get) => ({
   updateCorridorConfig: (update) =>
     set((s) => ({ corridorConfig: { ...s.corridorConfig, ...update } })),
 
+  updateSarExpandingSquareConfig: (update) =>
+    set((s) => ({ sarExpandingSquareConfig: { ...s.sarExpandingSquareConfig, ...update } })),
+
+  updateSarSectorSearchConfig: (update) =>
+    set((s) => ({ sarSectorSearchConfig: { ...s.sarSectorSearchConfig, ...update } })),
+
+  updateSarParallelTrackConfig: (update) =>
+    set((s) => ({ sarParallelTrackConfig: { ...s.sarParallelTrackConfig, ...update } })),
+
+  updateStructureScanConfig: (update) =>
+    set((s) => ({ structureScanConfig: { ...s.structureScanConfig, ...update } })),
+
   generate: () => {
-    const { activePatternType, surveyConfig, orbitConfig, corridorConfig } = get();
+    const {
+      activePatternType, surveyConfig, orbitConfig, corridorConfig,
+      sarExpandingSquareConfig, sarSectorSearchConfig, sarParallelTrackConfig,
+      structureScanConfig,
+    } = get();
     if (!activePatternType) return;
 
-    set({ isGenerating: true });
+    set({ isGenerating: true, error: null });
 
     let result: PatternResult | null = null;
 
@@ -111,12 +184,46 @@ export const usePatternStore = create<PatternStoreState>()((set, get) => ({
           }
           break;
         }
+        case "expandingSquare": {
+          const cfg = sarExpandingSquareConfig as ExpandingSquareConfig;
+          if (cfg.center) {
+            result = generateExpandingSquare(cfg);
+          }
+          break;
+        }
+        case "sectorSearch": {
+          const cfg = sarSectorSearchConfig as SectorSearchConfig;
+          if (cfg.center) {
+            result = generateSectorSearch(cfg);
+          }
+          break;
+        }
+        case "parallelTrack": {
+          const cfg = sarParallelTrackConfig as ParallelTrackConfig;
+          if (cfg.startPoint) {
+            result = generateParallelTrack(cfg);
+          }
+          break;
+        }
+        case "structureScan": {
+          const cfg = structureScanConfig as StructureScanConfig;
+          if (cfg.structurePolygon && cfg.structurePolygon.length >= 3) {
+            result = generateStructureScan(cfg);
+          }
+          break;
+        }
       }
-    } catch {
+    } catch (err) {
       result = null;
+      set({
+        error: err instanceof Error ? err.message : "Pattern generation failed",
+        patternResult: null,
+        isGenerating: false,
+      });
+      return;
     }
 
-    set({ patternResult: result, isGenerating: false });
+    set({ patternResult: result, isGenerating: false, error: null });
   },
 
   clear: () =>
@@ -125,7 +232,12 @@ export const usePatternStore = create<PatternStoreState>()((set, get) => ({
       surveyConfig: { ...defaultSurvey },
       orbitConfig: { ...defaultOrbit },
       corridorConfig: { ...defaultCorridor },
+      sarExpandingSquareConfig: { ...defaultExpandingSquare },
+      sarSectorSearchConfig: { ...defaultSectorSearch },
+      sarParallelTrackConfig: { ...defaultParallelTrack },
+      structureScanConfig: { ...defaultStructureScan },
       patternResult: null,
       isGenerating: false,
+      error: null,
     }),
 }));

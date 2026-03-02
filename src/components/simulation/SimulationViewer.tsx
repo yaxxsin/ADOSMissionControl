@@ -31,6 +31,10 @@ import { FlightPathEntity } from "./FlightPathEntity";
 import { WaypointEntities } from "./WaypointEntities";
 import { DroneEntity } from "./DroneEntity";
 import { GcsEntity } from "./GcsEntity";
+import { CameraTriggerEntities } from "./CameraTriggerEntities";
+import { GeofenceEntities } from "./GeofenceEntities";
+import { RallyPointEntities } from "./RallyPointEntities";
+import { PatternBoundaryEntities } from "./PatternBoundaryEntities";
 import { PlaybackControls } from "./PlaybackControls";
 import { SimulationHUD } from "./SimulationHUD";
 import { CameraModeSelector } from "./CameraModeSelector";
@@ -56,6 +60,7 @@ interface SimulationViewerProps {
 export function SimulationViewer({ waypoints, defaultSpeed }: SimulationViewerProps) {
   const [viewer, setViewer] = useState<CesiumViewer | null>(null);
   const [viewerError, setViewerError] = useState<string | null>(null);
+  const [showCameraTriggers, setShowCameraTriggers] = useState(true);
   const convexAvailable = useConvexAvailable();
   const [cesiumToken, setCesiumToken] = useState<string | undefined>(undefined);
   const handleCesiumToken = useCallback((t: string | null) => {
@@ -176,6 +181,10 @@ export function SimulationViewer({ waypoints, defaultSpeed }: SimulationViewerPr
         useAbsoluteAlt={hasAbsolutePositions}
       />
       <GcsEntity viewer={viewer} />
+      <CameraTriggerEntities viewer={viewer} waypoints={waypoints} visible={showCameraTriggers} />
+      <GeofenceEntities viewer={viewer} />
+      <RallyPointEntities viewer={viewer} />
+      <PatternBoundaryEntities viewer={viewer} />
 
       <CameraModeSelector />
       <MapControlsPanel hasIonToken={!!cesiumToken} />

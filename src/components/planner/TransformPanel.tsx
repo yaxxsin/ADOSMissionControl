@@ -10,6 +10,7 @@ import { useState, useCallback } from "react";
 import { Move, RotateCw, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useMissionStore } from "@/stores/mission-store";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -34,6 +35,9 @@ export function TransformPanel() {
   // Scale controls
   const [scaleFactor, setScaleFactor] = useState(1.5);
 
+  // Confirm dialog
+  const [pendingAction, setPendingAction] = useState<"move" | "rotate" | "scale" | null>(null);
+
   const handleMove = useCallback(() => {
     if (waypoints.length === 0) return;
     const moved = moveMissionByBearing(waypoints, moveBearing, moveDistance);
@@ -54,6 +58,19 @@ export function TransformPanel() {
     setWaypoints(scaled as Waypoint[]);
     toast(`Scaled ${scaleFactor}x`, "success");
   }, [waypoints, scaleFactor, setWaypoints, toast]);
+
+  const confirmTransform = useCallback(() => {
+    if (pendingAction === "move") handleMove();
+    else if (pendingAction === "rotate") handleRotate();
+    else if (pendingAction === "scale") handleScale();
+    setPendingAction(null);
+  }, [pendingAction, handleMove, handleRotate, handleScale]);
+
+  const confirmMessage = pendingAction === "move"
+    ? `Move all ${waypoints.length} waypoints ${moveDistance}m at ${moveBearing}°?`
+    : pendingAction === "rotate"
+      ? `Rotate all ${waypoints.length} waypoints by ${rotateAngle}°?`
+      : `Scale all ${waypoints.length} waypoints by ${scaleFactor}x?`;
 
   const disabled = waypoints.length < 2;
 
@@ -86,7 +103,7 @@ export function TransformPanel() {
             className="flex-1"
             label="Dist (m)"
           />
-          <Button variant="ghost" size="sm" onClick={handleMove} disabled={disabled}>
+          <Button variant="ghost" size="sm" onClick={() => setPendingAction("move")} disabled={disabled}>
             Move
           </Button>
         </div>
@@ -109,7 +126,7 @@ export function TransformPanel() {
             className="flex-1"
             label="Angle °"
           />
-          <Button variant="ghost" size="sm" onClick={handleRotate} disabled={disabled}>
+          <Button variant="ghost" size="sm" onClick={() => setPendingAction("rotate")} disabled={disabled}>
             Rotate
           </Button>
         </div>
@@ -132,7 +149,7 @@ export function TransformPanel() {
             className="flex-1"
             label="Factor"
           />
-          <Button variant="ghost" size="sm" onClick={handleScale} disabled={disabled}>
+          <Button variant="ghost" size="sm" onClick={() => setPendingAction("scale")} disabled={disabled}>
             Scale
           </Button>
         </div>
@@ -143,6 +160,15 @@ export function TransformPanel() {
           Add at least 2 waypoints to use transform tools.
         </p>
       )}
+
+      <ConfirmDialog
+        open={pendingAction !== null}
+        onConfirm={confirmTransform}
+        onCancel={() => setPendingAction(null)}
+        title="Apply Transform"
+        message={confirmMessage}
+        confirmLabel="Apply"
+      />
     </div>
   );
 }

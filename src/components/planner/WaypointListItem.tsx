@@ -73,8 +73,9 @@ interface WaypointListItemProps {
   index: number;
   expanded: boolean;
   selected: boolean;
+  multiSelected?: boolean;
   onToggleExpand: () => void;
-  onSelect: () => void;
+  onSelect: (e: React.MouseEvent) => void;
   onUpdate: (update: Partial<Waypoint>) => void;
   onRemove: () => void;
   onDragStart: (e: React.DragEvent) => void;
@@ -89,6 +90,7 @@ export function WaypointListItem({
   index,
   expanded,
   selected,
+  multiSelected = false,
   onToggleExpand,
   onSelect,
   onUpdate,
@@ -166,6 +168,7 @@ export function WaypointListItem({
       className={cn(
         "border-b border-border-default transition-colors",
         selected && "bg-accent-primary/5",
+        multiSelected && "bg-accent-selected/5",
         dragOver && "border-t-2 border-t-accent-primary"
       )}
     >
@@ -175,6 +178,13 @@ export function WaypointListItem({
         onClick={onSelect}
       >
         <GripVertical size={12} className="text-text-tertiary shrink-0 cursor-grab" />
+
+        {/* Multi-select indicator */}
+        {multiSelected && (
+          <div className="w-3 h-3 border border-accent-primary bg-accent-primary/30 shrink-0 flex items-center justify-center">
+            <div className="w-1.5 h-1.5 bg-accent-primary" />
+          </div>
+        )}
 
         {/* Seq badge */}
         <div className="w-5 h-5 flex items-center justify-center bg-accent-primary text-[10px] font-mono font-semibold text-white shrink-0">

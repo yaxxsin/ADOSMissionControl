@@ -7,7 +7,8 @@
 
 "use client";
 
-import { MapPin, ChevronRight } from "lucide-react";
+import { useState } from "react";
+import { MapPin, ChevronRight, ChevronDown, Mountain } from "lucide-react";
 import type { Waypoint } from "@/lib/types";
 import { formatEta } from "@/lib/simulation-utils";
 import { formatAlt } from "@/lib/telemetry-utils";
@@ -16,6 +17,7 @@ import { useInterpolatedPosition } from "@/hooks/use-interpolated-position";
 import { usePlannerStore } from "@/stores/planner-store";
 import { cn } from "@/lib/utils";
 import { AltitudeProfile } from "./AltitudeProfile";
+import { TerrainProfileChart } from "@/components/planner/TerrainProfileChart";
 
 interface SimulationPanelProps {
   waypoints: Waypoint[];
@@ -30,6 +32,7 @@ export function SimulationPanel({
   const playbackState = useSimulationStore((s) => s.playbackState);
   const setSelectedWaypoint = usePlannerStore((s) => s.setSelectedWaypoint);
   const { pos, flightPlan } = useInterpolatedPosition();
+  const [terrainExpanded, setTerrainExpanded] = useState(false);
 
   return (
     <div className="w-[320px] shrink-0 flex flex-col border-l border-border-default bg-bg-secondary">
@@ -75,6 +78,31 @@ export function SimulationPanel({
         </h3>
         <AltitudeProfile waypoints={waypoints} flightPlan={flightPlan} />
       </div>
+
+      {/* Terrain profile (collapsible) */}
+      {waypoints.length >= 2 && (
+        <div className="border-b border-border-default">
+          <button
+            onClick={() => setTerrainExpanded(!terrainExpanded)}
+            className="w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-bg-tertiary transition-colors"
+          >
+            <Mountain size={12} className="text-text-tertiary" />
+            <span className="text-[10px] font-mono text-text-tertiary uppercase tracking-wider flex-1 text-left">
+              Terrain Profile
+            </span>
+            <ChevronDown
+              size={12}
+              className={cn(
+                "text-text-tertiary transition-transform",
+                terrainExpanded && "rotate-180"
+              )}
+            />
+          </button>
+          {terrainExpanded && (
+            <TerrainProfileChart waypoints={waypoints} />
+          )}
+        </div>
+      )}
 
       {/* Waypoint progress list */}
       <div className="flex-1 overflow-y-auto">
