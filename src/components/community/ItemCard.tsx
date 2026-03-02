@@ -26,7 +26,7 @@ export function ItemCard({ item }: ItemCardProps) {
 
       <Link href={`/community/requests/${item._id}`} className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1 flex-wrap">
-          <h3 className="text-xs font-medium text-text-primary truncate">
+          <h3 className="text-sm font-medium text-text-primary truncate">
             {item.title}
           </h3>
         </div>
@@ -34,12 +34,12 @@ export function ItemCard({ item }: ItemCardProps) {
           <StatusBadge status={item.status} />
           <CategoryBadge category={item.category} />
           {commentCount !== undefined && commentCount > 0 && (
-            <span className="flex items-center gap-0.5 text-[10px] text-text-tertiary">
+            <span className="flex items-center gap-0.5 text-xs text-text-tertiary">
               <MessageSquare size={10} />
               {commentCount}
             </span>
           )}
-          <span className="text-[10px] text-text-tertiary">
+          <span className="text-xs text-text-tertiary">
             {formatDate(item._creationTime)}
           </span>
         </div>

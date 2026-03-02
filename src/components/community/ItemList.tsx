@@ -28,7 +28,7 @@ export function ItemList() {
           <button
             onClick={() => setType("feature")}
             className={cn(
-              "px-3 py-1 text-xs rounded transition-colors",
+              "px-3 py-1 text-sm rounded transition-colors",
               type === "feature"
                 ? "bg-accent-primary/10 text-accent-primary"
                 : "text-text-tertiary hover:text-text-secondary"
@@ -39,7 +39,7 @@ export function ItemList() {
           <button
             onClick={() => setType("bug")}
             className={cn(
-              "px-3 py-1 text-xs rounded transition-colors",
+              "px-3 py-1 text-sm rounded transition-colors",
               type === "bug"
                 ? "bg-status-error/10 text-status-error"
                 : "text-text-tertiary hover:text-text-secondary"
@@ -55,7 +55,7 @@ export function ItemList() {
             <button
               onClick={() => setSort("top")}
               className={cn(
-                "px-2 py-1 text-[10px] rounded transition-colors",
+                "px-2 py-1 text-xs rounded transition-colors",
                 sort === "top"
                   ? "bg-bg-tertiary text-text-primary"
                   : "text-text-tertiary hover:text-text-secondary"
@@ -66,7 +66,7 @@ export function ItemList() {
             <button
               onClick={() => setSort("newest")}
               className={cn(
-                "px-2 py-1 text-[10px] rounded transition-colors",
+                "px-2 py-1 text-xs rounded transition-colors",
                 sort === "newest"
                   ? "bg-bg-tertiary text-text-primary"
                   : "text-text-tertiary hover:text-text-secondary"
@@ -80,7 +80,7 @@ export function ItemList() {
           {isAuthenticated ? (
             <button
               onClick={() => setSubmitOpen(true)}
-              className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-accent-primary text-bg-primary rounded hover:bg-accent-primary/90 transition-colors"
+              className="flex items-center gap-1 px-2 py-1 text-sm font-medium bg-accent-primary text-bg-primary rounded hover:bg-accent-primary/90 transition-colors"
             >
               <Plus size={12} />
               Submit
@@ -88,7 +88,7 @@ export function ItemList() {
           ) : (
             <button
               onClick={() => window.dispatchEvent(new CustomEvent("open-signin"))}
-              className="px-2 py-1 text-xs text-accent-primary hover:underline"
+              className="px-2 py-1 text-sm text-accent-primary hover:underline"
             >
               Sign in to submit
             </button>
@@ -97,11 +97,11 @@ export function ItemList() {
       </div>
 
       {items === undefined ? (
-        <div className="text-xs text-text-tertiary text-center py-8">
+        <div className="text-sm text-text-tertiary text-center py-8">
           Loading requests...
         </div>
       ) : items.length === 0 ? (
-        <div className="text-xs text-text-tertiary text-center py-8">
+        <div className="text-sm text-text-tertiary text-center py-8">
           No {type === "feature" ? "feature requests" : "bug reports"} yet.
         </div>
       ) : (

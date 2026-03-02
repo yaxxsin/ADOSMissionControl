@@ -24,7 +24,7 @@ export function KanbanBoard() {
 
   if (grouped === undefined) {
     return (
-      <div className="flex items-center justify-center h-32 text-xs text-text-tertiary">
+      <div className="flex items-center justify-center h-32 text-sm text-text-tertiary">
         Loading board...
       </div>
     );

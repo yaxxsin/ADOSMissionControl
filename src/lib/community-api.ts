@@ -12,6 +12,7 @@ export const communityApi = {
   changelog: {
     list: makeFunctionReference<"query">("communityChangelog:list"),
     getByVersion: makeFunctionReference<"query">("communityChangelog:getByVersion"),
+    getById: makeFunctionReference<"query">("communityChangelog:getById"),
     create: makeFunctionReference<"mutation">("communityChangelog:create"),
     update: makeFunctionReference<"mutation">("communityChangelog:update"),
     remove: makeFunctionReference<"mutation">("communityChangelog:remove"),

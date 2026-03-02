@@ -32,7 +32,7 @@ export function ChangelogTimeline() {
 
   if (entries === undefined) {
     return (
-      <div className="flex items-center justify-center h-32 text-xs text-text-tertiary">
+      <div className="flex items-center justify-center h-32 text-sm text-text-tertiary">
         Loading changelog...
       </div>
     );
@@ -41,14 +41,14 @@ export function ChangelogTimeline() {
   return (
     <div className="p-4 max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-sm font-medium text-text-primary">Changelog</h2>
+        <h2 className="text-xl font-semibold text-text-primary">Changelog</h2>
         {isAdmin && (
           <button
             onClick={() => {
               setEditingEntry(undefined);
               setEditorOpen(true);
             }}
-            className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-accent-primary text-bg-primary rounded hover:bg-accent-primary/90 transition-colors"
+            className="flex items-center gap-1 px-2 py-1 text-sm font-medium bg-accent-primary text-bg-primary rounded hover:bg-accent-primary/90 transition-colors"
           >
             <Plus size={12} />
             New Release
@@ -57,7 +57,7 @@ export function ChangelogTimeline() {
       </div>
 
       {entries.length === 0 ? (
-        <p className="text-xs text-text-tertiary text-center py-8">
+        <p className="text-sm text-text-tertiary text-center py-8">
           No changelog entries yet.
         </p>
       ) : (

@@ -1,6 +1,9 @@
 "use client";
 
-import { Pencil, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { useQuery } from "convex/react";
+import { Pencil, Trash2, MessageSquare } from "lucide-react";
+import { communityApi } from "@/lib/community-api";
 import { formatDate } from "@/lib/utils";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import type { ChangelogEntry as ChangelogEntryType } from "@/lib/community-types";
@@ -13,6 +16,10 @@ interface ChangelogEntryProps {
 
 export function ChangelogEntry({ entry, onEdit, onDelete }: ChangelogEntryProps) {
   const isAdmin = useIsAdmin();
+  const commentCount = useQuery(communityApi.comments.count, {
+    targetType: "changelog",
+    targetId: entry._id,
+  });
 
   return (
     <div className="relative pl-6 pb-6 border-l border-border-default last:border-l-0">
@@ -40,10 +47,15 @@ export function ChangelogEntry({ entry, onEdit, onDelete }: ChangelogEntryProps)
                 {entry.commitSha?.slice(0, 7)}
               </a>
             )}
-            <h3 className="text-sm font-medium text-text-primary">{entry.title}</h3>
+            <Link
+              href={`/community/changelog/${entry._id}`}
+              className="hover:text-accent-primary transition-colors"
+            >
+              <h3 className="text-base font-medium text-text-primary">{entry.title}</h3>
+            </Link>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            <span className="text-[10px] text-text-tertiary">
+            <span className="text-xs text-text-tertiary">
               {formatDate(entry.commitDate ?? entry.publishedAt)}
             </span>
             {isAdmin && onEdit && onDelete && (
@@ -69,11 +81,11 @@ export function ChangelogEntry({ entry, onEdit, onDelete }: ChangelogEntryProps)
 
         {entry.bodyHtml ? (
           <div
-            className="text-xs text-text-secondary leading-relaxed changelog-body"
+            className="text-sm text-text-secondary leading-relaxed changelog-body"
             dangerouslySetInnerHTML={{ __html: entry.bodyHtml }}
           />
         ) : (
-          <div className="text-xs text-text-secondary whitespace-pre-wrap leading-relaxed">
+          <div className="text-sm text-text-secondary whitespace-pre-wrap leading-relaxed">
             {entry.body}
           </div>
         )}
@@ -89,6 +101,16 @@ export function ChangelogEntry({ entry, onEdit, onDelete }: ChangelogEntryProps)
               </span>
             ))}
           </div>
+        )}
+
+        {typeof commentCount === "number" && commentCount > 0 && (
+          <Link
+            href={`/community/changelog/${entry._id}`}
+            className="inline-flex items-center gap-1 text-xs text-text-tertiary hover:text-text-secondary transition-colors"
+          >
+            <MessageSquare size={12} />
+            {commentCount}
+          </Link>
         )}
       </div>
     </div>

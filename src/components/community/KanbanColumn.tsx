@@ -43,10 +43,10 @@ export function KanbanColumn({ status, items, onDrop }: KanbanColumnProps) {
       )}
     >
       <div className="flex items-center justify-between px-3 py-2 border-b border-border-default">
-        <span className="text-[10px] font-medium text-text-secondary uppercase tracking-wider">
+        <span className="text-xs font-medium text-text-secondary uppercase tracking-wider">
           {statusLabels[status]}
         </span>
-        <span className="text-[10px] font-mono text-text-tertiary">
+        <span className="text-xs font-mono text-text-tertiary">
           {items.length}
         </span>
       </div>
@@ -55,7 +55,7 @@ export function KanbanColumn({ status, items, onDrop }: KanbanColumnProps) {
           <KanbanCard key={item._id} item={item} />
         ))}
         {items.length === 0 && (
-          <p className="text-[10px] text-text-tertiary text-center py-4">
+          <p className="text-xs text-text-tertiary text-center py-4">
             No items
           </p>
         )}

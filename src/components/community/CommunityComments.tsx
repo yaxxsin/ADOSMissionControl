@@ -49,18 +49,18 @@ export function CommunityComments({ targetType, targetId }: CommunityCommentsPro
 
   if (comments === undefined) {
     return (
-      <div className="py-4 text-xs text-text-tertiary">Loading comments...</div>
+      <div className="py-4 text-sm text-text-tertiary">Loading comments...</div>
     );
   }
 
   return (
     <div className="space-y-3">
-      <h3 className="text-xs font-medium text-text-secondary uppercase tracking-wider">
+      <h3 className="text-sm font-medium text-text-secondary uppercase tracking-wider">
         Comments ({comments.length})
       </h3>
 
       {comments.length === 0 && (
-        <p className="text-xs text-text-tertiary py-2">No comments yet.</p>
+        <p className="text-sm text-text-tertiary py-2">No comments yet.</p>
       )}
 
       <div className="space-y-2">
@@ -71,10 +71,10 @@ export function CommunityComments({ targetType, targetId }: CommunityCommentsPro
           >
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-text-primary">
+                <span className="text-sm font-medium text-text-primary">
                   {comment.authorName}
                 </span>
-                <span className="text-[10px] text-text-tertiary">
+                <span className="text-xs text-text-tertiary">
                   {formatDate(comment._creationTime)}
                 </span>
               </div>
@@ -88,7 +88,7 @@ export function CommunityComments({ targetType, targetId }: CommunityCommentsPro
                 </button>
               )}
             </div>
-            <p className="text-xs text-text-secondary whitespace-pre-wrap">
+            <p className="text-sm text-text-secondary whitespace-pre-wrap">
               {comment.body}
             </p>
           </div>
@@ -104,12 +104,12 @@ export function CommunityComments({ targetType, targetId }: CommunityCommentsPro
               onChange={(e) => setBody(e.target.value)}
               placeholder="Add a comment..."
               maxLength={2000}
-              className="flex-1 bg-bg-secondary border border-border-default rounded px-3 py-1.5 text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent-primary"
+              className="flex-1 bg-bg-secondary border border-border-default rounded px-3 py-1.5 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent-primary"
             />
             <button
               type="submit"
               disabled={!body.trim() || submitting}
-              className="px-3 py-1.5 text-xs font-medium bg-accent-primary text-bg-primary rounded hover:bg-accent-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-3 py-1.5 text-sm font-medium bg-accent-primary text-bg-primary rounded hover:bg-accent-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Post
             </button>

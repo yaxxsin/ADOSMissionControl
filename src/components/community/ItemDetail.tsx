@@ -21,7 +21,7 @@ export function ItemDetail({ id }: ItemDetailProps) {
 
   if (item === undefined) {
     return (
-      <div className="flex items-center justify-center h-32 text-xs text-text-tertiary">
+      <div className="flex items-center justify-center h-32 text-sm text-text-tertiary">
         Loading...
       </div>
     );
@@ -30,10 +30,10 @@ export function ItemDetail({ id }: ItemDetailProps) {
   if (item === null) {
     return (
       <div className="flex flex-col items-center justify-center h-32 gap-2">
-        <p className="text-xs text-text-tertiary">Item not found</p>
+        <p className="text-sm text-text-tertiary">Item not found</p>
         <Link
           href="/community/requests"
-          className="text-xs text-accent-primary hover:underline"
+          className="text-sm text-accent-primary hover:underline"
         >
           Back to requests
         </Link>
@@ -47,7 +47,7 @@ export function ItemDetail({ id }: ItemDetailProps) {
     <div className="p-4 max-w-2xl mx-auto space-y-4">
       <Link
         href="/community/requests"
-        className="flex items-center gap-1 text-xs text-text-tertiary hover:text-text-secondary transition-colors"
+        className="flex items-center gap-1 text-sm text-text-tertiary hover:text-text-secondary transition-colors"
       >
         <ArrowLeft size={12} />
         Back to requests
@@ -58,38 +58,38 @@ export function ItemDetail({ id }: ItemDetailProps) {
 
         <div className="flex-1 min-w-0 space-y-3">
           <div>
-            <h1 className="text-sm font-medium text-text-primary mb-2">
+            <h1 className="text-lg font-medium text-text-primary mb-2">
               {typedItem.title}
             </h1>
             <div className="flex items-center gap-2 flex-wrap">
               <StatusBadge status={typedItem.status} />
               <CategoryBadge category={typedItem.category} />
-              <span className="text-[10px] text-text-tertiary">
+              <span className="text-xs text-text-tertiary">
                 by {typedItem.authorName || "Unknown"}
               </span>
-              <span className="text-[10px] text-text-tertiary">
+              <span className="text-xs text-text-tertiary">
                 {formatDate(typedItem._creationTime)}
               </span>
               {typedItem.type === "bug" && (
-                <span className="px-1.5 py-0.5 text-[10px] font-medium bg-status-error/10 text-status-error rounded">
+                <span className="px-1.5 py-0.5 text-xs font-medium bg-status-error/10 text-status-error rounded">
                   Bug
                 </span>
               )}
             </div>
           </div>
 
-          <div className="text-xs text-text-secondary whitespace-pre-wrap leading-relaxed bg-bg-secondary border border-border-default rounded p-3">
+          <div className="text-sm text-text-secondary whitespace-pre-wrap leading-relaxed bg-bg-secondary border border-border-default rounded p-3">
             {typedItem.body}
           </div>
 
           {typedItem.eta && (
-            <p className="text-[10px] text-text-tertiary">
+            <p className="text-xs text-text-tertiary">
               ETA: {typedItem.eta}
             </p>
           )}
 
           {typedItem.resolvedVersion && (
-            <p className="text-[10px] text-text-tertiary">
+            <p className="text-xs text-text-tertiary">
               Resolved in {typedItem.resolvedVersion}
             </p>
           )}

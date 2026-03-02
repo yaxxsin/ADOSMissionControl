@@ -17,7 +17,7 @@ export function KanbanCard({ item }: KanbanCardProps) {
       }}
       className="bg-bg-primary border border-border-default rounded p-2 cursor-grab active:cursor-grabbing hover:border-border-hover transition-colors"
     >
-      <p className="text-[11px] text-text-primary mb-1.5 line-clamp-2">
+      <p className="text-xs text-text-primary mb-1.5 line-clamp-2">
         {item.title}
       </p>
       <div className="flex items-center justify-between">
@@ -27,9 +27,9 @@ export function KanbanCard({ item }: KanbanCardProps) {
           ) : (
             <Lightbulb size={10} className="text-accent-primary" />
           )}
-          <span className="text-[10px] text-text-tertiary capitalize">{item.type}</span>
+          <span className="text-[11px] text-text-tertiary capitalize">{item.type}</span>
         </div>
-        <div className="flex items-center gap-0.5 text-[10px] text-text-tertiary">
+        <div className="flex items-center gap-0.5 text-[11px] text-text-tertiary">
           <ChevronUp size={10} />
           {item.upvoteCount}
         </div>

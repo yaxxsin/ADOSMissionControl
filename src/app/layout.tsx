@@ -8,6 +8,10 @@ import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 export const metadata: Metadata = {
   title: "ADOS Mission Control",
   description: "Open-source Ground Control Station by Altnautica",
+  icons: {
+    icon: "/favicon.svg",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({

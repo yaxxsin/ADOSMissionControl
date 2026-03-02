@@ -17,7 +17,7 @@ export function RoadmapView() {
 
   if (grouped === undefined) {
     return (
-      <div className="flex items-center justify-center h-32 text-xs text-text-tertiary">
+      <div className="flex items-center justify-center h-32 text-sm text-text-tertiary">
         Loading roadmap...
       </div>
     );
@@ -25,14 +25,14 @@ export function RoadmapView() {
 
   return (
     <div className="p-4 max-w-3xl mx-auto space-y-6">
-      <h2 className="text-sm font-medium text-text-primary">Roadmap</h2>
+      <h2 className="text-xl font-semibold text-text-primary">Roadmap</h2>
 
       {sections.map(({ status, label, color }) => {
         const items = (grouped[status] || []) as CommunityItem[];
         return (
           <div key={status}>
             <div className={`border-l-2 ${color} pl-3 mb-3`}>
-              <h3 className="text-xs font-medium text-text-secondary uppercase tracking-wider">
+              <h3 className="text-sm font-medium text-text-secondary uppercase tracking-wider">
                 {label}
                 <span className="ml-2 text-text-tertiary font-normal">
                   ({items.length})
@@ -41,7 +41,7 @@ export function RoadmapView() {
             </div>
 
             {items.length === 0 ? (
-              <p className="text-[10px] text-text-tertiary pl-5 py-2">
+              <p className="text-xs text-text-tertiary pl-5 py-2">
                 Nothing here yet.
               </p>
             ) : (
@@ -51,17 +51,17 @@ export function RoadmapView() {
                     key={item._id}
                     className="bg-bg-secondary border border-border-default rounded p-3 space-y-1.5"
                   >
-                    <h4 className="text-xs font-medium text-text-primary">
+                    <h4 className="text-sm font-medium text-text-primary">
                       {item.title}
                     </h4>
                     <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-0.5 text-[10px] text-text-tertiary">
+                      <div className="flex items-center gap-0.5 text-xs text-text-tertiary">
                         <ChevronUp size={10} />
                         {item.upvoteCount}
                       </div>
                       <CategoryBadge category={item.category} />
                       {item.eta && (
-                        <span className="text-[10px] text-text-tertiary">
+                        <span className="text-xs text-text-tertiary">
                           ETA: {item.eta}
                         </span>
                       )}

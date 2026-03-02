@@ -52,7 +52,7 @@ export function ContactForm() {
   if (success) {
     return (
       <div className="max-w-2xl mx-auto p-6">
-        <div className="text-xs text-status-success bg-status-success/10 px-4 py-3 rounded">
+        <div className="text-sm text-status-success bg-status-success/10 px-4 py-3 rounded">
           <p className="font-medium">Message sent.</p>
           <p className="mt-1 text-status-success/80">
             We&apos;ll get back to you as soon as we can.
@@ -60,7 +60,7 @@ export function ContactForm() {
         </div>
         <button
           onClick={() => setSuccess(false)}
-          className="mt-4 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors"
+          className="mt-4 px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors"
         >
           Send another message
         </button>
@@ -70,8 +70,8 @@ export function ContactForm() {
 
   return (
     <div className="max-w-2xl mx-auto p-6">
-      <h1 className="text-sm font-medium text-text-primary mb-1">Contact</h1>
-      <p className="text-xs text-text-tertiary mb-6">
+      <h1 className="text-xl font-semibold text-text-primary mb-1">Contact</h1>
+      <p className="text-sm text-text-tertiary mb-6">
         Send a message to the Altnautica team.
       </p>
 
@@ -83,7 +83,7 @@ export function ContactForm() {
         )}
 
         <div>
-          <label className="text-[10px] text-text-tertiary block mb-1">
+          <label className="text-xs text-text-tertiary block mb-1">
             Name
           </label>
           <input
@@ -92,12 +92,12 @@ export function ContactForm() {
             onChange={(e) => setName(e.target.value)}
             placeholder="Your name"
             maxLength={100}
-            className="w-full bg-bg-primary border border-border-default rounded px-3 py-1.5 text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent-primary"
+            className="w-full bg-bg-primary border border-border-default rounded px-3 py-1.5 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent-primary"
           />
         </div>
 
         <div>
-          <label className="text-[10px] text-text-tertiary block mb-1">
+          <label className="text-xs text-text-tertiary block mb-1">
             Email
           </label>
           <input
@@ -106,12 +106,12 @@ export function ContactForm() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
             maxLength={200}
-            className="w-full bg-bg-primary border border-border-default rounded px-3 py-1.5 text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent-primary"
+            className="w-full bg-bg-primary border border-border-default rounded px-3 py-1.5 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent-primary"
           />
         </div>
 
         <div>
-          <label className="text-[10px] text-text-tertiary block mb-1">
+          <label className="text-xs text-text-tertiary block mb-1">
             Subject{" "}
             <span className="text-text-tertiary/60">(optional)</span>
           </label>
@@ -121,12 +121,12 @@ export function ContactForm() {
             onChange={(e) => setSubject(e.target.value)}
             placeholder="What's this about?"
             maxLength={200}
-            className="w-full bg-bg-primary border border-border-default rounded px-3 py-1.5 text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent-primary"
+            className="w-full bg-bg-primary border border-border-default rounded px-3 py-1.5 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent-primary"
           />
         </div>
 
         <div>
-          <label className="text-[10px] text-text-tertiary block mb-1">
+          <label className="text-xs text-text-tertiary block mb-1">
             Message
           </label>
           <textarea
@@ -135,7 +135,7 @@ export function ContactForm() {
             rows={6}
             maxLength={5000}
             placeholder="Your message..."
-            className="w-full bg-bg-primary border border-border-default rounded px-3 py-1.5 text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent-primary resize-y"
+            className="w-full bg-bg-primary border border-border-default rounded px-3 py-1.5 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent-primary resize-y"
           />
         </div>
 
@@ -143,7 +143,7 @@ export function ContactForm() {
           <button
             type="submit"
             disabled={submitting}
-            className="px-3 py-1.5 text-xs font-medium bg-accent-primary text-bg-primary rounded hover:bg-accent-primary/90 disabled:opacity-50 transition-colors"
+            className="px-3 py-1.5 text-sm font-medium bg-accent-primary text-bg-primary rounded hover:bg-accent-primary/90 disabled:opacity-50 transition-colors"
           >
             {submitting ? "Sending..." : "Send Message"}
           </button>
