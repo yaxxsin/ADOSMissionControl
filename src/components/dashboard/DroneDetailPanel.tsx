@@ -15,6 +15,7 @@ import { DroneConfigureTab } from "@/components/drone-detail/DroneConfigureTab";
 import { CalibrationPanel } from "@/components/fc/CalibrationPanel";
 import { ParametersPanel } from "@/components/fc/ParametersPanel";
 import { X, RotateCcw, Trash2 } from "lucide-react";
+import { useUiStore } from "@/stores/ui-store";
 
 const TABS = [
   { id: "overview", label: "Overview" },
@@ -41,7 +42,17 @@ export function DroneDetailPanel({ droneId, onClose }: DroneDetailPanelProps) {
   const managedDrones = useDroneManager((s) => s.drones);
   const isConnected = managedDrones.has(droneId);
 
+  const immersiveMode = useUiStore((s) => s.immersiveMode);
+  const exitImmersiveMode = useUiStore((s) => s.exitImmersiveMode);
+
   const displayName = metadata?.displayName ?? drone?.name ?? droneId;
+
+  // Exit immersive mode if tab changes away from overview
+  useEffect(() => {
+    if (immersiveMode && activeTab !== "overview") {
+      exitImmersiveMode();
+    }
+  }, [activeTab, immersiveMode, exitImmersiveMode]);
 
   // Select this drone in drone-manager so getSelectedProtocol() returns the right protocol
   useEffect(() => {
@@ -80,57 +91,59 @@ export function DroneDetailPanel({ droneId, onClose }: DroneDetailPanelProps) {
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
       {/* Merged header + tabs bar */}
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border-default bg-bg-secondary flex-shrink-0">
-        <h1 className="text-sm font-semibold text-text-primary shrink-0">{displayName}</h1>
-        <DroneStatusBadge status={drone.status} />
-        <Button
-          variant="ghost"
-          size="sm"
-          icon={<X size={14} />}
-          onClick={onClose}
-        />
-
-        <div className="w-px h-5 bg-border-default shrink-0" />
-
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              "px-2.5 py-1.5 text-xs font-medium transition-colors cursor-pointer shrink-0",
-              activeTab === tab.id
-                ? "text-accent-primary border-b-2 border-accent-primary"
-                : "text-text-secondary hover:text-text-primary"
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-
-        <span className="text-[10px] font-mono text-text-tertiary ml-auto shrink-0">
-          ID: {drone.id}
-        </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          icon={<Trash2 size={12} />}
-          onClick={() => setDeleteOpen(true)}
-          className="text-status-error hover:text-status-error"
-        />
-        {isConnected && (
+      {!immersiveMode && (
+        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border-default bg-bg-secondary flex-shrink-0">
+          <h1 className="text-sm font-semibold text-text-primary shrink-0">{displayName}</h1>
+          <DroneStatusBadge status={drone.status} />
           <Button
-            variant="danger"
+            variant="ghost"
             size="sm"
-            icon={<RotateCcw size={12} />}
-            onClick={() => {
-              const protocol = useDroneManager.getState().getSelectedProtocol();
-              if (protocol) protocol.reboot();
-            }}
-          >
-            Reboot FC
-          </Button>
-        )}
-      </div>
+            icon={<X size={14} />}
+            onClick={onClose}
+          />
+
+          <div className="w-px h-5 bg-border-default shrink-0" />
+
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "px-2.5 py-1.5 text-xs font-medium transition-colors cursor-pointer shrink-0",
+                activeTab === tab.id
+                  ? "text-accent-primary border-b-2 border-accent-primary"
+                  : "text-text-secondary hover:text-text-primary"
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+
+          <span className="text-[10px] font-mono text-text-tertiary ml-auto shrink-0">
+            ID: {drone.id}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={<Trash2 size={12} />}
+            onClick={() => setDeleteOpen(true)}
+            className="text-status-error hover:text-status-error"
+          />
+          {isConnected && (
+            <Button
+              variant="danger"
+              size="sm"
+              icon={<RotateCcw size={12} />}
+              onClick={() => {
+                const protocol = useDroneManager.getState().getSelectedProtocol();
+                if (protocol) protocol.reboot();
+              }}
+            >
+              Reboot FC
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Tab content */}
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col">

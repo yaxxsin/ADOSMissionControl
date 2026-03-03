@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Settings, AlertTriangle, LogOut, CloudOff, Zap } from "lucide-react";
+import { Settings, AlertTriangle, LogOut, CloudOff, Zap, Minimize2 } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
 import { CommandNav } from "./CommandNav";
 import { DemoProvider } from "./DemoProvider";
@@ -14,6 +14,7 @@ import { useDroneManager } from "@/stores/drone-manager";
 import { useAuthStore } from "@/stores/auth-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { LocalStorageBanner } from "@/components/ui/local-storage-banner";
+import { useUiStore } from "@/stores/ui-store";
 import { SignInModal } from "@/components/auth/SignInModal";
 import { ConnectDialog } from "@/components/connect/ConnectDialog";
 import { WelcomeModal } from "@/components/onboarding/WelcomeModal";
@@ -40,6 +41,8 @@ export function CommandShell({ children }: { children: React.ReactNode }) {
   const syncStatus = useAuthStore((s) => s.syncStatus);
   const lastSyncedAt = useAuthStore((s) => s.lastSyncedAt);
   const authSignOut = useAuthStore((s) => s.signOut);
+  const immersiveMode = useUiStore((s) => s.immersiveMode);
+  const exitImmersiveMode = useUiStore((s) => s.exitImmersiveMode);
   const [signInOpen, setSignInOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
@@ -50,6 +53,16 @@ export function CommandShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("open-signin", handler);
   }, []);
 
+  // Escape key exits immersive mode
+  useEffect(() => {
+    if (!immersiveMode) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") exitImmersiveMode();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [immersiveMode, exitImmersiveMode]);
+
   return (
     <div className="flex flex-col h-dvh">
       {/* Welcome onboarding modal */}
@@ -58,8 +71,19 @@ export function CommandShell({ children }: { children: React.ReactNode }) {
       {/* Changelog "What's New" notification modal */}
       <ChangelogNotificationGate />
 
+      {/* Immersive mode exit button */}
+      {immersiveMode && (
+        <button
+          onClick={exitImmersiveMode}
+          className="fixed top-3 right-3 z-50 p-1.5 bg-bg-secondary/80 border border-border-default text-text-tertiary hover:text-text-primary transition-colors backdrop-blur-sm"
+          title="Exit immersive mode (Esc)"
+        >
+          <Minimize2 size={14} />
+        </button>
+      )}
+
       {/* Top bar */}
-      <header className={cn(
+      {!immersiveMode && <header className={cn(
         "h-12 flex items-center justify-between px-4 bg-bg-secondary border-b border-border-default shrink-0",
         isElectron && isMac && "pl-[76px]",
         isElectron && isWindows && "pr-[140px]",
@@ -204,10 +228,10 @@ export function CommandShell({ children }: { children: React.ReactNode }) {
             </Link>
           </Tooltip>
         </div>
-      </header>
+      </header>}
 
       {/* Local storage warning banner */}
-      <LocalStorageBanner onSignIn={() => setSignInOpen(true)} />
+      {!immersiveMode && <LocalStorageBanner onSignIn={() => setSignInOpen(true)} />}
 
       {/* Sign-in modal */}
       <SignInModal open={signInOpen} onClose={() => setSignInOpen(false)} />

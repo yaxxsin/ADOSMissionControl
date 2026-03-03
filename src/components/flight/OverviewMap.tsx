@@ -35,6 +35,22 @@ function createDroneIcon(heading: number): L.DivIcon {
   });
 }
 
+/** Tells Leaflet to recalculate its size when the container resizes. */
+function MapResizer() {
+  const map = useMap();
+
+  useEffect(() => {
+    const container = map.getContainer();
+    const observer = new ResizeObserver(() => {
+      map.invalidateSize();
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [map]);
+
+  return null;
+}
+
 /** Auto-follows the drone position on the map. */
 function MapFollower({ position, follow }: { position: [number, number] | null; follow: boolean }) {
   const map = useMap();
@@ -99,6 +115,7 @@ export function OverviewMap() {
       >
         <TileLayer url={DARK_TILES} attribution={ATTRIBUTION} />
 
+        <MapResizer />
         <MapFollower position={dronePos} follow={follow} />
 
         {/* Trail polyline */}

@@ -17,6 +17,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { FlightModeSelector } from "@/components/shared/flight-mode-selector";
 import { useDroneStore } from "@/stores/drone-store";
 import { useDroneManager } from "@/stores/drone-manager";
+import { useFlightShortcuts } from "@/hooks/use-flight-shortcuts";
+
 
 export function ActionsPanel() {
   const armState = useDroneStore((s) => s.armState);
@@ -36,6 +38,13 @@ export function ActionsPanel() {
   const isArmed = armState === "armed";
   const protocol = getProtocol();
 
+  useFlightShortcuts({
+    enabled: true,
+    onRthConfirm: () => setShowRthConfirm(true),
+    onAbortConfirm: () => setShowAbortConfirm(true),
+    takeoffAlt,
+  });
+
   // Kill switch countdown
   useEffect(() => {
     if (!showKillFinal) {
@@ -49,178 +58,166 @@ export function ActionsPanel() {
 
   return (
     <>
-      <div className="px-3 py-3 border-t border-border-default flex flex-col gap-1.5">
-        {/* ARM / DISARM */}
-        <Tooltip
-          content={isArmed ? "Disarm motors \u2014 cut throttle output" : "Arm motors \u2014 enable throttle output"}
-          position="right"
-        >
-          <Button
-            variant={isArmed ? "danger" : "primary"}
-            size="sm"
-            icon={<Power size={14} />}
-            className="w-full h-9 text-sm"
-            onClick={() => {
-              if (protocol) {
-                if (isArmed) protocol.disarm();
-                else protocol.arm();
-              } else {
-                setArmState(isArmed ? "disarmed" : "armed");
-              }
-            }}
-          >
-            {isArmed ? "DISARM" : "ARM"}
-          </Button>
-        </Tooltip>
-
-        {/* TAKEOFF + altitude input */}
-        <div className="flex items-center gap-2">
-          <Tooltip content="Arm and takeoff to target altitude" position="right">
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<ArrowUpFromLine size={14} />}
-              className="flex-1"
-              onClick={() => {
-                const alt = parseFloat(takeoffAlt);
-                if (isNaN(alt) || alt <= 0) return;
-                if (protocol) {
-                  if (!isArmed) protocol.arm();
-                  protocol.takeoff(alt);
-                }
-              }}
+      <div className="px-3 pt-3 pb-1.5 border-t border-border-default bg-bg-secondary flex flex-col gap-1.5">
+        <div className="flex items-center gap-1.5">
+          {/* ARM / DISARM */}
+          <div className="flex-1 [&>*]:w-full">
+            <Tooltip
+              content={isArmed ? "Disarm (Shift+A)" : "Arm (Shift+A)"}
+              position="right"
             >
-              TAKEOFF
-            </Button>
-          </Tooltip>
-          <Tooltip content="Takeoff altitude in meters (1\u2013120m)" position="right">
-            <div className="flex items-center gap-1">
+              <Button
+                variant={isArmed ? "danger" : "primary"}
+                size="sm"
+                icon={<Power size={14} />}
+                className="w-full h-9 text-sm"
+                onClick={() => {
+                  if (protocol) {
+                    if (isArmed) protocol.disarm();
+                    else protocol.arm();
+                  } else {
+                    setArmState(isArmed ? "disarmed" : "armed");
+                  }
+                }}
+              >
+                {isArmed ? "DISARM" : "ARM"}
+              </Button>
+            </Tooltip>
+          </div>
+
+          {/* Flight mode selector */}
+          <div className="flex-1">
+            <FlightModeSelector
+              value={flightMode}
+              onChange={(mode) => {
+                if (protocol) protocol.setFlightMode(mode);
+                else setFlightMode(mode);
+              }}
+              className="w-full h-9"
+            />
+          </div>
+        </div>
+
+        {/* All action buttons */}
+        <div className="flex items-center gap-1">
+          <div className="flex-1 [&>*]:w-full">
+            {flightMode === "AUTO" ? (
+              <Tooltip content="Pause mission (Shift+P)" position="right">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full"
+                  icon={<Pause size={14} />}
+                  onClick={() => {
+                    if (protocol) protocol.pauseMission();
+                    else setFlightMode("LOITER");
+                  }}
+                />
+              </Tooltip>
+            ) : flightMode === "LOITER" && previousMode === "AUTO" ? (
+              <Tooltip content="Resume mission (Shift+P)" position="right">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full"
+                  icon={<Play size={14} />}
+                  onClick={() => {
+                    if (protocol) protocol.resumeMission();
+                    else setFlightMode("AUTO");
+                  }}
+                />
+              </Tooltip>
+            ) : (
+              <Tooltip content="Hold position (Shift+P)" position="right">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full"
+                  icon={<Pause size={14} />}
+                  onClick={() => {
+                    if (protocol) protocol.setFlightMode("LOITER");
+                    else setFlightMode("LOITER");
+                  }}
+                />
+              </Tooltip>
+            )}
+          </div>
+          <div className="flex-1 [&>*]:w-full">
+            <Tooltip content="Return to home (Shift+R)" position="right">
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Home size={14} />}
+                className="w-full text-status-warning border-status-warning/30"
+                onClick={() => setShowRthConfirm(true)}
+              />
+            </Tooltip>
+          </div>
+          <div className="flex-1 [&>*]:w-full">
+            <Tooltip content="Takeoff altitude (1\u2013120m)" position="right">
               <input
                 type="number"
                 value={takeoffAlt}
                 onChange={(e) => setTakeoffAlt(e.target.value)}
-                className="w-16 h-7 px-2 bg-bg-tertiary border border-border-default text-xs font-mono text-text-primary text-center focus:outline-none focus:border-accent-primary"
+                className="w-full h-7 px-1 bg-bg-tertiary border border-border-default text-xs font-mono text-text-primary text-center focus:outline-none focus:border-accent-primary"
                 min="1"
                 max="120"
                 step="1"
               />
-              <span className="text-[10px] text-text-tertiary font-mono">m</span>
-            </div>
-          </Tooltip>
-        </div>
-
-        {/* Flight mode selector */}
-        <div>
-          <FlightModeSelector
-            value={flightMode}
-            onChange={(mode) => {
-              if (protocol) protocol.setFlightMode(mode);
-              else setFlightMode(mode);
-            }}
-            className="w-full"
-          />
-        </div>
-
-        {/* NAVIGATION — RTH / LAND / HOLD */}
-        <div className="flex items-center gap-1.5">
-          <Tooltip content="Return to home position" position="right">
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<Home size={14} />}
-              className="flex-1 text-status-warning border-status-warning/30"
-              onClick={() => setShowRthConfirm(true)}
-            >
-              RTH
-            </Button>
-          </Tooltip>
-          <Tooltip content="Land at current position" position="right">
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<ArrowDownToLine size={14} />}
-              className="flex-1"
-              onClick={() => {
-                if (protocol) protocol.land();
-                else setFlightMode("LAND");
-              }}
-            >
-              LAND
-            </Button>
-          </Tooltip>
-          {/* Context-aware HOLD/PAUSE/RESUME */}
-          {flightMode === "AUTO" ? (
-            <Tooltip content="Pause mission and hold position" position="right">
+            </Tooltip>
+          </div>
+          <div className="flex-1 [&>*]:w-full">
+            <Tooltip content="Takeoff (Shift+T)" position="right">
               <Button
                 variant="secondary"
                 size="sm"
-                icon={<Pause size={14} />}
-                className="flex-1"
+                className="w-full"
+                icon={<ArrowUpFromLine size={14} />}
                 onClick={() => {
-                  if (protocol) protocol.pauseMission();
-                  else setFlightMode("LOITER");
+                  const alt = parseFloat(takeoffAlt);
+                  if (isNaN(alt) || alt <= 0) return;
+                  if (protocol) {
+                    if (!isArmed) protocol.arm();
+                    protocol.takeoff(alt);
+                  }
                 }}
-              >
-                PAUSE
-              </Button>
+              />
             </Tooltip>
-          ) : flightMode === "LOITER" && previousMode === "AUTO" ? (
-            <Tooltip content="Resume paused mission" position="right">
+          </div>
+          <div className="flex-1 [&>*]:w-full">
+            <Tooltip content="Land (Shift+L)" position="left">
               <Button
                 variant="secondary"
                 size="sm"
-                icon={<Play size={14} />}
-                className="flex-1"
+                className="w-full"
+                icon={<ArrowDownToLine size={14} />}
                 onClick={() => {
-                  if (protocol) protocol.resumeMission();
-                  else setFlightMode("AUTO");
+                  if (protocol) protocol.land();
+                  else setFlightMode("LAND");
                 }}
-              >
-                RESUME
-              </Button>
+              />
             </Tooltip>
-          ) : (
-            <Tooltip content="Hold position and altitude" position="right">
-              <Button
-                variant="secondary"
-                size="sm"
-                icon={<Pause size={14} />}
-                className="flex-1"
-                onClick={() => {
-                  if (protocol) protocol.setFlightMode("LOITER");
-                  else setFlightMode("LOITER");
-                }}
-              >
-                HOLD
-              </Button>
-            </Tooltip>
-          )}
-        </div>
-
-        {/* EMERGENCY — danger zone tint */}
-        <div className="bg-status-error/5 p-1.5 rounded">
-          <div className="flex items-center gap-1.5">
-            <Tooltip content="Emergency land and disarm" position="right">
+          </div>
+          <div className="flex-1 [&>*]:w-full">
+            <Tooltip content="Abort (Shift+X)" position="left">
               <Button
                 variant="danger"
                 size="sm"
+                className="w-full"
                 icon={<XOctagon size={14} />}
-                className="flex-1"
                 onClick={() => setShowAbortConfirm(true)}
-              >
-                ABORT
-              </Button>
+              />
             </Tooltip>
-            <Tooltip content="Cut all motors immediately" position="right">
+          </div>
+          <div className="flex-1 [&>*]:w-full">
+            <Tooltip content="Kill motors" position="left">
               <Button
                 variant="danger"
                 size="sm"
                 icon={<Skull size={14} />}
-                className="flex-1 bg-red-800 hover:bg-red-700 border-red-600"
+                className="w-full bg-red-800 hover:bg-red-700 border-red-600"
                 onClick={() => setShowKillConfirm(true)}
-              >
-                KILL
-              </Button>
+              />
             </Tooltip>
           </div>
         </div>

@@ -1,3 +1,9 @@
+/**
+ * @deprecated Unused since FlightControlsBar was removed from the Fly tab.
+ * All flight actions live in ActionsPanel (left sidebar) with keyboard shortcuts.
+ * Retained for potential fullscreen or mobile layouts.
+ */
+
 "use client";
 
 import { useState, useEffect, useRef } from "react";
