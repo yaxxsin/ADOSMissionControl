@@ -295,7 +295,7 @@ export function usePanelParams(
       onEvent?.({ type: "error", message: "Error writing to flash" });
       return false;
     }
-  }, [getProtocol, commitFlashStore, onEvent]);
+  }, [getProtocol, commitFlashStore, panelId, onEvent]);
 
   const revert = useCallback(
     (name: string) => {

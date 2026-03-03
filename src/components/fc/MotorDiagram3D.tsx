@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useMemo, useCallback, memo, Component, type ReactNode } from "react";
+import { useRef, useState, useMemo, memo, Component, type ReactNode } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, Html, Environment } from "@react-three/drei";
 import * as THREE from "three";
@@ -387,7 +387,7 @@ function AttitudeHUD() {
 function DroneScene({ layout }: { layout: FrameLayout }) {
   const [hoveredMotor, setHoveredMotor] = useState<number | null>(null);
   const droneGroupRef = useRef<Group>(null);
-  const hasGyroData = useRef(false);
+  const [isGyroActive, setIsGyroActive] = useState(false);
 
   const coaxOffsets = useMemo(
     () => buildCoaxialOffsets(layout.motors),
@@ -403,11 +403,11 @@ function DroneScene({ layout }: { layout: FrameLayout }) {
     const latest = attitude.latest();
 
     if (!latest) {
-      hasGyroData.current = false;
+      if (isGyroActive) setIsGyroActive(false);
       return;
     }
 
-    hasGyroData.current = true;
+    if (!isGyroActive) setIsGyroActive(true);
 
     // Roll = rotation around Z axis (nose-forward)
     // Pitch = rotation around X axis
@@ -513,7 +513,7 @@ function DroneScene({ layout }: { layout: FrameLayout }) {
 
       {/* Controls — auto-rotate when no gyro data */}
       <OrbitControls
-        autoRotate={!hasGyroData.current}
+        autoRotate={!isGyroActive}
         autoRotateSpeed={0.8}
         enableDamping
         dampingFactor={0.1}

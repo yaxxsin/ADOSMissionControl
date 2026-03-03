@@ -18,7 +18,6 @@ import {
   FRAME_CLASS_DESCRIPTIONS,
   FRAME_CLASS_NOTES,
   FRAME_TYPE_DESCRIPTIONS,
-  type FrameLayout,
 } from "@/lib/motor-layouts";
 import { Select } from "@/components/ui/select";
 import { Save, HardDrive, Box, Zap, Info, Trash2 } from "lucide-react";
@@ -347,7 +346,7 @@ export function FramePanel() {
         </div>
 
         {/* Right column — Config Log */}
-        <div className="w-[280px] shrink-0 border-l border-border-default bg-bg-secondary overflow-hidden flex flex-col hidden xl:flex">
+        <div className="w-[280px] shrink-0 border-l border-border-default bg-bg-secondary overflow-hidden flex-col hidden xl:flex">
           <div className="flex items-center justify-between px-3 py-2 border-b border-border-default">
             <h3 className="text-xs font-medium text-text-primary">Config Log</h3>
             <button
