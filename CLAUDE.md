@@ -74,6 +74,8 @@ These are non-negotiable. Violating any of these will break the codebase or wast
 
 11. **All dropdowns use `<Select>` from `@/components/ui/select`** — Never use native `<select>` elements. The custom component renders a portal dropdown with keyboard navigation, viewport-aware positioning, and dark theme styling. For large option lists (>15 items), enable `searchable`. For options that benefit from explanation, add `description` to option objects. For categorized options, use `SelectOptionGroup[]`. All option values must be strings.
 
+12. **Real hardware first** — Never assume demo mode, mock data, or SITL as the default environment. The primary test target is real flight controller hardware (SpeedyBee F405, real ArduPilot). Debug with real connections. Demo mode exists for UI development only.
+
 ---
 
 ## Checklist: New FC Panel

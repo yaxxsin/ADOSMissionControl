@@ -74,8 +74,8 @@ export function PanelHeader({
           </div>
         )}
 
-        {/* Read from FC / Refresh button */}
-        {connected && !loading && !hasLoaded && (
+        {/* Read from FC / Retry / Refresh button */}
+        {connected && !loading && !hasLoaded && !error && (
           <Button
             variant="primary"
             size="sm"
@@ -83,6 +83,16 @@ export function PanelHeader({
             onClick={onRead}
           >
             Read from FC
+          </Button>
+        )}
+        {connected && !loading && !hasLoaded && error && (
+          <Button
+            variant="primary"
+            size="sm"
+            icon={<Download size={12} />}
+            onClick={onRead}
+          >
+            Retry
           </Button>
         )}
         {connected && !loading && hasLoaded && (

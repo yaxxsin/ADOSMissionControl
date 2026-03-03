@@ -17,6 +17,8 @@ export interface MotorPosition {
   roll: number;
   /** Pitch coefficient — maps to Y axis (forward/up = positive). */
   pitch: number;
+  /** True for yaw servos (e.g., Tri motor 7). Not counted as a motor. */
+  isServo?: boolean;
 }
 
 export interface FrameLayout {
@@ -85,6 +87,33 @@ export const FRAME_TYPE_DESCRIPTIONS: Record<number, string> = {
   16: "NYT Plus configuration.",
   17: "NYT X configuration.",
   18: "X layout with reversed motor directions.",
+};
+
+// ── Frame Class Descriptions ─────────────────────────────────
+
+export const FRAME_CLASS_DESCRIPTIONS: Record<number, string> = {
+  0: "Not configured",
+  1: "4 motors, standard multirotor",
+  2: "6 motors, single-plane hexagonal",
+  3: "8 motors, single-plane octagonal",
+  4: "8 motors, coaxial pairs on 4 arms",
+  5: "6 motors on 3 arms, coaxial pairs",
+  6: "Traditional helicopter, single main rotor",
+  7: "3 motors + 1 yaw servo",
+  8: "Single motor with control vanes",
+  9: "2 coaxial motors, no swashplate",
+  10: "2 tilting motors",
+  11: "Tandem or intermeshing dual-rotor helicopter",
+  12: "12 motors, coaxial hex configuration",
+  13: "4-rotor helicopter with collective pitch",
+  14: "10 motors, single-plane decagonal",
+};
+
+// ── Frame Class Notes ────────────────────────────────────────
+
+export const FRAME_CLASS_NOTES: Record<number, string> = {
+  7: "ArduPilot ignores FRAME_TYPE for Tricopter. All types use the same motor layout.",
+  5: "Most FRAME_TYPE values for Y6 use the same layout. Only Y6B (10) and Y6F (11) differ.",
 };
 
 // ── Layout Data (75 layouts from APMotorLayout.json) ──────────
@@ -618,7 +647,7 @@ const LAYOUTS: FrameLayout[] = [
       { number: 1, testOrder: 1, rotation: "?", roll: -1, pitch: 0.5 },
       { number: 2, testOrder: 4, rotation: "?", roll: 1, pitch: 0.5 },
       { number: 4, testOrder: 2, rotation: "?", roll: 0, pitch: -1 },
-      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0 },
+      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0, isServo: true },
     ],
   },
   { frameClass: 7, className: "Tri", frameType: 1, typeName: "Default",
@@ -626,7 +655,7 @@ const LAYOUTS: FrameLayout[] = [
       { number: 1, testOrder: 1, rotation: "?", roll: -1, pitch: 0.5 },
       { number: 2, testOrder: 4, rotation: "?", roll: 1, pitch: 0.5 },
       { number: 4, testOrder: 2, rotation: "?", roll: 0, pitch: -1 },
-      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0 },
+      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0, isServo: true },
     ],
   },
   { frameClass: 7, className: "Tri", frameType: 2, typeName: "Default",
@@ -634,7 +663,7 @@ const LAYOUTS: FrameLayout[] = [
       { number: 1, testOrder: 1, rotation: "?", roll: -1, pitch: 0.5 },
       { number: 2, testOrder: 4, rotation: "?", roll: 1, pitch: 0.5 },
       { number: 4, testOrder: 2, rotation: "?", roll: 0, pitch: -1 },
-      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0 },
+      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0, isServo: true },
     ],
   },
   { frameClass: 7, className: "Tri", frameType: 3, typeName: "Default",
@@ -642,7 +671,7 @@ const LAYOUTS: FrameLayout[] = [
       { number: 1, testOrder: 1, rotation: "?", roll: -1, pitch: 0.5 },
       { number: 2, testOrder: 4, rotation: "?", roll: 1, pitch: 0.5 },
       { number: 4, testOrder: 2, rotation: "?", roll: 0, pitch: -1 },
-      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0 },
+      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0, isServo: true },
     ],
   },
   { frameClass: 7, className: "Tri", frameType: 4, typeName: "Default",
@@ -650,7 +679,7 @@ const LAYOUTS: FrameLayout[] = [
       { number: 1, testOrder: 1, rotation: "?", roll: -1, pitch: 0.5 },
       { number: 2, testOrder: 4, rotation: "?", roll: 1, pitch: 0.5 },
       { number: 4, testOrder: 2, rotation: "?", roll: 0, pitch: -1 },
-      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0 },
+      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0, isServo: true },
     ],
   },
   { frameClass: 7, className: "Tri", frameType: 5, typeName: "Default",
@@ -658,7 +687,7 @@ const LAYOUTS: FrameLayout[] = [
       { number: 1, testOrder: 1, rotation: "?", roll: -1, pitch: 0.5 },
       { number: 2, testOrder: 4, rotation: "?", roll: 1, pitch: 0.5 },
       { number: 4, testOrder: 2, rotation: "?", roll: 0, pitch: -1 },
-      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0 },
+      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0, isServo: true },
     ],
   },
   { frameClass: 7, className: "Tri", frameType: 6, typeName: "Pitch Reversed",
@@ -666,7 +695,7 @@ const LAYOUTS: FrameLayout[] = [
       { number: 1, testOrder: 3, rotation: "?", roll: -1, pitch: -0.5 },
       { number: 2, testOrder: 4, rotation: "?", roll: 1, pitch: -0.5 },
       { number: 4, testOrder: 1, rotation: "?", roll: 0, pitch: 1 },
-      { number: 7, testOrder: 2, rotation: "?", roll: 0, pitch: 0 },
+      { number: 7, testOrder: 2, rotation: "?", roll: 0, pitch: 0, isServo: true },
     ],
   },
   { frameClass: 7, className: "Tri", frameType: 7, typeName: "Default",
@@ -674,7 +703,7 @@ const LAYOUTS: FrameLayout[] = [
       { number: 1, testOrder: 1, rotation: "?", roll: -1, pitch: 0.5 },
       { number: 2, testOrder: 4, rotation: "?", roll: 1, pitch: 0.5 },
       { number: 4, testOrder: 2, rotation: "?", roll: 0, pitch: -1 },
-      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0 },
+      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0, isServo: true },
     ],
   },
   { frameClass: 7, className: "Tri", frameType: 8, typeName: "Default",
@@ -682,7 +711,7 @@ const LAYOUTS: FrameLayout[] = [
       { number: 1, testOrder: 1, rotation: "?", roll: -1, pitch: 0.5 },
       { number: 2, testOrder: 4, rotation: "?", roll: 1, pitch: 0.5 },
       { number: 4, testOrder: 2, rotation: "?", roll: 0, pitch: -1 },
-      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0 },
+      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0, isServo: true },
     ],
   },
   { frameClass: 7, className: "Tri", frameType: 9, typeName: "Default",
@@ -690,7 +719,7 @@ const LAYOUTS: FrameLayout[] = [
       { number: 1, testOrder: 1, rotation: "?", roll: -1, pitch: 0.5 },
       { number: 2, testOrder: 4, rotation: "?", roll: 1, pitch: 0.5 },
       { number: 4, testOrder: 2, rotation: "?", roll: 0, pitch: -1 },
-      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0 },
+      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0, isServo: true },
     ],
   },
   { frameClass: 7, className: "Tri", frameType: 10, typeName: "Default",
@@ -698,7 +727,7 @@ const LAYOUTS: FrameLayout[] = [
       { number: 1, testOrder: 1, rotation: "?", roll: -1, pitch: 0.5 },
       { number: 2, testOrder: 4, rotation: "?", roll: 1, pitch: 0.5 },
       { number: 4, testOrder: 2, rotation: "?", roll: 0, pitch: -1 },
-      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0 },
+      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0, isServo: true },
     ],
   },
   { frameClass: 7, className: "Tri", frameType: 11, typeName: "Default",
@@ -706,7 +735,7 @@ const LAYOUTS: FrameLayout[] = [
       { number: 1, testOrder: 1, rotation: "?", roll: -1, pitch: 0.5 },
       { number: 2, testOrder: 4, rotation: "?", roll: 1, pitch: 0.5 },
       { number: 4, testOrder: 2, rotation: "?", roll: 0, pitch: -1 },
-      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0 },
+      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0, isServo: true },
     ],
   },
   { frameClass: 7, className: "Tri", frameType: 12, typeName: "Default",
@@ -714,7 +743,7 @@ const LAYOUTS: FrameLayout[] = [
       { number: 1, testOrder: 1, rotation: "?", roll: -1, pitch: 0.5 },
       { number: 2, testOrder: 4, rotation: "?", roll: 1, pitch: 0.5 },
       { number: 4, testOrder: 2, rotation: "?", roll: 0, pitch: -1 },
-      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0 },
+      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0, isServo: true },
     ],
   },
   { frameClass: 7, className: "Tri", frameType: 13, typeName: "Default",
@@ -722,7 +751,7 @@ const LAYOUTS: FrameLayout[] = [
       { number: 1, testOrder: 1, rotation: "?", roll: -1, pitch: 0.5 },
       { number: 2, testOrder: 4, rotation: "?", roll: 1, pitch: 0.5 },
       { number: 4, testOrder: 2, rotation: "?", roll: 0, pitch: -1 },
-      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0 },
+      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0, isServo: true },
     ],
   },
   { frameClass: 7, className: "Tri", frameType: 14, typeName: "Default",
@@ -730,7 +759,7 @@ const LAYOUTS: FrameLayout[] = [
       { number: 1, testOrder: 1, rotation: "?", roll: -1, pitch: 0.5 },
       { number: 2, testOrder: 4, rotation: "?", roll: 1, pitch: 0.5 },
       { number: 4, testOrder: 2, rotation: "?", roll: 0, pitch: -1 },
-      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0 },
+      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0, isServo: true },
     ],
   },
   { frameClass: 7, className: "Tri", frameType: 15, typeName: "Default",
@@ -738,7 +767,7 @@ const LAYOUTS: FrameLayout[] = [
       { number: 1, testOrder: 1, rotation: "?", roll: -1, pitch: 0.5 },
       { number: 2, testOrder: 4, rotation: "?", roll: 1, pitch: 0.5 },
       { number: 4, testOrder: 2, rotation: "?", roll: 0, pitch: -1 },
-      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0 },
+      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0, isServo: true },
     ],
   },
   { frameClass: 7, className: "Tri", frameType: 16, typeName: "Default",
@@ -746,7 +775,7 @@ const LAYOUTS: FrameLayout[] = [
       { number: 1, testOrder: 1, rotation: "?", roll: -1, pitch: 0.5 },
       { number: 2, testOrder: 4, rotation: "?", roll: 1, pitch: 0.5 },
       { number: 4, testOrder: 2, rotation: "?", roll: 0, pitch: -1 },
-      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0 },
+      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0, isServo: true },
     ],
   },
   { frameClass: 7, className: "Tri", frameType: 17, typeName: "Default",
@@ -754,7 +783,7 @@ const LAYOUTS: FrameLayout[] = [
       { number: 1, testOrder: 1, rotation: "?", roll: -1, pitch: 0.5 },
       { number: 2, testOrder: 4, rotation: "?", roll: 1, pitch: 0.5 },
       { number: 4, testOrder: 2, rotation: "?", roll: 0, pitch: -1 },
-      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0 },
+      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0, isServo: true },
     ],
   },
   { frameClass: 7, className: "Tri", frameType: 18, typeName: "Default",
@@ -762,7 +791,7 @@ const LAYOUTS: FrameLayout[] = [
       { number: 1, testOrder: 1, rotation: "?", roll: -1, pitch: 0.5 },
       { number: 2, testOrder: 4, rotation: "?", roll: 1, pitch: 0.5 },
       { number: 4, testOrder: 2, rotation: "?", roll: 0, pitch: -1 },
-      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0 },
+      { number: 7, testOrder: 3, rotation: "?", roll: 0, pitch: 0, isServo: true },
     ],
   },
 
@@ -883,4 +912,83 @@ export function getTypesForClass(frameClass: number): { value: number; name: str
   return Array.from(seen.entries())
     .sort((a, b) => a[0] - b[0])
     .map(([value, name]) => ({ value, name }));
+}
+
+// ── Motor Count Helpers ──────────────────────────────────────
+
+/** Count actual motors (excludes servos). */
+export function getMotorCount(layout: FrameLayout): number {
+  return layout.motors.filter((m) => !m.isServo).length;
+}
+
+/** Count servos in a layout. */
+export function getServoCount(layout: FrameLayout): number {
+  return layout.motors.filter((m) => m.isServo).length;
+}
+
+/** Format motor count as human-readable string, e.g. "3 motors + 1 servo". */
+export function formatMotorCount(layout: FrameLayout): string {
+  const motors = getMotorCount(layout);
+  const servos = getServoCount(layout);
+  if (servos === 0) return `${motors} motors`;
+  return `${motors} motor${motors !== 1 ? "s" : ""} + ${servos} servo${servos !== 1 ? "s" : ""}`;
+}
+
+// ── Dedup Helpers ────────────────────────────────────────────
+
+export interface UniqueFrameType {
+  /** The representative frame type value (lowest number in the group). */
+  value: number;
+  /** Display name for this type. */
+  name: string;
+  /** Optional description from FRAME_TYPE_DESCRIPTIONS. */
+  description?: string;
+  /** All frame type numbers that share the same motor data. */
+  duplicateTypes: number[];
+}
+
+/** Serialize motor data for comparison (ignores frameType/typeName). */
+function motorDataKey(layout: FrameLayout): string {
+  return layout.motors
+    .map((m) => `${m.number}:${m.testOrder}:${m.rotation}:${m.roll}:${m.pitch}:${m.isServo ?? false}`)
+    .sort()
+    .join("|");
+}
+
+/**
+ * Get unique frame types for a class, grouping types with identical motor data.
+ * Collapses e.g. Tri from 19 entries to 2 (Default + Pitch Reversed),
+ * and Y6 from 19 entries to 3 (Default + Y6B + Y6F).
+ */
+export function getUniqueTypesForClass(frameClass: number): UniqueFrameType[] {
+  const classLayouts = LAYOUTS.filter((l) => l.frameClass === frameClass);
+  if (classLayouts.length === 0) return [];
+
+  // Group by motor data fingerprint
+  const groups = new Map<string, FrameLayout[]>();
+  for (const layout of classLayouts) {
+    const key = motorDataKey(layout);
+    const existing = groups.get(key);
+    if (existing) {
+      existing.push(layout);
+    } else {
+      groups.set(key, [layout]);
+    }
+  }
+
+  // Convert to UniqueFrameType entries
+  const result: UniqueFrameType[] = [];
+  for (const layouts of groups.values()) {
+    // Sort by frame type number, use the lowest as representative
+    layouts.sort((a, b) => a.frameType - b.frameType);
+    const rep = layouts[0];
+    result.push({
+      value: rep.frameType,
+      name: rep.typeName,
+      description: FRAME_TYPE_DESCRIPTIONS[rep.frameType],
+      duplicateTypes: layouts.map((l) => l.frameType),
+    });
+  }
+
+  return result.sort((a, b) => a.value - b.value);
 }

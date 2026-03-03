@@ -25,6 +25,8 @@
     "@fontsource/inter": "^5.2.8",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@fontsource/space-grotesk": "^5.2.10",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.5.0",
     "cesium": "^1.138.0",
     "convex": "^1.32.0",
     "electron-updater": "^6.0.0",
@@ -37,6 +39,7 @@
     "react-dom": "19.2.3",
     "react-leaflet": "^5.0.0",
     "recharts": "^2.15.3",
+    "three": "^0.183.2",
     "zustand": "^5.0.5"
   },
   "devDependencies": {
@@ -47,6 +50,7 @@
     "@types/pako": "^2.0.4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/three": "^0.183.1",
     "commander": "^13.1.0",
     "electron": "^35.0.0",
     "electron-builder": "^26.0.0",
