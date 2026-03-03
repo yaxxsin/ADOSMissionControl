@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { usePanelParams } from "@/hooks/use-panel-params";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { useArmedLock } from "@/hooks/use-armed-lock";
@@ -10,25 +10,20 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import {
   getMotorLayout,
+  getTypesForClass,
   FRAME_CLASS_NAMES,
-  FRAME_TYPE_NAMES,
+  FRAME_TYPE_DESCRIPTIONS,
   type FrameLayout,
   type MotorPosition,
 } from "@/lib/motor-layouts";
 import { Select } from "@/components/ui/select";
 import { Save, HardDrive, Box, Zap } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 // ── Constants ────────────────────────────────────────────────
 
 const FRAME_PARAMS = ["FRAME_CLASS", "FRAME_TYPE"];
 
 const FRAME_CLASS_OPTIONS = Object.entries(FRAME_CLASS_NAMES).map(([value, label]) => ({
-  value: String(Number(value)),
-  label: `${Number(value)} — ${label}`,
-}));
-
-const FRAME_TYPE_OPTIONS = Object.entries(FRAME_TYPE_NAMES).map(([value, label]) => ({
   value: String(Number(value)),
   label: `${Number(value)} — ${label}`,
 }));
@@ -66,14 +61,36 @@ export function FramePanel() {
   const frameType = params.get("FRAME_TYPE") ?? 1;
   const hasDirty = dirtyParams.size > 0;
 
+  // Filtered type options for the selected class
+  const frameTypeOptions = useMemo(() => {
+    const types = getTypesForClass(frameClass);
+    if (types.length === 0) {
+      // Fallback: show all known types if class has no layout data
+      return [{ value: "0", label: "0 — Plus" }];
+    }
+    return types.map(({ value, name }) => ({
+      value: String(value),
+      label: `${value} — ${name}`,
+    }));
+  }, [frameClass]);
+
+  // Auto-reset FRAME_TYPE when the selected class changes and current type is invalid
+  useEffect(() => {
+    const validTypes = getTypesForClass(frameClass);
+    if (validTypes.length > 0 && !validTypes.some((t) => t.value === frameType)) {
+      setLocalValue("FRAME_TYPE", validTypes[0].value);
+    }
+  }, [frameClass, frameType, setLocalValue]);
+
   const layout = useMemo(
     () => getMotorLayout(frameClass, frameType),
     [frameClass, frameType],
   );
 
   const className = FRAME_CLASS_NAMES[frameClass] ?? "Unknown";
-  const typeName = FRAME_TYPE_NAMES[frameType] ?? "Unknown";
+  const typeName = layout?.typeName ?? "Unknown";
   const motorCount = layout?.motors.length ?? 0;
+  const typeDescription = FRAME_TYPE_DESCRIPTIONS[frameType];
 
   // ── Save / Flash ───────────────────────────────────────────
 
@@ -129,12 +146,17 @@ export function FramePanel() {
               />
               <Select
                 label="FRAME_TYPE"
-                options={FRAME_TYPE_OPTIONS}
+                options={frameTypeOptions}
                 value={String(frameType)}
                 onChange={(v) => setLocalValue("FRAME_TYPE", Number(v))}
                 disabled={isLocked}
               />
             </div>
+            {typeDescription && (
+              <p className="text-[10px] text-text-tertiary mt-2">
+                {typeDescription}
+              </p>
+            )}
           </Card>
 
           {/* Motor Layout Diagram */}
@@ -230,89 +252,190 @@ function Card({
  * Roll → X axis (right = positive), Pitch → Y axis (up = positive, SVG inverted).
  */
 function MotorDiagram({ layout }: { layout: FrameLayout }) {
-  const size = 200;
+  const size = 280;
   const cx = size / 2;
   const cy = size / 2;
-  const scale = 140; // coefficient range is roughly -0.5 to 0.5
   const motorRadius = 14;
 
-  return (
-    <div className="flex justify-center py-2">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {/* Center cross (vehicle body) */}
-        <line x1={cx - 8} y1={cy} x2={cx + 8} y2={cy} stroke="var(--text-tertiary)" strokeWidth={1} />
-        <line x1={cx} y1={cy - 8} x2={cx} y2={cy + 8} stroke="var(--text-tertiary)" strokeWidth={1} />
+  // Compute scale from the actual motor position range
+  const maxCoord = layout.motors.reduce(
+    (max, m) => Math.max(max, Math.abs(m.roll), Math.abs(m.pitch)),
+    0.5,
+  );
+  const scale = (size / 2 - motorRadius - 30) / maxCoord;
 
-        {/* Forward arrow */}
-        <polygon
-          points={`${cx},${cy - 70} ${cx - 5},${cy - 60} ${cx + 5},${cy - 60}`}
+  // Check if any motors have unknown rotation
+  const hasUnknown = layout.motors.some((m) => m.rotation === "?");
+
+  // Detect if this is a yaw servo (Tri motor 7 at center)
+  const isTriWithServo = layout.frameClass === 7;
+
+  return (
+    <div className="flex flex-col items-center gap-2 py-2">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        {/* Arrowhead markers */}
+        <defs>
+          <marker id="arrow-cw" markerWidth="4" markerHeight="4" refX="2" refY="2" orient="auto">
+            <path d="M0,0 L4,2 L0,4 Z" fill="var(--accent-primary)" />
+          </marker>
+          <marker id="arrow-ccw" markerWidth="4" markerHeight="4" refX="2" refY="2" orient="auto">
+            <path d="M0,0 L4,2 L0,4 Z" fill="var(--accent-secondary, var(--accent-primary))" />
+          </marker>
+        </defs>
+
+        {/* Center body outline */}
+        <rect
+          x={cx - 16} y={cy - 16} width={32} height={32} rx={6}
+          fill="var(--bg-tertiary)" stroke="var(--border-default)" strokeWidth={1}
+        />
+
+        {/* Forward indicator */}
+        <text
+          x={cx} y={cy - scale * maxCoord - 18}
+          textAnchor="middle" fontSize={8} fontFamily="var(--font-mono)"
           fill="var(--text-tertiary)"
-          opacity={0.5}
+        >
+          FWD
+        </text>
+        <polygon
+          points={`${cx},${cy - scale * maxCoord - 8} ${cx - 4},${cy - scale * maxCoord - 1} ${cx + 4},${cy - scale * maxCoord - 1}`}
+          fill="var(--text-tertiary)"
+          opacity={0.6}
         />
 
         {/* Motor arms + circles */}
         {layout.motors.map((motor) => {
           const mx = cx + motor.roll * scale;
-          const my = cy - motor.pitch * scale; // invert Y for SVG
+          const my = cy - motor.pitch * scale;
+          const isUnknown = motor.rotation === "?";
           const isCW = motor.rotation === "CW";
+          const isServo = isTriWithServo && motor.number === 7;
+
+          // Servo at center: render differently
+          if (isServo) {
+            return (
+              <g key={`servo-${motor.number}`}>
+                <rect
+                  x={mx - 8} y={my - 6} width={16} height={12} rx={2}
+                  fill="var(--bg-tertiary)"
+                  stroke="var(--text-tertiary)"
+                  strokeWidth={1}
+                  strokeDasharray="3 2"
+                />
+                <text
+                  x={mx} y={my + 1}
+                  textAnchor="middle" dominantBaseline="central"
+                  fontSize={7} fontFamily="var(--font-mono)"
+                  fill="var(--text-tertiary)"
+                >
+                  SRV
+                </text>
+                {/* Test order badge */}
+                <circle cx={mx - 12} cy={my + 10} r={6} fill="var(--bg-tertiary)" stroke="var(--border-default)" strokeWidth={0.5} />
+                <text
+                  x={mx - 12} y={my + 10}
+                  textAnchor="middle" dominantBaseline="central"
+                  fontSize={7} fontFamily="var(--font-mono)" fill="var(--text-tertiary)"
+                >
+                  {motor.testOrder}
+                </text>
+              </g>
+            );
+          }
 
           return (
-            <g key={motor.number}>
+            <g key={motor.number} opacity={isUnknown ? 0.7 : 1}>
               {/* Arm line */}
               <line
-                x1={cx}
-                y1={cy}
-                x2={mx}
-                y2={my}
-                stroke="var(--border-default)"
-                strokeWidth={1.5}
+                x1={cx} y1={cy} x2={mx} y2={my}
+                stroke="var(--border-default)" strokeWidth={1.5}
               />
               {/* Motor circle */}
               <circle
-                cx={mx}
-                cy={my}
-                r={motorRadius}
-                fill={isCW ? "var(--accent-primary)" : "var(--accent-secondary, var(--accent-primary))"}
-                opacity={0.15}
-                stroke={isCW ? "var(--accent-primary)" : "var(--accent-secondary, var(--accent-primary))"}
+                cx={mx} cy={my} r={motorRadius}
+                fill={isUnknown
+                  ? "var(--bg-tertiary)"
+                  : isCW ? "var(--accent-primary)" : "var(--accent-secondary, var(--accent-primary))"
+                }
+                opacity={isUnknown ? 0.3 : 0.15}
+                stroke={isUnknown
+                  ? "var(--text-tertiary)"
+                  : isCW ? "var(--accent-primary)" : "var(--accent-secondary, var(--accent-primary))"
+                }
                 strokeWidth={1.5}
+                strokeDasharray={isUnknown ? "3 2" : "none"}
               />
-              {/* Rotation indicator arc */}
-              <path
-                d={rotationArc(mx, my, motorRadius - 3, isCW)}
-                fill="none"
-                stroke={isCW ? "var(--accent-primary)" : "var(--accent-secondary, var(--accent-primary))"}
-                strokeWidth={1}
-                opacity={0.6}
-                markerEnd="none"
-              />
+              {/* Rotation indicator arc (skip for unknown) */}
+              {!isUnknown && (
+                <path
+                  d={rotationArc(mx, my, motorRadius - 3, isCW)}
+                  fill="none"
+                  stroke={isCW ? "var(--accent-primary)" : "var(--accent-secondary, var(--accent-primary))"}
+                  strokeWidth={1}
+                  opacity={0.6}
+                  markerEnd={isCW ? "url(#arrow-cw)" : "url(#arrow-ccw)"}
+                />
+              )}
               {/* Motor number */}
               <text
-                x={mx}
-                y={my}
-                textAnchor="middle"
-                dominantBaseline="central"
-                fontSize={10}
-                fontFamily="var(--font-mono)"
+                x={mx} y={my}
+                textAnchor="middle" dominantBaseline="central"
+                fontSize={10} fontFamily="var(--font-mono)"
                 fill="var(--text-primary)"
               >
                 {motor.number}
               </text>
               {/* CW/CCW label */}
               <text
-                x={mx}
-                y={my + motorRadius + 8}
-                textAnchor="middle"
-                fontSize={7}
-                fontFamily="var(--font-mono)"
+                x={mx} y={my + motorRadius + 8}
+                textAnchor="middle" fontSize={7} fontFamily="var(--font-mono)"
                 fill="var(--text-tertiary)"
               >
                 {motor.rotation}
+              </text>
+              {/* Test order badge */}
+              <circle
+                cx={mx - motorRadius + 2} cy={my + motorRadius + 2}
+                r={6} fill="var(--bg-tertiary)" stroke="var(--border-default)" strokeWidth={0.5}
+              />
+              <text
+                x={mx - motorRadius + 2} y={my + motorRadius + 2}
+                textAnchor="middle" dominantBaseline="central"
+                fontSize={7} fontFamily="var(--font-mono)" fill="var(--text-tertiary)"
+              >
+                {motor.testOrder}
               </text>
             </g>
           );
         })}
       </svg>
+
+      {/* Legend */}
+      <div className="flex items-center justify-center gap-4 text-[10px] text-text-tertiary">
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-accent-primary" /> CW
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full" style={{ background: "var(--accent-secondary, var(--accent-primary))" }} /> CCW
+        </span>
+        {hasUnknown && (
+          <span className="flex items-center gap-1">
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{ background: "var(--bg-tertiary)", border: "1px dashed var(--text-tertiary)" }}
+            /> Unknown
+          </span>
+        )}
+        <span className="flex items-center gap-1">
+          <span
+            className="inline-flex items-center justify-center w-3 h-3 rounded-full text-[6px] font-mono"
+            style={{ background: "var(--bg-tertiary)", border: "0.5px solid var(--border-default)" }}
+          >
+            n
+          </span>
+          Test order
+        </span>
+      </div>
     </div>
   );
 }
