@@ -35,6 +35,10 @@ interface PidAnalysisState {
   aiLoading: boolean;
   error: string | null;
 
+  // AI usage tracking
+  aiRemainingUses: number | null;
+  aiWeeklyLimit: number | null;
+
   // UI state
   wizardStep: WizardStep;
   analysisMode: AnalysisMode;
@@ -62,6 +66,9 @@ interface PidAnalysisActions {
     setLocalValue: (name: string, value: number) => void,
   ) => void;
 
+  // Usage tracking
+  setAiUsageInfo: (remaining: number | null, weeklyLimit: number | null) => void;
+
   // UI actions
   setWizardStep: (step: WizardStep) => void;
   setAnalysisMode: (mode: AnalysisMode) => void;
@@ -84,6 +91,8 @@ const initialState: PidAnalysisState = {
   analyzeProgress: null,
   aiLoading: false,
   error: null,
+  aiRemainingUses: null,
+  aiWeeklyLimit: null,
   wizardStep: "upload",
   analysisMode: "wizard",
   logFileName: null,
@@ -266,7 +275,23 @@ export const usePidAnalysisStore = create<PidAnalysisState & PidAnalysisActions>
           body: JSON.stringify(body),
         });
 
+        if (res.status === 401) {
+          set({ aiLoading: false });
+          window.dispatchEvent(new CustomEvent("open-signin"));
+          return;
+        }
+
         const data: AiAnalysisResponse = await res.json();
+
+        if (res.status === 429) {
+          set({
+            error: "Weekly AI analysis limit reached. Resets Monday.",
+            aiLoading: false,
+            aiRemainingUses: 0,
+            aiWeeklyLimit: data.weeklyLimit ?? null,
+          });
+          return;
+        }
 
         if (data.error) {
           set({ error: data.error, aiLoading: false });
@@ -277,6 +302,8 @@ export const usePidAnalysisStore = create<PidAnalysisState & PidAnalysisActions>
           aiRecommendations: data.recommendations,
           aiSummary: data.summary,
           aiLoading: false,
+          aiRemainingUses: data.remaining ?? null,
+          aiWeeklyLimit: data.weeklyLimit ?? null,
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : "AI request failed";
@@ -307,6 +334,11 @@ export const usePidAnalysisStore = create<PidAnalysisState & PidAnalysisActions>
         }
       }
     },
+
+    // ── Usage tracking ──────────────────────────────────────────────────
+
+    setAiUsageInfo: (remaining: number | null, weeklyLimit: number | null) =>
+      set({ aiRemainingUses: remaining, aiWeeklyLimit: weeklyLimit }),
 
     // ── UI actions ────────────────────────────────────────────────────────
 

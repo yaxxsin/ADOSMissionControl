@@ -9,6 +9,9 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { cookies, headers } from "next/headers";
+import { fetchMutation } from "convex/nextjs";
+import { makeFunctionReference } from "convex/server";
 import type {
   AiAnalysisRequest,
   AiAnalysisResponse,
@@ -105,6 +108,27 @@ function parseGroqResponse(text: string): AiAnalysisResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Auth helpers
+// ---------------------------------------------------------------------------
+
+function isLocalHost(host: string): boolean {
+  return /(localhost|127\.0\.0\.1):\d+/.test(host ?? "");
+}
+
+async function getAuthToken(): Promise<string | null> {
+  const headerStore = await headers();
+  const host = headerStore.get("Host") ?? "";
+  const prefix = isLocalHost(host) ? "" : "__Host-";
+  const tokenName = prefix + "__convexAuthJWT";
+  const cookieStore = await cookies();
+  return cookieStore.get(tokenName)?.value ?? null;
+}
+
+const checkAndRecordRef = makeFunctionReference<"mutation">(
+  "cmdAiUsage:checkAndRecord",
+);
+
+// ---------------------------------------------------------------------------
 // Route handler
 // ---------------------------------------------------------------------------
 
@@ -119,6 +143,52 @@ export async function POST(request: NextRequest) {
         "AI analysis requires GROQ_API_KEY. Set it as an environment variable.",
     };
     return NextResponse.json(response);
+  }
+
+  // ── Auth gate ────────────────────────────────────────────────
+  const token = await getAuthToken();
+  if (!token) {
+    return NextResponse.json(
+      {
+        recommendations: [],
+        summary: "",
+        error: "auth_required",
+      } satisfies AiAnalysisResponse,
+      { status: 401 },
+    );
+  }
+
+  // ── Usage limit gate ─────────────────────────────────────────
+  let usageResult: { allowed: boolean; remaining: number; weeklyLimit: number; error?: string };
+  try {
+    usageResult = await fetchMutation(
+      checkAndRecordRef,
+      { feature: "pid_analysis" },
+      { token },
+    );
+  } catch (err) {
+    console.error("AI usage check failed:", err);
+    return NextResponse.json(
+      {
+        recommendations: [],
+        summary: "",
+        error: "Usage check failed. Please try again.",
+      } satisfies AiAnalysisResponse,
+      { status: 500 },
+    );
+  }
+
+  if (!usageResult.allowed) {
+    return NextResponse.json(
+      {
+        recommendations: [],
+        summary: "",
+        error: usageResult.error ?? "weekly_limit_reached",
+        remaining: 0,
+        weeklyLimit: usageResult.weeklyLimit,
+      } satisfies AiAnalysisResponse,
+      { status: 429 },
+    );
   }
 
   let body: AiAnalysisRequest;
@@ -172,7 +242,11 @@ export async function POST(request: NextRequest) {
     }
 
     const result = parseGroqResponse(content);
-    return NextResponse.json(result);
+    return NextResponse.json({
+      ...result,
+      remaining: usageResult.remaining,
+      weeklyLimit: usageResult.weeklyLimit,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     const response: AiAnalysisResponse = {

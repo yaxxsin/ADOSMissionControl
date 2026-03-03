@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Brain, ChevronDown, ChevronRight, Sparkles } from "lucide-react";
+import { Brain, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { usePidAnalysisStore } from "@/stores/pid-analysis-store";
 import { useArmedLock } from "@/hooks/use-armed-lock";
 import { PidAnalysisWizard } from "./PidAnalysisWizard";
@@ -15,6 +14,7 @@ import { PidTrackingChart } from "./PidTrackingChart";
 import { PidMotorChart } from "./PidMotorChart";
 import { PidAiRecommendations } from "./PidAiRecommendations";
 import { PidLiveAnalysis } from "./PidLiveAnalysis";
+import { AiSuggestionsGate } from "./AiSuggestionsGate";
 import type { VehicleType } from "./pid-constants";
 import type { AnalysisMode } from "@/lib/analysis/types";
 
@@ -227,14 +227,7 @@ export function PidAnalysisSection({
                   {/* AI Recommendations */}
                   <div className="space-y-2">
                     {aiRecommendations.length === 0 && !aiLoading && (
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        icon={<Sparkles size={12} />}
-                        onClick={handleRequestAi}
-                      >
-                        Get AI Suggestions
-                      </Button>
+                      <AiSuggestionsGate onRequestAi={handleRequestAi} connected={connected} />
                     )}
                     <PidAiRecommendations
                       recommendations={aiRecommendations}

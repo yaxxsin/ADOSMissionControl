@@ -271,6 +271,8 @@ export interface AiAnalysisResponse {
   recommendations: AiRecommendation[];
   summary: string;
   error?: string;
+  remaining?: number;
+  weeklyLimit?: number;
 }
 
 // ---------------------------------------------------------------------------

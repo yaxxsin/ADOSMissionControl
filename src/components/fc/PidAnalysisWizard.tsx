@@ -17,6 +17,7 @@ import {
   Upload, BarChart3, Sparkles, CheckCircle, ChevronLeft, ChevronRight,
   AlertTriangle, Save,
 } from "lucide-react";
+import { AiSuggestionsGate } from "./AiSuggestionsGate";
 import type { VehicleType } from "./pid-constants";
 import type { WizardStep, StepResponseEvent } from "@/lib/analysis/types";
 
@@ -252,15 +253,7 @@ export function PidAnalysisWizard({ vehicleType, params, setLocalValue, connecte
         <div className="space-y-3">
           {analysisResult && aiRecommendations.length === 0 && !aiLoading && (
             <div className="flex justify-center">
-              <Button
-                variant="primary"
-                size="sm"
-                icon={<Sparkles size={12} />}
-                onClick={handleRequestAi}
-                disabled={!connected}
-              >
-                Get AI Suggestions
-              </Button>
+              <AiSuggestionsGate onRequestAi={handleRequestAi} connected={connected} />
             </div>
           )}
           <PidAiRecommendations

@@ -46,4 +46,8 @@ export const communityApi = {
   clientConfig: {
     get: makeFunctionReference<"query">("clientConfig:getClientConfig"),
   },
+  aiUsage: {
+    checkAndRecord: makeFunctionReference<"mutation">("cmdAiUsage:checkAndRecord"),
+    getRemaining: makeFunctionReference<"query">("cmdAiUsage:getRemaining"),
+  },
 };

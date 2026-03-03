@@ -72,6 +72,7 @@ Open [http://localhost:4000](http://localhost:4000) for 5 simulated drones with 
 ### Flight Controller Configuration
 
 - **25 configuration panels** covering calibration, receiver, outputs, PID tuning, failsafe, power, ports, OSD, firmware, and more
+- **AI PID tuning** with FFT noise analysis, step response, tracking quality, and motor health. AI suggestions are rate-limited on the hosted version (3/week). Self-host with your own `GROQ_API_KEY` for unlimited use
 - **Board auto-detection** with 9 profiles (SpeedyBee F405 Wing/V3/V4, Matek H743, Pixhawk 4/6C/6X) and STM32 timer group maps
 - **Full parameter system** for searching, editing, and writing all FC parameters with real-time validation
 - **Timer group conflict detection** with a visual diagram of STM32 hardware timers, color-coded by protocol (DShot vs PWM)
@@ -244,6 +245,7 @@ All optional. Command works standalone with zero config. Use `npm run cli config
 | `NEXT_PUBLIC_DEMO_DRONE_COUNT` | `5` | Number of simulated drones in demo mode (1, 3, 5, or 10) |
 | `NEXT_PUBLIC_CONVEX_URL` | — | Convex backend for cloud fleet management |
 | `GITHUB_TOKEN` | — | Raises PX4 releases API from 60 to 5000 req/hr |
+| `GROQ_API_KEY` | — | AI PID tuning suggestions. Free at [console.groq.com](https://console.groq.com) |
 
 ### Convex Server (set via dashboard or `npx convex env set`)
 
@@ -252,8 +254,9 @@ These run inside Convex functions, not in Next.js. Only needed if you use cloud 
 | Variable | Description |
 |----------|-------------|
 | `CESIUM_ION_TOKEN` | 3D terrain for simulation. Free at [ion.cesium.com](https://ion.cesium.com). Without it, simulation falls back to ArcGIS elevation. |
-| `GROQ_API_KEY` | AI changelog summaries from commits. Free at [console.groq.com](https://console.groq.com). |
+| `GROQ_API_KEY` | AI changelog summaries + PID tuning suggestions. Free at [console.groq.com](https://console.groq.com). |
 | `GITHUB_TOKEN` | GitHub API auth for changelog sync (5000 req/hr vs 60 unauthenticated). |
+| `AI_PID_WEEKLY_LIMIT` | Max AI PID analyses per user per week. Default: 3. Self-hosted users can set this to any value. |
 
 ---
 
