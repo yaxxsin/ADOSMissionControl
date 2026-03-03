@@ -49,12 +49,7 @@ export function ActionsPanel() {
 
   return (
     <>
-      <div className="px-3 py-3 border-t border-border-default">
-        {/* ACTIONS section */}
-        <div className="text-[10px] font-mono font-semibold text-text-tertiary uppercase tracking-wider mb-2">
-          Actions
-        </div>
-
+      <div className="px-3 py-3 border-t border-border-default flex flex-col gap-1.5">
         {/* ARM / DISARM */}
         <Tooltip
           content={isArmed ? "Disarm motors \u2014 cut throttle output" : "Arm motors \u2014 enable throttle output"}
@@ -79,7 +74,7 @@ export function ActionsPanel() {
         </Tooltip>
 
         {/* TAKEOFF + altitude input */}
-        <div className="flex items-center gap-2 mt-2">
+        <div className="flex items-center gap-2">
           <Tooltip content="Arm and takeoff to target altitude" position="right">
             <Button
               variant="secondary"
@@ -115,7 +110,7 @@ export function ActionsPanel() {
         </div>
 
         {/* Flight mode selector */}
-        <div className="mt-2">
+        <div>
           <FlightModeSelector
             value={flightMode}
             onChange={(mode) => {
@@ -126,117 +121,107 @@ export function ActionsPanel() {
           />
         </div>
 
-        {/* NAVIGATION section */}
-        <div className="border-t border-border-default mt-3 pt-3">
-          <div className="text-[10px] font-mono font-semibold text-text-tertiary uppercase tracking-wider mb-2">
-            Navigation
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Tooltip content="Return to home position" position="right">
+        {/* NAVIGATION — RTH / LAND / HOLD */}
+        <div className="flex items-center gap-1.5">
+          <Tooltip content="Return to home position" position="right">
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<Home size={14} />}
+              className="flex-1 text-status-warning border-status-warning/30"
+              onClick={() => setShowRthConfirm(true)}
+            >
+              RTH
+            </Button>
+          </Tooltip>
+          <Tooltip content="Land at current position" position="right">
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<ArrowDownToLine size={14} />}
+              className="flex-1"
+              onClick={() => {
+                if (protocol) protocol.land();
+                else setFlightMode("LAND");
+              }}
+            >
+              LAND
+            </Button>
+          </Tooltip>
+          {/* Context-aware HOLD/PAUSE/RESUME */}
+          {flightMode === "AUTO" ? (
+            <Tooltip content="Pause mission and hold position" position="right">
               <Button
                 variant="secondary"
                 size="sm"
-                icon={<Home size={14} />}
-                className="flex-1 text-status-warning border-status-warning/30"
-                onClick={() => setShowRthConfirm(true)}
-              >
-                RTH
-              </Button>
-            </Tooltip>
-            <Tooltip content="Land at current position" position="right">
-              <Button
-                variant="secondary"
-                size="sm"
-                icon={<ArrowDownToLine size={14} />}
+                icon={<Pause size={14} />}
                 className="flex-1"
                 onClick={() => {
-                  if (protocol) protocol.land();
-                  else setFlightMode("LAND");
+                  if (protocol) protocol.pauseMission();
+                  else setFlightMode("LOITER");
                 }}
               >
-                LAND
+                PAUSE
               </Button>
             </Tooltip>
-            {/* Context-aware HOLD/PAUSE/RESUME */}
-            {flightMode === "AUTO" ? (
-              <Tooltip content="Pause mission and hold position" position="right">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  icon={<Pause size={14} />}
-                  className="flex-1"
-                  onClick={() => {
-                    if (protocol) protocol.pauseMission();
-                    else setFlightMode("LOITER");
-                  }}
-                >
-                  PAUSE
-                </Button>
-              </Tooltip>
-            ) : flightMode === "LOITER" && previousMode === "AUTO" ? (
-              <Tooltip content="Resume paused mission" position="right">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  icon={<Play size={14} />}
-                  className="flex-1"
-                  onClick={() => {
-                    if (protocol) protocol.resumeMission();
-                    else setFlightMode("AUTO");
-                  }}
-                >
-                  RESUME
-                </Button>
-              </Tooltip>
-            ) : (
-              <Tooltip content="Hold position and altitude" position="right">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  icon={<Pause size={14} />}
-                  className="flex-1"
-                  onClick={() => {
-                    if (protocol) protocol.setFlightMode("LOITER");
-                    else setFlightMode("LOITER");
-                  }}
-                >
-                  HOLD
-                </Button>
-              </Tooltip>
-            )}
-          </div>
+          ) : flightMode === "LOITER" && previousMode === "AUTO" ? (
+            <Tooltip content="Resume paused mission" position="right">
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Play size={14} />}
+                className="flex-1"
+                onClick={() => {
+                  if (protocol) protocol.resumeMission();
+                  else setFlightMode("AUTO");
+                }}
+              >
+                RESUME
+              </Button>
+            </Tooltip>
+          ) : (
+            <Tooltip content="Hold position and altitude" position="right">
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Pause size={14} />}
+                className="flex-1"
+                onClick={() => {
+                  if (protocol) protocol.setFlightMode("LOITER");
+                  else setFlightMode("LOITER");
+                }}
+              >
+                HOLD
+              </Button>
+            </Tooltip>
+          )}
         </div>
 
-        {/* EMERGENCY section */}
-        <div className="border-t border-border-default mt-3 pt-3">
-          <div className="text-[10px] font-mono font-semibold text-status-error uppercase tracking-wider mb-2">
-            Emergency
-          </div>
-          <div className="bg-status-error/5 p-1.5 rounded">
-            <div className="flex items-center gap-1.5">
-              <Tooltip content="Emergency land and disarm" position="right">
-                <Button
-                  variant="danger"
-                  size="sm"
-                  icon={<XOctagon size={14} />}
-                  className="flex-1"
-                  onClick={() => setShowAbortConfirm(true)}
-                >
-                  ABORT
-                </Button>
-              </Tooltip>
-              <Tooltip content="Cut all motors immediately" position="right">
-                <Button
-                  variant="danger"
-                  size="sm"
-                  icon={<Skull size={14} />}
-                  className="flex-1 bg-red-800 hover:bg-red-700 border-red-600"
-                  onClick={() => setShowKillConfirm(true)}
-                >
-                  KILL
-                </Button>
-              </Tooltip>
-            </div>
+        {/* EMERGENCY — danger zone tint */}
+        <div className="bg-status-error/5 p-1.5 rounded">
+          <div className="flex items-center gap-1.5">
+            <Tooltip content="Emergency land and disarm" position="right">
+              <Button
+                variant="danger"
+                size="sm"
+                icon={<XOctagon size={14} />}
+                className="flex-1"
+                onClick={() => setShowAbortConfirm(true)}
+              >
+                ABORT
+              </Button>
+            </Tooltip>
+            <Tooltip content="Cut all motors immediately" position="right">
+              <Button
+                variant="danger"
+                size="sm"
+                icon={<Skull size={14} />}
+                className="flex-1 bg-red-800 hover:bg-red-700 border-red-600"
+                onClick={() => setShowKillConfirm(true)}
+              >
+                KILL
+              </Button>
+            </Tooltip>
           </div>
         </div>
       </div>
