@@ -22,6 +22,7 @@ import { useDroneStore } from "@/stores/drone-store";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useChecklistStore } from "@/stores/checklist-store";
 import { useFlightShortcuts } from "@/hooks/use-flight-shortcuts";
+import { useShallow } from "zustand/react/shallow";
 import { cn } from "@/lib/utils";
 
 
@@ -40,8 +41,19 @@ export function ActionsPanel() {
   const [killCountdown, setKillCountdown] = useState(3);
   const [takeoffAlt, setTakeoffAlt] = useState("10");
   const [showChecklist, setShowChecklist] = useState(false);
-  const checklistReady = useChecklistStore((s) => s.isReadyToArm());
-  const checklistProgress = useChecklistStore((s) => s.getProgress());
+  const checklistReady = useChecklistStore(
+    (s) => s.items.every((item) => item.status === "pass" || item.status === "skipped")
+  );
+  const checklistProgress = useChecklistStore(
+    useShallow((s) => {
+      const items = s.items;
+      return {
+        total: items.length,
+        checked: items.filter((i) => i.status === "pass" || i.status === "skipped").length,
+        failed: items.filter((i) => i.status === "fail").length,
+      };
+    })
+  );
 
   const isArmed = armState === "armed";
   const protocol = getProtocol();
