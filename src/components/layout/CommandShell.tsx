@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Settings, AlertTriangle, LogOut, CloudOff, Zap, Minimize2 } from "lucide-react";
+import { Settings, AlertTriangle, LogOut, CloudOff, Zap, Minimize2, X } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
 import { CommandNav } from "./CommandNav";
 import { DemoProvider } from "./DemoProvider";
@@ -32,6 +32,7 @@ export function CommandShell({ children }: { children: React.ReactNode }) {
   useGcsLocation();
   const { isElectron, isMac, isWindows, isLinux } = usePlatform();
   const demo = useSettingsStore((s) => s.demoMode);
+  const setDemoMode = useSettingsStore((s) => s.setDemoMode);
   const alertCount = useFleetStore((s) => s.alerts.filter((a) => !a.acknowledged).length);
   const mavConnected = useDroneManager((s) => s.selectedDroneId !== null);
   const videoStreaming = useVideoStore((s) => s.isStreaming);
@@ -98,9 +99,15 @@ export function CommandShell({ children }: { children: React.ReactNode }) {
             Mission Control
           </span>
           {demo && (
-            <span className="px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-status-warning/20 text-status-warning">
-              Demo
-            </span>
+            <Tooltip content="Exit demo mode" position="bottom">
+              <button
+                onClick={() => setDemoMode(false)}
+                className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-status-warning/20 text-status-warning hover:bg-status-warning/30 transition-colors"
+              >
+                Demo
+                <X size={10} />
+              </button>
+            </Tooltip>
           )}
         </div>
 
