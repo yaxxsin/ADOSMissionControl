@@ -1,21 +1,24 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
+import { usePanelParams } from "@/hooks/use-panel-params";
+import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
+import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
+import { PanelHeader } from "./PanelHeader";
 import {
   Save,
-  RotateCcw,
-  AlertTriangle,
   Usb,
-  RefreshCw,
-  Info,
   HardDrive,
+  Info,
+  AlertTriangle,
 } from "lucide-react";
+
+// ── Constants ────────────────────────────────────────────────
 
 /** Serial port protocol options (SERIAL_PROTOCOL values). */
 const PROTOCOL_OPTIONS = [
@@ -61,305 +64,217 @@ const HARDWARE_LABELS: string[] = [
   "USB", "Telem1", "Telem2", "GPS1", "GPS2", "USER", "USER", "USER",
 ];
 
-interface PortConfig {
-  protocol: string;
-  baud: string;
-}
+/** Module-level const to avoid re-render loops in usePanelParams. */
+const PORT_PARAMS: string[] = Array.from({ length: NUM_PORTS }, (_, i) => [
+  `SERIAL${i}_PROTOCOL`,
+  `SERIAL${i}_BAUD`,
+]).flat();
+
+// ── Main Component ───────────────────────────────────────────
 
 export function PortsPanel() {
+  const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
+  const protocol = getSelectedProtocol();
   const { toast } = useToast();
-  const [ports, setPorts] = useState<PortConfig[]>(
-    Array.from({ length: NUM_PORTS }, () => ({ protocol: "-1", baud: "57" }))
-  );
-  const [original, setOriginal] = useState<PortConfig[]>([]);
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [needsReboot, setNeedsReboot] = useState(false);
-  const [showCommitButton, setShowCommitButton] = useState(false);
 
-  // Load serial port config from FC on mount
-  useEffect(() => {
-    loadPorts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const {
+    params, loading, error, dirtyParams, hasRamWrites,
+    loadProgress, hasLoaded,
+    refresh, setLocalValue, saveAllToRam, commitToFlash, revertAll,
+  } = usePanelParams({ paramNames: PORT_PARAMS, panelId: "ports" });
+  useUnsavedGuard(dirtyParams.size > 0);
 
-  const loadPorts = useCallback(async () => {
-    const protocol = useDroneManager.getState().getSelectedProtocol();
-    if (!protocol) {
-      setError("No drone connected");
-      return;
-    }
+  const connected = !!protocol;
+  const hasDirty = dirtyParams.size > 0;
 
-    setLoading(true);
-    setError(null);
+  // ── Helpers to read param values from flat Map ──────────────
 
-    try {
-      const params = await protocol.getAllParameters();
-      const paramMap = new Map<string, number>();
-      for (const p of params) {
-        paramMap.set(p.name, p.value);
-      }
+  const getProtocolValue = (i: number) =>
+    String(params.get(`SERIAL${i}_PROTOCOL`) ?? -1);
 
-      const loaded: PortConfig[] = [];
-      for (let i = 0; i < NUM_PORTS; i++) {
-        loaded.push({
-          protocol: String(paramMap.get(`SERIAL${i}_PROTOCOL`) ?? -1),
-          baud: String(paramMap.get(`SERIAL${i}_BAUD`) ?? 57),
-        });
-      }
-      setPorts(loaded);
-      setOriginal(loaded.map((p) => ({ ...p })));
-      toast("Loaded serial port configuration", "success");
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to read serial parameters";
-      setError(msg);
-      toast("Failed to load serial parameters", "error");
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
+  const getBaudValue = (i: number) =>
+    String(params.get(`SERIAL${i}_BAUD`) ?? 57);
 
-  const updatePort = useCallback((index: number, field: keyof PortConfig, value: string) => {
-    setPorts((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], [field]: value };
-      return next;
-    });
-  }, []);
+  // ── Save / Flash / Reboot ───────────────────────────────────
 
-  const hasChanges = useMemo(() => {
-    if (original.length === 0) return false;
-    return ports.some(
-      (p, i) => p.protocol !== original[i].protocol || p.baud !== original[i].baud
-    );
-  }, [ports, original]);
-
-  const handleSave = useCallback(async () => {
-    const protocol = useDroneManager.getState().getSelectedProtocol();
-    if (!protocol) return;
-
+  async function handleSave() {
     setSaving(true);
-    setError(null);
-    const failures: string[] = [];
-
-    for (let i = 0; i < NUM_PORTS; i++) {
-      if (ports[i].protocol !== original[i].protocol) {
-        try {
-          const result = await protocol.setParameter(
-            `SERIAL${i}_PROTOCOL`,
-            parseInt(ports[i].protocol, 10)
-          );
-          if (!result.success) failures.push(`SERIAL${i}_PROTOCOL: ${result.message}`);
-        } catch {
-          failures.push(`SERIAL${i}_PROTOCOL: write failed`);
-        }
-      }
-      if (ports[i].baud !== original[i].baud) {
-        try {
-          const result = await protocol.setParameter(
-            `SERIAL${i}_BAUD`,
-            parseInt(ports[i].baud, 10)
-          );
-          if (!result.success) failures.push(`SERIAL${i}_BAUD: ${result.message}`);
-        } catch {
-          failures.push(`SERIAL${i}_BAUD: write failed`);
-        }
-      }
-    }
-
-    if (failures.length > 0) {
-      setError(`Failed: ${failures.join(", ")}`);
-      toast(`Failed to save ${failures.length} parameter(s)`, "error");
-    } else {
-      setOriginal(ports.map((p) => ({ ...p })));
-      setNeedsReboot(true);
-      setShowCommitButton(true);
-      toast("Saved to flight controller", "success");
-    }
+    const ok = await saveAllToRam();
     setSaving(false);
-  }, [ports, original, toast]);
-
-  const commitToFlash = useCallback(async () => {
-    const protocol = useDroneManager.getState().getSelectedProtocol();
-    if (!protocol) return;
-    try {
-      const result = await protocol.commitParamsToFlash();
-      if (result.success) {
-        setShowCommitButton(false);
-        toast("Written to flash — persists after reboot", "success");
-      } else {
-        toast("Failed to write to flash", "error");
-      }
-    } catch {
-      toast("Failed to write to flash", "error");
+    if (ok) {
+      setNeedsReboot(true);
+      toast("Saved to flight controller", "success");
+    } else {
+      toast("Some parameters failed to save", "warning");
     }
-  }, [toast]);
+  }
 
-  const handleRevert = useCallback(() => {
-    if (original.length > 0) {
-      setPorts(original.map((p) => ({ ...p })));
-    }
-  }, [original]);
+  async function handleFlash() {
+    const ok = await commitToFlash();
+    if (ok) toast("Written to flash — persists after reboot", "success");
+    else toast("Failed to write to flash", "error");
+  }
 
-  const handleReboot = useCallback(async () => {
-    const protocol = useDroneManager.getState().getSelectedProtocol();
+  async function handleReboot() {
     if (!protocol) return;
     await protocol.reboot();
     setNeedsReboot(false);
-  }, []);
+  }
+
+  // ── Render ──────────────────────────────────────────────────
+
+  if (!protocol) {
+    return (
+      <div className="flex-1 p-6">
+        <div className="max-w-3xl space-y-4">
+          <h2 className="text-sm font-semibold text-text-primary">Serial Ports</h2>
+          <Card>
+            <p className="text-xs text-text-tertiary">Connect to a drone to configure serial ports.</p>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden">
-      {/* Header */}
-      <div className="flex-shrink-0 border-b border-border-default bg-bg-secondary px-4 py-3">
-        <div className="flex items-center gap-3 mb-3">
-          <Usb size={16} className="text-text-secondary" />
-          <h1 className="text-sm font-display font-semibold text-text-primary">
-            Serial Ports
-          </h1>
-          {hasChanges && (
-            <Badge variant="warning" size="sm">Unsaved changes</Badge>
-          )}
-          {needsReboot && (
-            <Badge variant="error" size="sm">Reboot required</Badge>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={<RefreshCw size={12} />}
-            onClick={loadPorts}
-            disabled={loading}
+    <ArmedLockOverlay>
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
+        {/* Header */}
+        <div className="flex-shrink-0 border-b border-border-default bg-bg-secondary px-4 py-3 space-y-3">
+          <PanelHeader
+            title="Serial Ports"
+            subtitle="Protocol and baud rate for each serial port"
+            icon={<Usb size={16} />}
+            loading={loading}
+            loadProgress={loadProgress}
+            hasLoaded={hasLoaded}
+            onRead={refresh}
+            connected={connected}
+            error={error}
           >
-            Refresh
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={<RotateCcw size={12} />}
-            onClick={handleRevert}
-            disabled={!hasChanges}
-          >
-            Revert
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            icon={<Save size={12} />}
-            onClick={handleSave}
-            disabled={!hasChanges}
-            loading={saving}
-          >
-            Save Changes
-          </Button>
-          {showCommitButton && (
+            {hasDirty && (
+              <span className="text-[10px] font-mono text-status-warning px-1.5 py-0.5 bg-status-warning/10 border border-status-warning/20">
+                UNSAVED
+              </span>
+            )}
             <Button
-              variant="secondary"
+              variant="ghost"
               size="sm"
-              icon={<HardDrive size={12} />}
-              onClick={commitToFlash}
+              onClick={revertAll}
+              disabled={!hasDirty}
             >
-              Write to Flash
+              Revert
             </Button>
-          )}
-          {needsReboot && (
             <Button
-              variant="danger"
+              variant="primary"
               size="sm"
-              onClick={handleReboot}
+              icon={<Save size={12} />}
+              onClick={handleSave}
+              disabled={!hasDirty}
+              loading={saving}
             >
-              Reboot FC
+              Save Changes
             </Button>
-          )}
+            {hasRamWrites && (
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<HardDrive size={12} />}
+                onClick={handleFlash}
+              >
+                Write to Flash
+              </Button>
+            )}
+            {needsReboot && (
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={handleReboot}
+              >
+                Reboot FC
+              </Button>
+            )}
+          </PanelHeader>
         </div>
-      </div>
 
-      {/* Error banner */}
-      {error && (
-        <div className="flex-shrink-0 px-4 py-2 bg-status-error/10 border-b border-status-error/30 flex items-center gap-2">
-          <AlertTriangle size={14} className="text-status-error flex-shrink-0" />
-          <span className="text-xs text-status-error">{error}</span>
-          <button
-            onClick={() => setError(null)}
-            className="ml-auto text-xs text-status-error hover:text-status-error/80 cursor-pointer"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
+        {/* Reboot info banner */}
+        {needsReboot && (
+          <div className="flex-shrink-0 px-4 py-2 bg-status-warning/10 border-b border-status-warning/30 flex items-center gap-2">
+            <Info size={14} className="text-status-warning flex-shrink-0" />
+            <span className="text-xs text-status-warning">
+              Serial port changes require a reboot to take effect.
+            </span>
+          </div>
+        )}
 
-      {/* Reboot info banner */}
-      {needsReboot && (
-        <div className="flex-shrink-0 px-4 py-2 bg-status-warning/10 border-b border-status-warning/30 flex items-center gap-2">
-          <Info size={14} className="text-status-warning flex-shrink-0" />
-          <span className="text-xs text-status-warning">
-            Serial port changes require a reboot to take effect.
-          </span>
-        </div>
-      )}
-
-      {/* Port table */}
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="max-w-3xl space-y-2">
-          {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <span className="text-xs text-text-tertiary">Loading serial parameters...</span>
-            </div>
-          ) : (
-            <>
-              {/* Table header */}
-              <div className="grid grid-cols-[60px_80px_1fr_1fr] gap-3 px-3 py-2">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">
-                  Port
-                </span>
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">
-                  Label
-                </span>
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">
-                  Protocol
-                </span>
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">
-                  Baud Rate
+        {/* Port table */}
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="max-w-3xl space-y-2">
+            {!hasLoaded && !loading ? (
+              <div className="flex items-center justify-center py-16">
+                <span className="text-xs text-text-tertiary">
+                  Click "Read from FC" to load serial parameters.
                 </span>
               </div>
+            ) : loading && !hasLoaded ? (
+              <div className="flex items-center justify-center py-16">
+                <span className="text-xs text-text-tertiary">Loading serial parameters...</span>
+              </div>
+            ) : (
+              <>
+                {/* Table header */}
+                <div className="grid grid-cols-[60px_80px_1fr_1fr] gap-3 px-3 py-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">
+                    Port
+                  </span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">
+                    Label
+                  </span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">
+                    Protocol
+                  </span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">
+                    Baud Rate
+                  </span>
+                </div>
 
-              {ports.map((port, i) => {
-                const protocolChanged = original.length > 0 && port.protocol !== original[i].protocol;
-                const baudChanged = original.length > 0 && port.baud !== original[i].baud;
-                const rowChanged = protocolChanged || baudChanged;
+                {Array.from({ length: NUM_PORTS }, (_, i) => {
+                  const protocolDirty = dirtyParams.has(`SERIAL${i}_PROTOCOL`);
+                  const baudDirty = dirtyParams.has(`SERIAL${i}_BAUD`);
+                  const rowChanged = protocolDirty || baudDirty;
 
-                return (
-                  <Card key={i} className={rowChanged ? "border-status-warning/40" : undefined}>
-                    <div className="grid grid-cols-[60px_80px_1fr_1fr] gap-3 items-center">
-                      <span className="text-xs font-mono text-text-secondary">
-                        SERIAL{i}
-                      </span>
-                      <span className="text-xs text-text-tertiary">
-                        {HARDWARE_LABELS[i]}
-                      </span>
-                      <Select
-                        options={PROTOCOL_OPTIONS}
-                        value={port.protocol}
-                        onChange={(v) => updatePort(i, "protocol", v)}
-                        className={protocolChanged ? "border-status-warning/60" : undefined}
-                      />
-                      <Select
-                        options={BAUD_OPTIONS}
-                        value={port.baud}
-                        onChange={(v) => updatePort(i, "baud", v)}
-                        className={baudChanged ? "border-status-warning/60" : undefined}
-                      />
-                    </div>
-                  </Card>
-                );
-              })}
-            </>
-          )}
+                  return (
+                    <Card key={i} className={rowChanged ? "border-status-warning/40" : undefined}>
+                      <div className="grid grid-cols-[60px_80px_1fr_1fr] gap-3 items-center">
+                        <span className="text-xs font-mono text-text-secondary">
+                          SERIAL{i}
+                        </span>
+                        <span className="text-xs text-text-tertiary">
+                          {HARDWARE_LABELS[i]}
+                        </span>
+                        <Select
+                          options={PROTOCOL_OPTIONS}
+                          value={getProtocolValue(i)}
+                          onChange={(v) => setLocalValue(`SERIAL${i}_PROTOCOL`, Number(v))}
+                          className={protocolDirty ? "border-status-warning/60" : undefined}
+                        />
+                        <Select
+                          options={BAUD_OPTIONS}
+                          value={getBaudValue(i)}
+                          onChange={(v) => setLocalValue(`SERIAL${i}_BAUD`, Number(v))}
+                          className={baudDirty ? "border-status-warning/60" : undefined}
+                        />
+                      </div>
+                    </Card>
+                  );
+                })}
+              </>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </ArmedLockOverlay>
   );
 }

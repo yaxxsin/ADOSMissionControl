@@ -11,6 +11,7 @@ export interface MissionAckMsg {
   targetSystem: number;
   targetComponent: number;
   type: number;
+  missionType: number;
 }
 
 /**
@@ -21,12 +22,14 @@ export interface MissionAckMsg {
  * | 0      | uint8 | targetSystem    |
  * | 1      | uint8 | targetComponent |
  * | 2      | uint8 | type            |
+ * | 3      | uint8 | missionType     | (v2 extension, optional)
  */
 export function decodeMissionAck(dv: DataView): MissionAckMsg {
   return {
     targetSystem: dv.getUint8(0),
     targetComponent: dv.getUint8(1),
     type: dv.getUint8(2),
+    missionType: dv.byteLength > 3 ? dv.getUint8(3) : 0,
   };
 }
 
@@ -36,6 +39,7 @@ export interface MissionCountMsg {
   count: number;
   targetSystem: number;
   targetComponent: number;
+  missionType: number;
 }
 
 /**
@@ -46,12 +50,14 @@ export interface MissionCountMsg {
  * | 0      | uint16 | count           |
  * | 2      | uint8  | targetSystem    |
  * | 3      | uint8  | targetComponent |
+ * | 4      | uint8  | missionType     | (v2 extension, optional)
  */
 export function decodeMissionCount(dv: DataView): MissionCountMsg {
   return {
     count: dv.getUint16(0, true),
     targetSystem: dv.getUint8(2),
     targetComponent: dv.getUint8(3),
+    missionType: dv.byteLength > 4 ? dv.getUint8(4) : 0,
   };
 }
 
@@ -99,6 +105,7 @@ export interface MissionRequestIntMsg {
   targetSystem: number;
   targetComponent: number;
   seq: number;
+  missionType: number;
 }
 
 /**
@@ -109,12 +116,14 @@ export interface MissionRequestIntMsg {
  * | 0      | uint16 | seq             |
  * | 2      | uint8  | targetSystem    |
  * | 3      | uint8  | targetComponent |
+ * | 4      | uint8  | missionType     | (v2 extension, optional)
  */
 export function decodeMissionRequestInt(dv: DataView): MissionRequestIntMsg {
   return {
     seq: dv.getUint16(0, true),
     targetSystem: dv.getUint8(2),
     targetComponent: dv.getUint8(3),
+    missionType: dv.byteLength > 4 ? dv.getUint8(4) : 0,
   };
 }
 
@@ -135,6 +144,7 @@ export interface MissionItemIntMsg {
   frame: number;
   current: number;
   autocontinue: number;
+  missionType: number;
 }
 
 /**
@@ -156,6 +166,7 @@ export interface MissionItemIntMsg {
  * | 34     | uint8   | frame           |
  * | 35     | uint8   | current         |
  * | 36     | uint8   | autocontinue    |
+ * | 37     | uint8   | missionType     | (v2 extension, optional)
  */
 export function decodeMissionItemInt(dv: DataView): MissionItemIntMsg {
   return {
@@ -173,5 +184,6 @@ export function decodeMissionItemInt(dv: DataView): MissionItemIntMsg {
     frame: dv.getUint8(34),
     current: dv.getUint8(35),
     autocontinue: dv.getUint8(36),
+    missionType: dv.byteLength > 37 ? dv.getUint8(37) : 0,
   };
 }

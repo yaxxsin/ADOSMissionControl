@@ -174,6 +174,21 @@ export class MAVLinkAdapter implements DroneProtocol {
     timer: ReturnType<typeof setTimeout>
   } | null = null
 
+  // Rally upload state (uses mission protocol with MISSION_TYPE_RALLY=2)
+  private rallyUpload: {
+    items: Array<{ lat: number; lon: number; alt: number }>
+    resolve: (result: CommandResult) => void
+    timer: ReturnType<typeof setTimeout>
+  } | null = null
+
+  // Rally download state
+  private rallyDownload: {
+    items: Map<number, { lat: number; lon: number; alt: number }>
+    total: number
+    resolve: (items: Array<{ lat: number; lon: number; alt: number }>) => void
+    timer: ReturnType<typeof setTimeout>
+  } | null = null
+
   // Log list state
   private logListDownload: {
     entries: Map<number, LogEntry>
@@ -499,6 +514,19 @@ export class MAVLinkAdapter implements DroneProtocol {
 
   private handleMissionAck(frame: MAVLinkFrame): void {
     const ack = decodeMissionAck(frame.payload)
+
+    // Route rally ACKs to rally state machine
+    if (ack.missionType === 2 && this.rallyUpload) {
+      clearTimeout(this.rallyUpload.timer)
+      this.rallyUpload.resolve({
+        success: ack.type === 0,
+        resultCode: ack.type,
+        message: ack.type === 0 ? 'Rally points accepted' : `Rally points rejected: type ${ack.type}`,
+      })
+      this.rallyUpload = null
+      return
+    }
+
     if (this.missionUpload) {
       clearTimeout(this.missionUpload.timer)
       this.missionUpload.resolve({
@@ -512,6 +540,23 @@ export class MAVLinkAdapter implements DroneProtocol {
 
   private handleMissionRequest(frame: MAVLinkFrame): void {
     const req = decodeMissionRequestInt(frame.payload)
+
+    // Route rally requests to rally state machine
+    if (req.missionType === 2 && this.rallyUpload && req.seq < this.rallyUpload.items.length) {
+      const pt = this.rallyUpload.items[req.seq]
+      // Rally points use MAV_CMD_NAV_RALLY_POINT (5100), frame=GLOBAL_RELATIVE_ALT_INT (6)
+      const encoded = encodeMissionItemInt(
+        this.targetSysId, this.targetCompId,
+        req.seq, 6, 5100, 0, 0,
+        0, 0, 0, 0,
+        Math.round(pt.lat * 1e7), Math.round(pt.lon * 1e7), pt.alt,
+        this.sysId, this.compId,
+        2, // MISSION_TYPE_RALLY
+      )
+      this.transport?.send(encoded)
+      return
+    }
+
     if (this.missionUpload && req.seq < this.missionUpload.items.length) {
       const item = this.missionUpload.items[req.seq]
       const encoded = encodeMissionItemInt(
@@ -526,8 +571,25 @@ export class MAVLinkAdapter implements DroneProtocol {
   }
 
   private handleMissionCountResponse(frame: MAVLinkFrame): void {
-    if (!this.missionDownload) return
     const data = decodeMissionCount(frame.payload)
+
+    // Route rally count responses to rally state machine
+    if (data.missionType === 2 && this.rallyDownload) {
+      this.rallyDownload.total = data.count
+      if (data.count === 0) {
+        clearTimeout(this.rallyDownload.timer)
+        this.rallyDownload.resolve([])
+        this.rallyDownload = null
+        return
+      }
+      this.transport?.send(encodeMissionRequestInt(
+        this.targetSysId, this.targetCompId, 0,
+        this.sysId, this.compId, 2,
+      ))
+      return
+    }
+
+    if (!this.missionDownload) return
     this.missionDownload.total = data.count
     if (data.count === 0) {
       clearTimeout(this.missionDownload.timer)
@@ -543,8 +605,38 @@ export class MAVLinkAdapter implements DroneProtocol {
   }
 
   private handleMissionItemIntResponse(frame: MAVLinkFrame): void {
-    if (!this.missionDownload) return
     const data = decodeMissionItemIntMsg(frame.payload)
+
+    // Route rally item responses to rally state machine
+    if (data.missionType === 2 && this.rallyDownload) {
+      this.rallyDownload.items.set(data.seq, {
+        lat: data.x / 1e7,
+        lon: data.y / 1e7,
+        alt: data.z,
+      })
+
+      if (this.rallyDownload.items.size >= this.rallyDownload.total) {
+        clearTimeout(this.rallyDownload.timer)
+        const items = Array.from(this.rallyDownload.items.entries())
+          .sort((a, b) => a[0] - b[0])
+          .map(([, pt]) => pt)
+        this.transport?.send(encodeMissionAck(
+          this.targetSysId, this.targetCompId, 0,
+          this.sysId, this.compId, 2,
+        ))
+        this.rallyDownload.resolve(items)
+        this.rallyDownload = null
+      } else {
+        const nextSeq = data.seq + 1
+        this.transport?.send(encodeMissionRequestInt(
+          this.targetSysId, this.targetCompId, nextSeq,
+          this.sysId, this.compId, 2,
+        ))
+      }
+      return
+    }
+
+    if (!this.missionDownload) return
     const item: MissionItem = {
       seq: data.seq,
       frame: data.frame,
@@ -869,9 +961,10 @@ export class MAVLinkAdapter implements DroneProtocol {
       return { success: false, resultCode: -1, message: 'RC calibration requires the Receiver panel (channel bars + manual stick movement)' }
     }
 
-    // CompassMot uses DO_START_MAG_CAL with compassmot flag, not PREFLIGHT_CALIBRATION
+    // CompassMot uses MAV_CMD_PREFLIGHT_CALIBRATION (241) with param6=1
+    // ArduPilot: GCS_Common.cpp handles param6==1 as compass motor interference calibration
     if (type === 'compassmot') {
-      return this.sendCommandLong(42424, [0, 0, 0, 0, 0, 0, 1], 120000) // param7=1 for compassmot mode
+      return this.sendCommandLong(241, [0, 0, 0, 0, 0, 1, 0], 120000) // param6=1 for compassmot
     }
 
     // MAV_CMD_PREFLIGHT_CALIBRATION = 241
@@ -1468,9 +1561,104 @@ export class MAVLinkAdapter implements DroneProtocol {
 
   async downloadFence(): Promise<Array<{ idx: number; lat: number; lon: number }>> {
     if (!this.transport?.isConnected) return []
+
+    // Read FENCE_TOTAL param to know how many points to fetch
+    let fenceTotal: number
+    try {
+      const result = await this.getParameter('FENCE_TOTAL')
+      fenceTotal = result.value
+    } catch {
+      return [] // param doesn't exist or read failed
+    }
+
+    if (fenceTotal <= 0) return []
+
+    // Collect incoming FENCE_POINT responses
     const points: Array<{ idx: number; lat: number; lon: number }> = []
-    // Request fence points — in real use, read FENCE_TOTAL param first
-    return points
+    const received = new Set<number>()
+
+    return new Promise<Array<{ idx: number; lat: number; lon: number }>>((resolve) => {
+      const timeout = setTimeout(() => {
+        unsub()
+        // Return whatever we collected
+        points.sort((a, b) => a.idx - b.idx)
+        resolve(points)
+      }, 10000) // 10s overall timeout
+
+      const unsub = this.onFencePoint((data) => {
+        if (!received.has(data.idx)) {
+          received.add(data.idx)
+          points.push({ idx: data.idx, lat: data.lat, lon: data.lon })
+        }
+        if (received.size >= fenceTotal) {
+          clearTimeout(timeout)
+          unsub()
+          points.sort((a, b) => a.idx - b.idx)
+          resolve(points)
+        }
+      })
+
+      // Request each fence point
+      for (let i = 0; i < fenceTotal; i++) {
+        this.transport!.send(encodeFenceFetchPoint(
+          this.targetSysId, this.targetCompId,
+          i, this.sysId, this.compId,
+        ))
+      }
+    })
+  }
+
+  // ── Rally Point Operations ──────────────────────────
+
+  async uploadRallyPoints(points: Array<{ lat: number; lon: number; alt: number }>): Promise<CommandResult> {
+    if (!this.transport?.isConnected) return { success: false, resultCode: -1, message: 'Not connected' }
+    if (points.length === 0) return { success: true, resultCode: 0, message: 'No rally points to upload' }
+
+    return new Promise<CommandResult>((resolve) => {
+      const timer = setTimeout(() => {
+        this.rallyUpload = null
+        resolve({ success: false, resultCode: -1, message: 'Rally point upload timed out' })
+      }, 15000)
+
+      this.rallyUpload = { items: points, resolve, timer }
+
+      // Send MISSION_COUNT with MISSION_TYPE_RALLY (2) to initiate upload
+      this.transport!.send(encodeMissionCount(
+        this.targetSysId, this.targetCompId, points.length,
+        this.sysId, this.compId, 2,
+      ))
+    })
+  }
+
+  async downloadRallyPoints(): Promise<Array<{ lat: number; lon: number; alt: number }>> {
+    if (!this.transport?.isConnected) return []
+
+    return new Promise<Array<{ lat: number; lon: number; alt: number }>>((resolve) => {
+      const timer = setTimeout(() => {
+        if (this.rallyDownload) {
+          const items = Array.from(this.rallyDownload.items.entries())
+            .sort((a, b) => a[0] - b[0])
+            .map(([, pt]) => pt)
+          this.rallyDownload = null
+          resolve(items)
+        } else {
+          resolve([])
+        }
+      }, 15000)
+
+      this.rallyDownload = {
+        items: new Map(),
+        total: 0,
+        resolve,
+        timer,
+      }
+
+      // Send MISSION_REQUEST_LIST with MISSION_TYPE_RALLY (2)
+      this.transport!.send(encodeMissionRequestList(
+        this.targetSysId, this.targetCompId,
+        this.sysId, this.compId, 2,
+      ))
+    })
   }
 
   // ── Guided Flight ────────────────────────────────────
@@ -1504,7 +1692,8 @@ export class MAVLinkAdapter implements DroneProtocol {
   }
 
   async startCompassMotCal(): Promise<CommandResult> {
-    return this.sendCommandLong(42424, [0, 0, 0, 0, 0, 0, 0]) // DO_START_MAG_CAL
+    // CompassMot: PREFLIGHT_CALIBRATION(241) param6=1
+    return this.sendCommandLong(241, [0, 0, 0, 0, 0, 1, 0], 120000)
   }
 
   // ── Info ────────────────────────────────────────────────

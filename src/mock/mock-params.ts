@@ -401,6 +401,12 @@ export const MOCK_PARAMS: MockParam[] = [
   { name: "SERIAL3_BAUD", value: 38, type: 9 },
   { name: "SERIAL4_PROTOCOL", value: -1, type: 9 },
   { name: "SERIAL4_BAUD", value: 115, type: 9 },
+  { name: "SERIAL5_PROTOCOL", value: -1, type: 9 },
+  { name: "SERIAL5_BAUD", value: 57, type: 9 },
+  { name: "SERIAL6_PROTOCOL", value: -1, type: 9 },
+  { name: "SERIAL6_BAUD", value: 57, type: 9 },
+  { name: "SERIAL7_PROTOCOL", value: -1, type: 9 },
+  { name: "SERIAL7_BAUD", value: 57, type: 9 },
 
   // ── OSD ──────────────────────────────────────────────
   { name: "OSD_TYPE", value: 1, type: 9 },

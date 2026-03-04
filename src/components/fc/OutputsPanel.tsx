@@ -18,6 +18,7 @@ import {
 } from "@/lib/board-profiles";
 import { usePanelParams } from "@/hooks/use-panel-params";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
+import { useArmedLock } from "@/hooks/use-armed-lock";
 import { PanelHeader } from "./PanelHeader";
 import { OutputTimerGroupConfig, type PwmWarning } from "./OutputTimerGroupConfig";
 import { ServoMappingTable, type OutputRow } from "./ServoMappingTable";
@@ -94,6 +95,7 @@ export function OutputsPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const protocol = getSelectedProtocol();
   const { toast } = useToast();
+  const { isLocked, lockMessage } = useArmedLock();
   const [saving, setSaving] = useState(false);
 
   const {
@@ -129,6 +131,14 @@ export function OutputsPanel() {
   const [servoTestValues, setServoTestValues] = useState<number[]>(
     () => Array.from({ length: OUTPUT_COUNT }, () => 1500),
   );
+
+  // ── Force-disable test modes when vehicle arms ─────────────
+  useEffect(() => {
+    if (isLocked) {
+      setMotorTestEnabled(false);
+      setServoTestEnabled(false);
+    }
+  }, [isLocked]);
 
   // ── Derive output rows from flat params Map ────────────────
 
@@ -330,7 +340,15 @@ export function OutputsPanel() {
               label="Enable motor test (safety master)"
               checked={motorTestEnabled}
               onChange={setMotorTestEnabled}
+              disabled={isLocked}
             />
+
+            {isLocked && (
+              <div className="flex items-center gap-2 p-2 bg-status-error/10 border border-status-error/20">
+                <AlertTriangle size={14} className="text-status-error shrink-0" />
+                <span className="text-[10px] text-status-error">{lockMessage}</span>
+              </div>
+            )}
 
             {motorTestEnabled && (
               <div className="space-y-3">
@@ -398,7 +416,15 @@ export function OutputsPanel() {
               label="Enable servo test (safety master)"
               checked={servoTestEnabled}
               onChange={setServoTestEnabled}
+              disabled={isLocked}
             />
+
+            {isLocked && (
+              <div className="flex items-center gap-2 p-2 bg-status-error/10 border border-status-error/20">
+                <AlertTriangle size={14} className="text-status-error shrink-0" />
+                <span className="text-[10px] text-status-error">{lockMessage}</span>
+              </div>
+            )}
 
             {servoTestEnabled && (
               <div className="space-y-2">

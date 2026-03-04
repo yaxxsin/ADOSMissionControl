@@ -19,7 +19,6 @@ import { useSimulationKeyboard } from "@/hooks/use-simulation-keyboard";
 import { validateMission } from "@/lib/validation/mission-validator";
 import { SimulateLeftPanel } from "@/components/simulation/SimulateLeftPanel";
 
-
 const SimulationViewer = dynamic(
   () =>
     import("@/components/simulation/SimulationViewer").then((m) => m.SimulationViewer),

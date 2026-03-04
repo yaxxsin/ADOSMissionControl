@@ -30,7 +30,6 @@ import { timeAgo } from "@/lib/plan-library";
 import { exportWaypointsFormat } from "@/lib/mission-io";
 import { useSimulationStore, type CameraMode } from "@/stores/simulation-store";
 import { useInterpolatedPosition } from "@/hooks/use-interpolated-position";
-import { usePlannerStore } from "@/stores/planner-store";
 import { usePlanLibraryStore } from "@/stores/plan-library-store";
 import { useMissionStore } from "@/stores/mission-store";
 import { useSimHistoryStore } from "@/stores/simulation-history-store";
@@ -83,7 +82,6 @@ export function SimulationPanel({
   const seek = useSimulationStore((s) => s.seek);
 
   // Other stores
-  const setSelectedWaypoint = usePlannerStore((s) => s.setSelectedWaypoint);
   const activePlanId = usePlanLibraryStore((s) => s.activePlanId);
   const plans = usePlanLibraryStore((s) => s.plans);
   const missionWaypoints = useMissionStore((s) => s.waypoints);
