@@ -4,7 +4,7 @@ import { useTelemetryFreshness } from "@/hooks/use-telemetry-freshness";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/ui/tooltip";
 
-type TelemetryChannel = "attitude" | "position" | "battery" | "gps" | "vfr" | "rc" | "sysStatus" | "radio";
+type TelemetryChannel = "attitude" | "position" | "battery" | "gps" | "vfr" | "rc" | "sysStatus" | "radio" | "ekf" | "wind" | "navController";
 
 const DISPLAY_CHANNELS: { key: TelemetryChannel; label: string; short: string }[] = [
   { key: "attitude", label: "Attitude", short: "ATT" },
@@ -13,6 +13,11 @@ const DISPLAY_CHANNELS: { key: TelemetryChannel; label: string; short: string }[
   { key: "gps", label: "GPS", short: "GPS" },
   { key: "rc", label: "RC Input", short: "RC" },
   { key: "radio", label: "Radio", short: "RAD" },
+  { key: "vfr", label: "VFR HUD", short: "VFR" },
+  { key: "sysStatus", label: "System Status", short: "SYS" },
+  { key: "ekf", label: "EKF", short: "EKF" },
+  { key: "wind", label: "Wind", short: "WND" },
+  { key: "navController", label: "Nav Controller", short: "NAV" },
 ];
 
 const FRESHNESS_COLORS = {

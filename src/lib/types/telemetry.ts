@@ -181,6 +181,9 @@ export interface ObstacleData {
   minDistance: number;
   maxDistance: number;
   increment: number;
+  incrementF: number;
+  angleOffset: number;
+  frame: number;
 }
 
 // ── Scaled IMU ────────────────────────────────────────────

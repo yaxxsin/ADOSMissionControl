@@ -16,7 +16,8 @@ type TelemetryChannel =
   | "vibration"
   | "servoOutput"
   | "wind"
-  | "terrain";
+  | "terrain"
+  | "navController";
 
 interface TelemetryFreshnessResult {
   /** Get freshness for a specific channel */
@@ -41,6 +42,7 @@ const ALL_CHANNELS: TelemetryChannel[] = [
   "servoOutput",
   "wind",
   "terrain",
+  "navController",
 ];
 
 /** Key channels used for overall freshness assessment */
