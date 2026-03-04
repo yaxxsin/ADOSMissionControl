@@ -10,6 +10,7 @@ import { usePanelParams } from "@/hooks/use-panel-params";
 import { useParamLabel } from "@/hooks/use-param-label";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { PanelHeader } from "./PanelHeader";
+import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
 import { ShieldAlert, Battery, Radio, Gauge, Save, HardDrive, MapPin, SlidersHorizontal } from "lucide-react";
 
 const RC_CHANNEL_COUNT = 8;
@@ -103,6 +104,7 @@ export function FailsafePanel() {
   }
 
   return (
+    <ArmedLockOverlay>
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-2xl space-y-6">
         <PanelHeader
@@ -319,6 +321,7 @@ export function FailsafePanel() {
         </div>
       </div>
     </div>
+    </ArmedLockOverlay>
   );
 }
 

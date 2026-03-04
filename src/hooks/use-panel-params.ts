@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useParamSafetyStore } from "@/stores/param-safety-store";
 import { usePanelCacheStore } from "@/stores/panel-cache-store";
+import { useFcPanelActionsStore } from "@/stores/fc-panel-actions-store";
+import { useDiagnosticsStore } from "@/stores/diagnostics-store";
 
 interface PanelParamEvent {
   type: "read" | "write" | "flash" | "error" | "info";
@@ -247,6 +249,7 @@ export function usePanelParams(
           // Update the original to the saved value
           originalValues.current.set(name, value);
           setHasRamWrites(true);
+          useDiagnosticsStore.getState().logEvent("param_write", name + " = " + value);
           onEvent?.({ type: "write", message: `Saved ${name} = ${value} to RAM` });
           return true;
         }
@@ -285,6 +288,7 @@ export function usePanelParams(
       if (result.success) {
         commitFlashStore(true);
         setHasRamWrites(false);
+        useDiagnosticsStore.getState().logEvent("flash_commit", "Flash commit");
         onEvent?.({ type: "flash", message: "Written to flash" });
         return true;
       }
@@ -320,6 +324,17 @@ export function usePanelParams(
     setParams(new Map(originalValues.current));
     setDirtyParams(new Set());
   }, []);
+
+  // Register panel actions for global keyboard shortcuts
+  const registerActions = useFcPanelActionsStore((s) => s.register);
+  const unregisterActions = useFcPanelActionsStore((s) => s.unregister);
+
+  useEffect(() => {
+    const wrappedSave = async () => { await saveAllToRam(); };
+    const wrappedRefresh = async () => { await loadParams(); };
+    registerActions(wrappedSave, wrappedRefresh);
+    return () => unregisterActions();
+  }, [registerActions, unregisterActions, saveAllToRam, loadParams]);
 
   return {
     params,

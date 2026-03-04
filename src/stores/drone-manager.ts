@@ -10,6 +10,7 @@ import { useFleetStore } from "./fleet-store";
 import { useSettingsStore } from "./settings-store";
 import { useTrailStore } from "./trail-store";
 import { audioEngine } from "@/lib/audio-engine";
+import { useDiagnosticsStore } from "./diagnostics-store";
 import type { FlightMode } from "@/lib/types";
 
 export interface ConnectionMeta {
@@ -166,6 +167,20 @@ function bridgeTelemetry(
       droneStore.setConnectionState(data.armed ? "armed" : "connected");
       droneStore.heartbeat();
 
+      // Diagnostics: arm/disarm transitions
+      if (data.armed && !wasArmed) {
+        useDiagnosticsStore.getState().logEvent("arm", "Vehicle armed");
+      }
+      if (!data.armed && wasArmed) {
+        useDiagnosticsStore.getState().logEvent("disarm", "Vehicle disarmed");
+      }
+
+      // Diagnostics: mode changes
+      const prevMode = droneStore.flightMode;
+      if (mode !== prevMode) {
+        useDiagnosticsStore.getState().logEvent("mode_change", `Mode: ${prevMode} → ${mode}`);
+      }
+
       // Audio triggers for arm/disarm transitions
       const settings = useSettingsStore.getState();
       if (settings.audioEnabled && settings.alertArmDisarm) {
@@ -233,6 +248,8 @@ export const useDroneManager = create<DroneManagerState>((set, get) => ({
       return { drones: newMap };
     });
 
+    useDiagnosticsStore.getState().logConnection("connect", name + " connected");
+
     // Insert into fleet store so the drone appears in Fleet view
     useFleetStore.getState().addDrone({
       id,
@@ -259,6 +276,7 @@ export const useDroneManager = create<DroneManagerState>((set, get) => ({
   removeDrone: (id) => {
     const drone = get().drones.get(id);
     if (drone) {
+      useDiagnosticsStore.getState().logConnection("disconnect", drone.name + " disconnected");
       drone.unsubscribers.forEach((unsub) => unsub());
       if (drone.protocol.isConnected) {
         drone.protocol.disconnect();

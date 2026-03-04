@@ -3,8 +3,12 @@
 import { useState, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useFirmwareCapabilities } from "@/hooks/use-firmware-capabilities";
+import { useFcKeyboardShortcuts } from "@/hooks/use-fc-keyboard-shortcuts";
+import { useFcPanelActionsStore } from "@/stores/fc-panel-actions-store";
+import { useSettingsStore } from "@/stores/settings-store";
 import { FcDisconnectedPlaceholder } from "@/components/fc/FcDisconnectedPlaceholder";
 import { FlashCommitBanner } from "@/components/fc/FlashCommitBanner";
+import { RebootRequiredBanner } from "@/components/indicators/RebootRequiredBanner";
 import { OutputsPanel } from "@/components/fc/OutputsPanel";
 import { ReceiverPanel } from "@/components/fc/ReceiverPanel";
 import { FlightModesPanel } from "@/components/fc/FlightModesPanel";
@@ -106,8 +110,20 @@ interface DroneConfigureTabProps {
 }
 
 export function DroneConfigureTab({ droneId, droneName, isConnected }: DroneConfigureTabProps) {
-  const [activePanel, setActivePanel] = useState("outputs");
+  const lastActivePanel = useSettingsStore((s) => s.lastActivePanel);
+  const setLastActivePanelSetting = useSettingsStore((s) => s.setLastActivePanel);
+  const [activePanel, setActivePanel] = useState(lastActivePanel || "outputs");
   const { supports, firmwareType } = useFirmwareCapabilities();
+
+  // Persist active panel to settings store
+  useEffect(() => {
+    setLastActivePanelSetting(activePanel);
+  }, [activePanel, setLastActivePanelSetting]);
+
+  // Global FC keyboard shortcuts (Ctrl+S, Ctrl+Shift+S, Ctrl+R)
+  const saveToRam = useFcPanelActionsStore((s) => s.saveToRam);
+  const refresh = useFcPanelActionsStore((s) => s.refresh);
+  useFcKeyboardShortcuts(saveToRam ?? undefined, refresh ?? undefined);
 
   // Filter nav items based on firmware capabilities
   const visibleItems = useMemo(
@@ -201,6 +217,7 @@ export function DroneConfigureTab({ droneId, droneName, isConnected }: DroneConf
         ) : (
           <>
             <FlashCommitBanner />
+            <RebootRequiredBanner rebootParams={[]} />
             {activePanel === "outputs" && <OutputsPanel />}
             {activePanel === "receiver" && <ReceiverPanel />}
             {activePanel === "modes" && <FlightModesPanel />}

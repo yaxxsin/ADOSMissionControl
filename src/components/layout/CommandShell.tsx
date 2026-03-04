@@ -22,15 +22,36 @@ import { formatSyncTime } from "@/lib/sync";
 import { useAutoReconnect } from "@/hooks/use-auto-reconnect";
 import { useGcsLocation } from "@/hooks/use-gcs-location";
 import { usePlatform } from "@/hooks/use-platform";
+import { useDisconnectGuard } from "@/hooks/use-disconnect-guard";
+import { DisconnectGuard } from "@/components/fc/DisconnectGuard";
 import { cn } from "@/lib/utils";
 import { ChangelogNotificationGate } from "@/components/changelog/ChangelogNotificationGate";
 import { ChangelogBadge } from "@/components/changelog/ChangelogBadge";
+import { ConnectionQualityMeter } from "@/components/indicators/ConnectionQualityMeter";
+import { RecordingControls } from "@/components/shared/RecordingControls";
 import Link from "next/link";
 
 export function CommandShell({ children }: { children: React.ReactNode }) {
   useAutoReconnect();
   useGcsLocation();
   const { isElectron, isMac, isWindows, isLinux } = usePlatform();
+  const {
+    guardOpen,
+    commitAndDisconnect,
+    discardAndDisconnect,
+    cancelDisconnect,
+    requestDisconnect,
+  } = useDisconnectGuard();
+
+  // Listen for disconnect requests from other components (e.g. ActiveConnections)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const droneId = (e as CustomEvent<string>).detail;
+      if (droneId) requestDisconnect(droneId);
+    };
+    window.addEventListener("request-disconnect", handler);
+    return () => window.removeEventListener("request-disconnect", handler);
+  }, [requestDisconnect]);
   const demo = useSettingsStore((s) => s.demoMode);
   const setDemoMode = useSettingsStore((s) => s.setDemoMode);
   const alertCount = useFleetStore((s) => s.alerts.filter((a) => !a.acknowledged).length);
@@ -139,6 +160,12 @@ export function CommandShell({ children }: { children: React.ReactNode }) {
             </div>
           </Tooltip>
 
+          {/* Connection quality meter — only when a drone is connected */}
+          {mavConnected && <ConnectionQualityMeter />}
+
+          {/* Telemetry recording controls — only when a drone is connected */}
+          {mavConnected && <RecordingControls />}
+
           {/* Alert count */}
           {alertCount > 0 && (
             <Tooltip content="Unacknowledged alerts" position="bottom">
@@ -245,6 +272,14 @@ export function CommandShell({ children }: { children: React.ReactNode }) {
 
       {/* Connect dialog */}
       <ConnectDialog />
+
+      {/* Disconnect guard — warns about uncommitted param writes */}
+      <DisconnectGuard
+        open={guardOpen}
+        onCommitAndDisconnect={commitAndDisconnect}
+        onDiscardAndDisconnect={discardAndDisconnect}
+        onCancel={cancelDisconnect}
+      />
 
       {/* Body */}
       <main className="flex-1 flex flex-col overflow-hidden">

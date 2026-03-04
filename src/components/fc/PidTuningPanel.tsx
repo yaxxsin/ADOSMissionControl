@@ -8,6 +8,7 @@ import { useTelemetryStore } from "@/stores/telemetry-store";
 import { usePanelParams } from "@/hooks/use-panel-params";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { PanelHeader } from "./PanelHeader";
+import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
 import {
   SlidersHorizontal, Save, RotateCcw, BarChart3, HardDrive,
   Play, Copy, Zap, Filter,
@@ -157,6 +158,7 @@ export function PidTuningPanel() {
     : "ArduPlane roll, pitch, yaw servo PID gains";
 
   return (
+    <ArmedLockOverlay>
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-3xl space-y-6">
         <PanelHeader
@@ -521,5 +523,6 @@ export function PidTuningPanel() {
         </div>
       </div>
     </div>
+    </ArmedLockOverlay>
   );
 }

@@ -429,6 +429,113 @@ class MockFlightEngine {
           );
         }
 
+        // Wind at 1Hz
+        if (state.tickCount % 5 === 0) {
+          const windDir = 180 + Math.sin(state.tickCount * 0.01) * 45; // slowly varying 135-225 deg
+          state.protocol.emitWind({
+            timestamp: now,
+            direction: windDir,
+            speed: 3 + Math.random() * 2,       // 3-5 m/s
+            speedZ: -0.2 + Math.random() * 0.4,  // small vertical component
+          });
+        }
+
+        // Terrain at 1Hz
+        if (state.tickCount % 5 === 0) {
+          state.protocol.emitTerrain({
+            timestamp: now,
+            lat: pos.lat,
+            lon: pos.lon,
+            terrainHeight: 920,               // ground level ~920m ASL (Bangalore)
+            currentHeight: pos.alt,           // AGL
+            spacing: 30,
+            pending: 0,
+            loaded: 4,
+          });
+        }
+
+        // ScaledIMU at ~2Hz
+        if (state.tickCount % 3 === 0) {
+          state.protocol.emitScaledImu({
+            timestamp: now,
+            xacc: Math.round((roll * 0.1 + (Math.random() - 0.5) * 2) * 100),     // mG
+            yacc: Math.round((pitch * 0.1 + (Math.random() - 0.5) * 2) * 100),
+            zacc: Math.round((-980 + (Math.random() - 0.5) * 5) * 1),              // ~-980 mG (gravity)
+            xgyro: Math.round(roll * 10 + (Math.random() - 0.5) * 50),             // mrad/s
+            ygyro: Math.round(pitch * 5 + (Math.random() - 0.5) * 50),
+            zgyro: Math.round(headingDelta * 2 + (Math.random() - 0.5) * 30),
+            xmag: Math.round(200 + Math.sin(pos.heading * Math.PI / 180) * 150),   // mGauss
+            ymag: Math.round(50 + Math.cos(pos.heading * Math.PI / 180) * 150),
+            zmag: Math.round(400 + (Math.random() - 0.5) * 20),
+          });
+        }
+
+        // HomePosition at 0.2Hz (every 25 ticks = ~5s)
+        if (state.tickCount % 25 === 0) {
+          const homePath = FLIGHT_PATHS[cfg.pathIndex];
+          const homeWp = homePath?.[0];
+          if (homeWp) {
+            state.protocol.emitHomePosition({
+              timestamp: now,
+              lat: homeWp.lat,
+              lon: homeWp.lon,
+              alt: 920, // ASL
+            });
+          }
+        }
+
+        // PowerStatus at 1Hz
+        if (state.tickCount % 5 === 0) {
+          state.protocol.emitPowerStatus({
+            timestamp: now,
+            vcc: 5000 + Math.floor(Math.random() * 100),    // 5.0-5.1V in mV
+            vservo: 0,                                        // no servo rail
+            flags: 0,                                         // no power supply issues
+          });
+        }
+
+        // DistanceSensor at ~2Hz (rangefinder)
+        if (state.tickCount % 3 === 0) {
+          state.protocol.emitDistanceSensor({
+            timestamp: now,
+            currentDistance: Math.round(pos.alt * 100 + (Math.random() - 0.5) * 20), // cm, AGL + noise
+            minDistance: 2,       // 2cm min
+            maxDistance: 12000,   // 120m max
+            orientation: 25,     // MAV_SENSOR_ROTATION_PITCH_270 = downward
+            id: 0,
+            covariance: 5,
+          });
+        }
+
+        // FenceStatus at 1Hz
+        if (state.tickCount % 5 === 0) {
+          state.protocol.emitFenceStatus({
+            timestamp: now,
+            breachStatus: 0,   // no breach
+            breachCount: 0,
+            breachType: 0,
+          });
+        }
+
+        // NavController at ~2Hz (mission navigation state)
+        if (state.tickCount % 3 === 0) {
+          const targetWpIdx = (state.currentWaypointIdx + 1) % path.length;
+          const targetWp = path[targetWpIdx];
+          const bearing = Math.atan2(
+            targetWp.lon - pos.lon,
+            targetWp.lat - pos.lat,
+          ) * (180 / Math.PI);
+          const remainingDist = state.segmentDistances[state.currentWaypointIdx] ?? 0;
+          state.protocol.emitNavController({
+            timestamp: now,
+            navBearing: ((bearing % 360) + 360) % 360,
+            targetBearing: ((bearing % 360) + 360) % 360,
+            wpDist: Math.round(remainingDist * (1 - state.pathProgress)),
+            altError: (nextWp.alt - pos.alt) * (1 - state.pathProgress),
+            xtrackError: (Math.random() - 0.5) * 2, // small crosstrack error in meters
+          });
+        }
+
         // StatusText ~every 10-30s
         state.statusMessageTick++;
         const msg = generateStatusMessage({

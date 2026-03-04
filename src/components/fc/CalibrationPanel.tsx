@@ -14,13 +14,15 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CalibrationRebootBanner } from "./CalibrationRebootBanner";
 import { CalibrationLog } from "./CalibrationLog";
+import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
+import { useDiagnosticsStore } from "@/stores/diagnostics-store";
 import {
   type CompassResult,
   type CalibrationState,
   type CalibrationLogEntry,
   INITIAL_STATE,
   ACCEL_STEPS, GYRO_STEPS, COMPASS_STEPS, LEVEL_STEPS,
-  AIRSPEED_STEPS, BARO_STEPS, ESC_CAL_STEPS, COMPASSMOT_STEPS,
+  AIRSPEED_STEPS, BARO_STEPS, RC_CAL_STEPS, ESC_CAL_STEPS, COMPASSMOT_STEPS,
   TYPE_KEYWORDS, MAG_CAL_FAIL_MESSAGES, LOG_KEYWORDS,
   CAL_TIMEOUTS, MAX_LOG_ENTRIES,
 } from "./calibration-types";
@@ -289,25 +291,25 @@ function RcCalibrationWizard({ connected }: { connected: boolean }) {
       {/* Step instructions */}
       {step === "center" && (
         <div className="mb-3 border border-accent-primary/20 bg-accent-primary/5 px-3 py-2.5">
-          <p className="text-[10px] font-medium text-accent-primary">Step 1: Center all sticks and switches</p>
+          <p className="text-[10px] font-medium text-accent-primary">Step 1/3: {RC_CAL_STEPS[0].label}</p>
           <p className="text-[10px] text-text-tertiary mt-0.5">
-            Move all sticks to center position and all switches to default. Click Next when ready.
+            {RC_CAL_STEPS[0].description}
           </p>
         </div>
       )}
       {step === "move" && (
         <div className="mb-3 border border-accent-primary/20 bg-accent-primary/5 px-3 py-2.5">
-          <p className="text-[10px] font-medium text-accent-primary">Step 2: Move all sticks to full extent</p>
+          <p className="text-[10px] font-medium text-accent-primary">Step 2/3: {RC_CAL_STEPS[1].label}</p>
           <p className="text-[10px] text-text-tertiary mt-0.5">
-            Move every stick and switch to its minimum and maximum positions. The red markers show captured extremes.
+            {RC_CAL_STEPS[1].description}
           </p>
         </div>
       )}
       {step === "confirm" && (
         <div className="mb-3 border border-status-warning/20 bg-status-warning/5 px-3 py-2.5">
-          <p className="text-[10px] font-medium text-status-warning">Step 3: Review and save</p>
+          <p className="text-[10px] font-medium text-status-warning">Step 3/3: {RC_CAL_STEPS[2].label}</p>
           <p className="text-[10px] text-text-tertiary mt-0.5">
-            Review captured values below. Click Save to write RC parameters to the flight controller.
+            {RC_CAL_STEPS[2].description} Click Save to write RC parameters.
           </p>
         </div>
       )}
@@ -482,6 +484,7 @@ export function CalibrationPanel() {
       setter((prev) => {
         if (prev.status !== "in_progress") return prev;
         cleanupSubs(type);
+        useDiagnosticsStore.getState().logCalibration(type, "failed");
         return { ...prev, status: "error", message: "Calibration timed out — no response from flight controller" };
       });
     }, ms);
@@ -615,6 +618,7 @@ export function CalibrationPanel() {
             };
           });
           toast(`${calType.charAt(0).toUpperCase() + calType.slice(1)} calibration complete`, "success");
+          useDiagnosticsStore.getState().logCalibration(calType, "success");
           cleanupSubs(calType);
           return;
         }
@@ -629,6 +633,7 @@ export function CalibrationPanel() {
           }
           setter((prev) => ({ ...prev, status: "error", message: text, waitingForConfirm: false }));
           toast(`${calType.charAt(0).toUpperCase() + calType.slice(1)} calibration failed`, "error");
+          useDiagnosticsStore.getState().logCalibration(calType, "failed");
           cleanupSubs(calType);
           return;
         }
@@ -687,6 +692,7 @@ export function CalibrationPanel() {
             };
           });
           toast(`${calType.charAt(0).toUpperCase() + calType.slice(1)} calibration complete`, "success");
+          useDiagnosticsStore.getState().logCalibration(calType, "success");
         }, 5000);
         addSub(calType, fastUnsub);
         addSub(calType, () => clearTimeout(fastTimer));
@@ -784,6 +790,7 @@ export function CalibrationPanel() {
                 const allDone = Array.from(prev.compassProgress.keys()).every((id) => cr.has(id));
                 if (allDone || prev.compassProgress.size === 0) {
                   cleanupSubs(calType);
+                  useDiagnosticsStore.getState().logCalibration(calType, "success");
                   return {
                     ...prev,
                     compassResults: cr,
@@ -810,6 +817,7 @@ export function CalibrationPanel() {
                   fixes = failInfo?.fixes ?? [];
                 }
                 cleanupSubs(calType);
+                useDiagnosticsStore.getState().logCalibration(calType, "failed");
                 // Show results with warning — allow force-save instead of terminal error
                 return {
                   ...prev,
@@ -867,6 +875,7 @@ export function CalibrationPanel() {
         }
       }
       cleanupSubs(type);
+      useDiagnosticsStore.getState().logCalibration(type, "cancelled");
       setter(INITIAL_STATE);
     },
     [getSelectedProtocol],
@@ -1026,6 +1035,7 @@ export function CalibrationPanel() {
     .map(([id, r]) => ({ ...r, compassId: id }));
 
   return (
+    <ArmedLockOverlay className="overflow-y-auto">
     <div className="flex-1 overflow-y-auto p-6">
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
         {/* Left: Calibration Wizards */}
@@ -1320,5 +1330,6 @@ export function CalibrationPanel() {
         <CalibrationLog logEntries={logEntries} onClear={() => setLogEntries([])} />
       </div>
     </div>
+    </ArmedLockOverlay>
   );
 }

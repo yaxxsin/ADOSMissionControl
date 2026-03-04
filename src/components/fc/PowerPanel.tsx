@@ -11,6 +11,7 @@ import { usePanelParams } from "@/hooks/use-panel-params";
 import { useParamLabel } from "@/hooks/use-param-label";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { PanelHeader } from "./PanelHeader";
+import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
 import { Battery, Zap, ShieldAlert, Save, HardDrive } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -112,6 +113,7 @@ export function PowerPanel() {
   }
 
   return (
+    <ArmedLockOverlay>
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-2xl space-y-6">
         <PanelHeader
@@ -410,6 +412,7 @@ export function PowerPanel() {
         </div>
       </div>
     </div>
+    </ArmedLockOverlay>
   );
 }
 

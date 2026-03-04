@@ -13,6 +13,7 @@ import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { PanelHeader } from "./PanelHeader";
 import { RcChannelBar } from "./RcChannelBar";
 import { ReceiverBindingUI } from "./ReceiverBindingUI";
+import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
 import { Save, Radio, HardDrive } from "lucide-react";
 
 // ── Constants ────────────────────────────────────────────────
@@ -113,6 +114,7 @@ export function ReceiverPanel() {
   }
 
   return (
+    <ArmedLockOverlay>
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-3xl space-y-4">
         <PanelHeader
@@ -287,5 +289,6 @@ export function ReceiverPanel() {
         />
       </div>
     </div>
+    </ArmedLockOverlay>
   );
 }

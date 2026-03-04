@@ -11,6 +11,7 @@ import {
   type VideoFormat,
 } from "./OsdElementGrid";
 import { OsdScreenPreview, FORMAT_ROWS } from "./OsdScreenPreview";
+import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
 
 const DEFAULT_ELEMENTS: OsdElement[] = [
   { id: "ALTITUDE", label: "Altitude", shortLabel: "ALT", enabled: true, row: 1, col: 1 },
@@ -206,6 +207,7 @@ export function OsdEditorPanel() {
   const enabledElements = elements.filter((el) => el.enabled);
 
   return (
+    <ArmedLockOverlay>
     <div className="h-full flex">
       <OsdElementGrid
         elements={elements}
@@ -239,5 +241,6 @@ export function OsdEditorPanel() {
         onElementMove={handleElementMove}
       />
     </div>
+    </ArmedLockOverlay>
   );
 }

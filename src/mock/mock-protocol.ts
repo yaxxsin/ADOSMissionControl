@@ -229,6 +229,34 @@ export class MockProtocol implements DroneProtocol {
     for (const cb of this.windCbs) cb(data);
   }
 
+  emitTerrain(data: Parameters<TerrainCallback>[0]): void {
+    for (const cb of this.terrainCbs) cb(data);
+  }
+
+  emitScaledImu(data: Parameters<ScaledImuCallback>[0]): void {
+    for (const cb of this.scaledImuCbs) cb(data);
+  }
+
+  emitHomePosition(data: Parameters<HomePositionCallback>[0]): void {
+    for (const cb of this.homePositionCbs) cb(data);
+  }
+
+  emitPowerStatus(data: Parameters<PowerStatusCallback>[0]): void {
+    for (const cb of this.powerStatusCbs) cb(data);
+  }
+
+  emitDistanceSensor(data: Parameters<DistanceSensorCallback>[0]): void {
+    for (const cb of this.distanceSensorCbs) cb(data);
+  }
+
+  emitFenceStatus(data: Parameters<FenceStatusCallback>[0]): void {
+    for (const cb of this.fenceStatusCbs) cb(data);
+  }
+
+  emitNavController(data: Parameters<NavControllerCallback>[0]): void {
+    for (const cb of this.navControllerCbs) cb(data);
+  }
+
   emitLocalPosition(data: Parameters<LocalPositionCallback>[0]): void {
     for (const cb of this.localPositionCbs) cb(data);
   }
