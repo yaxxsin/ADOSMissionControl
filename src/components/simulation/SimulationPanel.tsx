@@ -50,16 +50,19 @@ const CAMERA_MODES: { id: CameraMode; label: string; key: string; title: string 
 const SHORTCUTS = [
   { key: "Space", action: "Play / Pause" },
   { key: "Esc", action: "Stop" },
+  { key: "R", action: "Reset" },
   { key: "\u2192", action: "Step forward 1s" },
   { key: "\u2190", action: "Step back 1s" },
   { key: "T", action: "Top-down camera" },
   { key: "F", action: "Follow camera" },
   { key: "O", action: "Orbit camera" },
   { key: "X", action: "Free camera" },
-  { key: "1-4", action: "Speed presets" },
-  { key: "+", action: "Increase speed" },
-  { key: "-", action: "Decrease speed" },
-  { key: "R", action: "Reset simulation" },
+  { key: "1-9", action: "Seek to 10-90%" },
+  { key: "]", action: "Increase speed" },
+  { key: "[", action: "Decrease speed" },
+  { key: "Home", action: "Reset to start" },
+  { key: "End", action: "Skip to end" },
+  { key: "L", action: "Toggle library" },
 ];
 
 interface SimulationPanelProps {

@@ -30,6 +30,7 @@ import CesiumScene from "./CesiumScene";
 import { FlightPathEntity } from "./FlightPathEntity";
 import { WaypointEntities } from "./WaypointEntities";
 import { DroneEntity } from "./DroneEntity";
+import { DroneTrailEntity } from "./DroneTrailEntity";
 import { GcsEntity } from "./GcsEntity";
 import { CameraTriggerEntities } from "./CameraTriggerEntities";
 import { GeofenceEntities } from "./GeofenceEntities";
@@ -178,6 +179,10 @@ export function SimulationViewer({ waypoints, defaultSpeed }: SimulationViewerPr
         positionProperty={sampled?.sampledPosition ?? null}
         headingProperty={sampled?.sampledHeading ?? null}
         useAbsoluteAlt={hasAbsolutePositions}
+      />
+      <DroneTrailEntity
+        viewer={viewer}
+        positionProperty={sampled?.sampledPosition ?? null}
       />
       <GcsEntity viewer={viewer} />
       <CameraTriggerEntities viewer={viewer} waypoints={waypoints} visible={showCameraTriggers} />

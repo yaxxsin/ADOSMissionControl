@@ -42,7 +42,7 @@ export function AltitudeProfile({ waypoints, flightPlan, terrainHeights }: Altit
   const { minAlt, maxAlt } = useMemo(() => {
     if (waypoints.length === 0) return { minAlt: 0, maxAlt: 100 };
     const alts = waypoints.map((wp) => wp.alt);
-    if (terrainHeights) alts.push(...terrainHeights);
+    if (terrainHeights && terrainHeights.length === waypoints.length) alts.push(...terrainHeights);
     const min = Math.min(...alts);
     const max = Math.max(...alts);
     const pad = Math.max((max - min) * 0.15, 5);

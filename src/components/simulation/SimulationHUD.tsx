@@ -12,7 +12,7 @@ import { useSimulationStore } from "@/stores/simulation-store";
 import { useInterpolatedPosition } from "@/hooks/use-interpolated-position";
 import { useCameraTriggerCount } from "./CameraTriggerEntities";
 import { formatEta } from "@/lib/simulation-utils";
-import { formatAlt, formatHeading } from "@/lib/telemetry-utils";
+import { formatAlt, formatHeading, haversineDistance } from "@/lib/telemetry-utils";
 
 export function SimulationHUD() {
   const waypoints = useMissionStore((s) => s.waypoints);
@@ -25,11 +25,22 @@ export function SimulationHUD() {
 
   const remaining = Math.max(0, totalDuration - elapsed);
 
+  // Distance to next waypoint
+  const nextWpIdx = Math.min(pos.currentWaypointIndex + 1, waypoints.length - 1);
+  const nextWp = waypoints[nextWpIdx];
+  const distToNext = nextWp
+    ? haversineDistance(pos.lat, pos.lon, nextWp.lat, nextWp.lon)
+    : 0;
+  const distLabel = distToNext >= 1000
+    ? `${(distToNext / 1000).toFixed(1)} km`
+    : `${Math.round(distToNext)} m`;
+
   const items = [
     { label: "WP", value: `${pos.currentWaypointIndex + 1}/${waypoints.length}` },
     { label: "ALT", value: formatAlt(pos.alt) },
     { label: "SPD", value: `${pos.speed.toFixed(1)} m/s` },
     { label: "HDG", value: formatHeading(pos.heading) },
+    { label: "DIST", value: distLabel },
     { label: "ETA", value: formatEta(remaining) },
     ...(photoCount > 0 ? [{ label: "CAM", value: `${photoCount} photos` }] : []),
   ];
@@ -51,6 +62,16 @@ export function SimulationHUD() {
             <span className="text-[10px] font-mono text-status-warning animate-pulse">HOLD</span>
           </div>
         )}
+      </div>
+      {/* Compass indicator */}
+      <div className="mt-2 flex justify-center">
+        <div className="w-8 h-8 rounded-full border border-border-default bg-bg-primary/50 flex items-center justify-center relative">
+          <svg width="20" height="20" viewBox="0 0 20 20" style={{ transform: `rotate(${pos.heading}deg)` }}>
+            <polygon points="10,2 13,10 10,8 7,10" fill="#dff140" opacity="0.9" />
+            <polygon points="10,18 13,10 10,12 7,10" fill="#666" opacity="0.5" />
+          </svg>
+          <span className="absolute -top-0.5 left-1/2 -translate-x-1/2 text-[7px] font-mono text-text-tertiary">N</span>
+        </div>
       </div>
     </div>
   );

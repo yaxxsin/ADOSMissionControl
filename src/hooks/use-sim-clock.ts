@@ -66,7 +66,7 @@ export function useSimClock(
 
     bindSimViewer(viewer, startJulian);
 
-    return () => unbindSimViewer();
+    return () => unbindSimViewer(viewer);
   }, [viewer, sampled, totalDuration]);
 
   // Effect 2: onTick — sync elapsed + follow camera

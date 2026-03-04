@@ -78,6 +78,14 @@ export function useSimulationKeyboard(active: boolean) {
           usePlanLibraryStore.getState().toggleLibrary();
           break;
         }
+        case "Escape":
+          e.preventDefault();
+          store.stop();
+          break;
+        case "r":
+          e.preventDefault();
+          store.stop();
+          break;
         default: {
           // Number keys 1-9: seek to proportional position in the flight
           const num = parseInt(e.key);

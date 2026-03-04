@@ -13,6 +13,7 @@ import {
   Cartesian3,
   Color,
   HeightReference,
+  PolygonHierarchy,
   PolylineDashMaterialProperty,
   type Viewer as CesiumViewer,
   type Entity,
@@ -47,7 +48,7 @@ export function GeofenceEntities({ viewer }: GeofenceEntitiesProps) {
       // Ground polygon fill
       const polyEntity = viewer.entities.add({
         polygon: {
-          hierarchy: positions,
+          hierarchy: new PolygonHierarchy(positions),
           material: fenceColor,
           heightReference: HeightReference.CLAMP_TO_GROUND,
         },

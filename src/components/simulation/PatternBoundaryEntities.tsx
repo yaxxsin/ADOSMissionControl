@@ -13,6 +13,7 @@ import {
   Cartesian3,
   Color,
   HeightReference,
+  PolygonHierarchy,
   type Viewer as CesiumViewer,
   type Entity,
 } from "cesium";
@@ -45,7 +46,7 @@ export function PatternBoundaryEntities({ viewer }: PatternBoundaryEntitiesProps
 
       const polyEntity = viewer.entities.add({
         polygon: {
-          hierarchy: positions,
+          hierarchy: new PolygonHierarchy(positions),
           material: Color.fromCssColorString(SURVEY_COLOR).withAlpha(0.15),
           heightReference: HeightReference.CLAMP_TO_GROUND,
           outline: true,
@@ -108,7 +109,7 @@ export function PatternBoundaryEntities({ viewer }: PatternBoundaryEntitiesProps
 
       const corridorEntity = viewer.entities.add({
         polygon: {
-          hierarchy: corridorPositions,
+          hierarchy: new PolygonHierarchy(corridorPositions),
           material: Color.fromCssColorString(CORRIDOR_COLOR).withAlpha(0.15),
           heightReference: HeightReference.CLAMP_TO_GROUND,
           outline: true,

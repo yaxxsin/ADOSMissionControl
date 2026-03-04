@@ -48,11 +48,13 @@ let _startJulian: JulianDate | null = null;
 const _scratchJulian = new JulianDate();
 
 export function bindSimViewer(viewer: CesiumViewer, startJulian: JulianDate) {
+  if (_viewer === viewer) return; // Already bound to this viewer
   _viewer = viewer;
   _startJulian = JulianDate.clone(startJulian);
 }
 
-export function unbindSimViewer() {
+export function unbindSimViewer(viewer?: CesiumViewer) {
+  if (viewer && _viewer !== viewer) return; // Different viewer, don't unbind
   _viewer = null;
   _startJulian = null;
 }
@@ -79,6 +81,7 @@ export const useSimulationStore = create<SimulationStoreState>()((set, get) => (
   sourceLibraryPlanId: null,
 
   play: () => {
+    if (!_viewer || _viewer.isDestroyed()) return;
     const { elapsed, totalDuration } = get();
     // If at the end, restart from beginning
     if (elapsed >= totalDuration && totalDuration > 0) {
@@ -87,9 +90,7 @@ export const useSimulationStore = create<SimulationStoreState>()((set, get) => (
     } else {
       set({ playbackState: "playing" });
     }
-    if (_viewer && !_viewer.isDestroyed()) {
-      _viewer.clock.shouldAnimate = true;
-    }
+    _viewer.clock.shouldAnimate = true;
   },
 
   pause: () => {
@@ -116,13 +117,15 @@ export const useSimulationStore = create<SimulationStoreState>()((set, get) => (
 
   stepForward: () => {
     const { elapsed, totalDuration } = get();
+    if (totalDuration === 0) return;
     const next = quantize(Math.min(elapsed + STEP_SECONDS, totalDuration));
     set({ elapsed: next });
     seekClock(next);
   },
 
   stepBack: () => {
-    const { elapsed } = get();
+    const { elapsed, totalDuration } = get();
+    if (totalDuration === 0) return;
     const prev = quantize(Math.max(elapsed - STEP_SECONDS, 0));
     set({ elapsed: prev });
     seekClock(prev);
@@ -142,11 +145,9 @@ export const useSimulationStore = create<SimulationStoreState>()((set, get) => (
   setTotalDuration: (totalDuration) => {
     set({ totalDuration });
     if (_viewer && !_viewer.isDestroyed() && _startJulian) {
-      _viewer.clock.stopTime = JulianDate.addSeconds(
-        _startJulian,
-        totalDuration,
-        _scratchJulian
-      );
+      const stopTime = new JulianDate();
+      JulianDate.addSeconds(_startJulian, totalDuration, stopTime);
+      _viewer.clock.stopTime = stopTime;
     }
   },
 

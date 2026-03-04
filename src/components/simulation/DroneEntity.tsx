@@ -10,7 +10,7 @@
 
 import { useEffect, useRef } from "react";
 import {
-  Cartesian3,
+  CallbackProperty,
   HeightReference,
   type Viewer as CesiumViewer,
   type Entity,
@@ -39,16 +39,22 @@ export function DroneEntity({ viewer, positionProperty, headingProperty, useAbso
   useEffect(() => {
     if (!viewer || viewer.isDestroyed() || !positionProperty) return;
 
+    // Create rotation property that compensates for camera heading
+    // Without alignedAxis, billboard up = screen up, so rotation = camera.heading + sampledHeading
+    const rotationProperty = new CallbackProperty((time) => {
+      if (!viewer || viewer.isDestroyed()) return 0;
+      const hdg = headingProperty?.getValue(time);
+      return typeof hdg === "number" ? viewer.camera.heading + hdg : 0;
+    }, false);
+
     const drone = viewer.entities.add({
       id: DRONE_ENTITY_ID,
       position: positionProperty, // CesiumJS evaluates at clock.currentTime every frame
       billboard: {
         image: ARROW_DATA_URL,
-        width: 28,
-        height: 28,
-        // SampledProperty IS a Property — CesiumJS evaluates it natively
-        rotation: headingProperty ?? undefined,
-        alignedAxis: Cartesian3.UNIT_Z,
+        width: 36,
+        height: 36,
+        rotation: rotationProperty,
         heightReference: useAbsoluteAlt ? HeightReference.NONE : HeightReference.RELATIVE_TO_GROUND,
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
       },
