@@ -51,8 +51,9 @@ export function WaypointList({
       toggleWaypointSelection(id);
     } else {
       onSelect(id);
+      onExpand(id);
     }
-  }, [selectedId, waypointIds, selectRange, toggleWaypointSelection, onSelect]);
+  }, [selectedId, waypointIds, selectRange, toggleWaypointSelection, onSelect, onExpand]);
 
   const handleDragStart = useCallback((index: number) => (e: React.DragEvent) => {
     dragIndexRef.current = index;
