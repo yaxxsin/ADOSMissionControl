@@ -142,6 +142,14 @@ function bridgeTelemetry(
     protocol.onWind((data) => telemetry.pushWind(data)),
     protocol.onTerrain((data) => telemetry.pushTerrain(data)),
 
+    // Optional telemetry callbacks (bridged with optional chaining)
+    ...(protocol.onScaledImu ? [protocol.onScaledImu((data) => telemetry.pushScaledImu(data))] : []),
+    ...(protocol.onHomePosition ? [protocol.onHomePosition((data) => telemetry.pushHomePosition(data))] : []),
+    ...(protocol.onPowerStatus ? [protocol.onPowerStatus((data) => telemetry.pushPowerStatus(data))] : []),
+    ...(protocol.onDistanceSensor ? [protocol.onDistanceSensor((data) => telemetry.pushDistanceSensor(data))] : []),
+    ...(protocol.onFenceStatus ? [protocol.onFenceStatus((data) => telemetry.pushFenceStatus(data))] : []),
+    ...(protocol.onNavController ? [protocol.onNavController((data) => telemetry.pushNavController(data))] : []),
+
     protocol.onMissionProgress((data) => {
       if (data.reachedSeq !== undefined) {
         const settings = useSettingsStore.getState();
@@ -162,6 +170,9 @@ function bridgeTelemetry(
         ? (data.mode as FlightMode)
         : droneStore.flightMode;
 
+      // Capture previous mode BEFORE updating store (explicit intent)
+      const prevMode = droneStore.flightMode;
+
       droneStore.setFlightMode(mode);
       droneStore.setArmState(data.armed ? "armed" : "disarmed");
       droneStore.setConnectionState(data.armed ? "armed" : "connected");
@@ -176,7 +187,6 @@ function bridgeTelemetry(
       }
 
       // Diagnostics: mode changes
-      const prevMode = droneStore.flightMode;
       if (mode !== prevMode) {
         useDiagnosticsStore.getState().logEvent("mode_change", `Mode: ${prevMode} → ${mode}`);
       }

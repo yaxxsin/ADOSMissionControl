@@ -182,3 +182,68 @@ export interface ObstacleData {
   maxDistance: number;
   increment: number;
 }
+
+// ── Scaled IMU ────────────────────────────────────────────
+
+export interface ScaledImuData {
+  timestamp: number;
+  xacc: number;
+  yacc: number;
+  zacc: number;
+  xgyro: number;
+  ygyro: number;
+  zgyro: number;
+  xmag: number;
+  ymag: number;
+  zmag: number;
+}
+
+// ── Home Position ─────────────────────────────────────────
+
+export interface HomePositionData {
+  timestamp: number;
+  lat: number;
+  lon: number;
+  alt: number;
+}
+
+// ── Power Status ──────────────────────────────────────────
+
+export interface PowerStatusData {
+  timestamp: number;
+  vcc: number;
+  vservo: number;
+  flags: number;
+}
+
+// ── Distance Sensor ───────────────────────────────────────
+
+export interface DistanceSensorData {
+  timestamp: number;
+  currentDistance: number;
+  minDistance: number;
+  maxDistance: number;
+  orientation: number;
+  id: number;
+  covariance: number;
+}
+
+// ── Fence Status ──────────────────────────────────────────
+
+export interface FenceStatusData {
+  timestamp: number;
+  breachStatus: number;
+  breachCount: number;
+  breachType: number;
+}
+
+// ── Nav Controller ────────────────────────────────────────
+
+export interface NavControllerData {
+  timestamp: number;
+  navBearing: number;
+  targetBearing: number;
+  wpDist: number;
+  altError: number;
+  xtrackError: number;
+}

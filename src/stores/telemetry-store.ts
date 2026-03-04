@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { RingBuffer } from "@/lib/ring-buffer";
-import type { AttitudeData, PositionData, BatteryData, GpsData, VfrData, RcData, SysStatusData, RadioData, EkfData, VibrationData, ServoOutputData, WindData, TerrainData, LocalPositionData, DebugData, GimbalData, ObstacleData } from "@/lib/types";
+import type { AttitudeData, PositionData, BatteryData, GpsData, VfrData, RcData, SysStatusData, RadioData, EkfData, VibrationData, ServoOutputData, WindData, TerrainData, LocalPositionData, DebugData, GimbalData, ObstacleData, ScaledImuData, HomePositionData, PowerStatusData, DistanceSensorData, FenceStatusData, NavControllerData } from "@/lib/types";
 
 interface TelemetryStoreState {
   _version: number;
@@ -21,6 +21,12 @@ interface TelemetryStoreState {
   debug: RingBuffer<DebugData>;
   gimbal: RingBuffer<GimbalData>;
   obstacle: RingBuffer<ObstacleData>;
+  scaledImu: RingBuffer<ScaledImuData>;
+  homePosition: RingBuffer<HomePositionData>;
+  powerStatus: RingBuffer<PowerStatusData>;
+  distanceSensor: RingBuffer<DistanceSensorData>;
+  fenceStatus: RingBuffer<FenceStatusData>;
+  navController: RingBuffer<NavControllerData>;
 
   pushAttitude: (data: AttitudeData) => void;
   pushPosition: (data: PositionData) => void;
@@ -39,6 +45,12 @@ interface TelemetryStoreState {
   pushDebug: (data: DebugData) => void;
   pushGimbal: (data: GimbalData) => void;
   pushObstacle: (data: ObstacleData) => void;
+  pushScaledImu: (data: ScaledImuData) => void;
+  pushHomePosition: (data: HomePositionData) => void;
+  pushPowerStatus: (data: PowerStatusData) => void;
+  pushDistanceSensor: (data: DistanceSensorData) => void;
+  pushFenceStatus: (data: FenceStatusData) => void;
+  pushNavController: (data: NavControllerData) => void;
   pushBatch: (batch: Partial<{
     attitude: AttitudeData;
     position: PositionData;
@@ -57,6 +69,12 @@ interface TelemetryStoreState {
     debug: DebugData;
     gimbal: GimbalData;
     obstacle: ObstacleData;
+    scaledImu: ScaledImuData;
+    homePosition: HomePositionData;
+    powerStatus: PowerStatusData;
+    distanceSensor: DistanceSensorData;
+    fenceStatus: FenceStatusData;
+    navController: NavControllerData;
   }>) => void;
   clear: () => void;
 }
@@ -80,6 +98,12 @@ export const useTelemetryStore = create<TelemetryStoreState>((set, get) => ({
   debug: new RingBuffer<DebugData>(300),                  // variable
   gimbal: new RingBuffer<GimbalData>(60),                 // 1Hz x 60s
   obstacle: new RingBuffer<ObstacleData>(30),             // 0.5Hz x 60s
+  scaledImu: new RingBuffer<ScaledImuData>(120),           // 2Hz x 60s
+  homePosition: new RingBuffer<HomePositionData>(12),      // 0.2Hz x 60s
+  powerStatus: new RingBuffer<PowerStatusData>(60),        // 1Hz x 60s
+  distanceSensor: new RingBuffer<DistanceSensorData>(120), // 2Hz x 60s
+  fenceStatus: new RingBuffer<FenceStatusData>(60),        // 1Hz x 60s
+  navController: new RingBuffer<NavControllerData>(120),   // 2Hz x 60s
 
   pushAttitude: (data) => {
     get().attitude.push(data);
@@ -122,6 +146,12 @@ export const useTelemetryStore = create<TelemetryStoreState>((set, get) => ({
   pushDebug: (data) => { get().debug.push(data); set({ _version: get()._version + 1 }); },
   pushGimbal: (data) => { get().gimbal.push(data); set({ _version: get()._version + 1 }); },
   pushObstacle: (data) => { get().obstacle.push(data); set({ _version: get()._version + 1 }); },
+  pushScaledImu: (data) => { get().scaledImu.push(data); set({ _version: get()._version + 1 }); },
+  pushHomePosition: (data) => { get().homePosition.push(data); set({ _version: get()._version + 1 }); },
+  pushPowerStatus: (data) => { get().powerStatus.push(data); set({ _version: get()._version + 1 }); },
+  pushDistanceSensor: (data) => { get().distanceSensor.push(data); set({ _version: get()._version + 1 }); },
+  pushFenceStatus: (data) => { get().fenceStatus.push(data); set({ _version: get()._version + 1 }); },
+  pushNavController: (data) => { get().navController.push(data); set({ _version: get()._version + 1 }); },
   pushBatch: (batch) => {
     const s = get();
     if (batch.attitude) s.attitude.push(batch.attitude);
@@ -141,6 +171,12 @@ export const useTelemetryStore = create<TelemetryStoreState>((set, get) => ({
     if (batch.debug) s.debug.push(batch.debug);
     if (batch.gimbal) s.gimbal.push(batch.gimbal);
     if (batch.obstacle) s.obstacle.push(batch.obstacle);
+    if (batch.scaledImu) s.scaledImu.push(batch.scaledImu);
+    if (batch.homePosition) s.homePosition.push(batch.homePosition);
+    if (batch.powerStatus) s.powerStatus.push(batch.powerStatus);
+    if (batch.distanceSensor) s.distanceSensor.push(batch.distanceSensor);
+    if (batch.fenceStatus) s.fenceStatus.push(batch.fenceStatus);
+    if (batch.navController) s.navController.push(batch.navController);
     set({ _version: get()._version + 1 });
   },
   clear: () =>
@@ -162,5 +198,11 @@ export const useTelemetryStore = create<TelemetryStoreState>((set, get) => ({
       debug: new RingBuffer<DebugData>(300),
       gimbal: new RingBuffer<GimbalData>(60),
       obstacle: new RingBuffer<ObstacleData>(30),
+      scaledImu: new RingBuffer<ScaledImuData>(120),
+      homePosition: new RingBuffer<HomePositionData>(12),
+      powerStatus: new RingBuffer<PowerStatusData>(60),
+      distanceSensor: new RingBuffer<DistanceSensorData>(120),
+      fenceStatus: new RingBuffer<FenceStatusData>(60),
+      navController: new RingBuffer<NavControllerData>(120),
     }),
 }));
