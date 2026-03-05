@@ -16,50 +16,10 @@ import { ReceiverBindingUI } from "./ReceiverBindingUI";
 import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
 import { Save, Radio, HardDrive } from "lucide-react";
 
-// ── Constants ────────────────────────────────────────────────
-
-const RC_CHANNEL_COUNT = 16;
-
-const CHANNEL_OPTIONS = Array.from({ length: RC_CHANNEL_COUNT }, (_, i) => ({
-  value: String(i + 1),
-  label: `Channel ${i + 1}`,
-}));
-
-const RC_PROTOCOLS_OPTIONS = [
-  { value: "1", label: "1 — PPM" },
-  { value: "2", label: "2 — IBUS" },
-  { value: "4", label: "4 — SBUS" },
-  { value: "8", label: "8 — SBUS_NI" },
-  { value: "16", label: "16 — DSM" },
-  { value: "32", label: "32 — SUMD" },
-  { value: "64", label: "64 — SRXL" },
-  { value: "128", label: "128 — SRXL2" },
-  { value: "256", label: "256 — CRSF" },
-  { value: "512", label: "512 — ST24" },
-  { value: "1024", label: "1024 — FPort" },
-  { value: "2048", label: "2048 — FPort2" },
-  { value: "4096", label: "4096 — GHST" },
-];
-
-const RSSI_TYPE_OPTIONS = [
-  { value: "0", label: "0 — Disabled" },
-  { value: "1", label: "1 — Analog Pin" },
-  { value: "2", label: "2 — RC Channel PWM" },
-  { value: "3", label: "3 — Receiver Protocol" },
-  { value: "4", label: "4 — Telemetry Radio RSSI" },
-  { value: "5", label: "5 — CRSF/ELRS" },
-];
-
-const RECEIVER_PARAMS: string[] = [
-  "RCMAP_ROLL", "RCMAP_PITCH", "RCMAP_THROTTLE", "RCMAP_YAW",
-  "RC_PROTOCOLS", "RSSI_TYPE",
-  ...Array.from({ length: RC_CHANNEL_COUNT }, (_, i) => {
-    const n = i + 1;
-    return [`RC${n}_MIN`, `RC${n}_MAX`, `RC${n}_TRIM`, `RC${n}_REVERSED`, `RC${n}_DZ`];
-  }).flat(),
-];
-
-// ── Main Component ───────────────────────────────────────────
+import {
+  RC_CHANNEL_COUNT, CHANNEL_OPTIONS, RC_PROTOCOLS_OPTIONS,
+  RSSI_TYPE_OPTIONS, RECEIVER_PARAMS,
+} from "./receiver-constants";
 
 export function ReceiverPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
@@ -127,16 +87,10 @@ export function ReceiverPanel() {
   };
 
   if (!protocol) {
-    return (
-      <div className="flex-1 p-6">
-        <div className="max-w-3xl space-y-4">
-          <h2 className="text-sm font-semibold text-text-primary">RC Receiver</h2>
-          <Card>
-            <p className="text-xs text-text-tertiary">Connect to a drone to configure receiver.</p>
-          </Card>
-        </div>
-      </div>
-    );
+    return (<div className="flex-1 p-6"><div className="max-w-3xl space-y-4">
+      <h2 className="text-sm font-semibold text-text-primary">RC Receiver</h2>
+      <Card><p className="text-xs text-text-tertiary">Connect to a drone to configure receiver.</p></Card>
+    </div></div>);
   }
 
   return (

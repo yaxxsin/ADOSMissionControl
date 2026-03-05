@@ -1,0 +1,196 @@
+/**
+ * MAVLink adapter — parameter protocol methods.
+ *
+ * getAllParameters, getParameter, setParameter, getCachedParameterNames,
+ * and the parameter download state machine helpers.
+ *
+ * @module protocol/mavlink-adapter-params
+ */
+
+import type { Transport, ParameterValue, CommandResult, FirmwareHandler, ParameterCallback } from './types'
+import { encodeParamRequestList, encodeParamRequestRead, encodeParamSet } from './mavlink-encoder'
+
+export interface ParamDownloadState {
+  params: Map<number, ParameterValue>
+  total: number
+  resolve: (params: ParameterValue[]) => void
+  reject: (err: Error) => void
+  hardTimer: ReturnType<typeof setTimeout>
+  inactivityTimer: ReturnType<typeof setTimeout> | null
+  retryCount: number
+  resetInactivityTimer: () => void
+}
+
+export interface ParamContext {
+  transport: Transport | null
+  firmwareHandler: FirmwareHandler | null
+  targetSysId: number
+  targetCompId: number
+  sysId: number
+  compId: number
+  paramCache: Map<string, { value: number; timestamp: number }>
+  PARAM_CACHE_TTL_MS: number
+  parameterDownload: ParamDownloadState | null
+  onParameter: (cb: ParameterCallback) => () => void
+}
+
+export function finishParamDownload(ctx: ParamContext): void {
+  if (!ctx.parameterDownload) return
+  const dl = ctx.parameterDownload
+  clearTimeout(dl.hardTimer)
+  if (dl.inactivityTimer) clearTimeout(dl.inactivityTimer)
+  const params = Array.from(dl.params.values()).sort((a, b) => a.index - b.index)
+  dl.resolve(params)
+  ctx.parameterDownload = null
+}
+
+export function retryMissingParams(ctx: ParamContext): void {
+  if (!ctx.parameterDownload || !ctx.transport?.isConnected) return
+  const dl = ctx.parameterDownload
+
+  if (dl.total <= 0) {
+    dl.resetInactivityTimer()
+    return
+  }
+
+  const missing: number[] = []
+  for (let i = 0; i < dl.total; i++) {
+    if (!dl.params.has(i)) missing.push(i)
+  }
+
+  if (missing.length === 0) {
+    finishParamDownload(ctx)
+    return
+  }
+
+  dl.retryCount++
+  if (dl.retryCount > 3) {
+    finishParamDownload(ctx)
+    return
+  }
+
+  const batch = missing.slice(0, 50)
+  for (const idx of batch) {
+    ctx.transport!.send(
+      encodeParamRequestRead(
+        ctx.targetSysId, ctx.targetCompId,
+        '', idx, ctx.sysId, ctx.compId,
+      )
+    )
+  }
+  dl.resetInactivityTimer()
+}
+
+export async function getAllParameters(ctx: ParamContext): Promise<ParameterValue[]> {
+  if (!ctx.transport?.isConnected) throw new Error('Not connected')
+
+  return new Promise<ParameterValue[]>((resolve) => {
+    const hardTimer = setTimeout(() => {
+      if (ctx.parameterDownload) {
+        finishParamDownload(ctx)
+      }
+    }, 120000)
+
+    const createInactivityTimer = (): ReturnType<typeof setTimeout> => {
+      return setTimeout(() => {
+        retryMissingParams(ctx)
+      }, 5000)
+    }
+
+    const resetInactivityTimer = () => {
+      if (ctx.parameterDownload?.inactivityTimer) {
+        clearTimeout(ctx.parameterDownload.inactivityTimer)
+      }
+      if (ctx.parameterDownload) {
+        ctx.parameterDownload.inactivityTimer = createInactivityTimer()
+      }
+    }
+
+    ctx.parameterDownload = {
+      params: new Map(),
+      total: 0,
+      resolve,
+      reject: () => resolve([]),
+      hardTimer,
+      inactivityTimer: createInactivityTimer(),
+      retryCount: 0,
+      resetInactivityTimer,
+    }
+
+    ctx.transport!.send(encodeParamRequestList(ctx.targetSysId, ctx.targetCompId, ctx.sysId, ctx.compId))
+  })
+}
+
+export function getCachedParameterNames(ctx: ParamContext): string[] {
+  return Array.from(ctx.paramCache.keys())
+}
+
+export async function getParameter(ctx: ParamContext, name: string): Promise<ParameterValue> {
+  if (!ctx.transport?.isConnected) {
+    return Promise.reject(new Error('Not connected'))
+  }
+
+  const firmwareName = ctx.firmwareHandler?.mapParameterName(name) ?? name
+
+  const cached = ctx.paramCache.get(name)
+  if (cached && (Date.now() - cached.timestamp) < ctx.PARAM_CACHE_TTL_MS) {
+    return { name, value: cached.value, type: 9, index: -1, count: -1 }
+  }
+
+  return new Promise<ParameterValue>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      unsub()
+      reject(new Error(`getParameter timed out: ${name}`))
+    }, 5000)
+
+    const unsub = ctx.onParameter((param) => {
+      if (param.name === firmwareName) {
+        clearTimeout(timer)
+        unsub()
+        ctx.paramCache.set(name, { value: param.value, timestamp: Date.now() })
+        resolve({ ...param, name })
+      }
+    })
+
+    ctx.transport!.send(encodeParamRequestRead(
+      ctx.targetSysId, ctx.targetCompId,
+      firmwareName, -1, ctx.sysId, ctx.compId,
+    ))
+  })
+}
+
+export async function setParameter(ctx: ParamContext, name: string, value: number, type = 9): Promise<CommandResult> {
+  if (!ctx.transport?.isConnected) return { success: false, resultCode: -1, message: 'Not connected' }
+
+  const firmwareName = ctx.firmwareHandler?.mapParameterName(name) ?? name
+  ctx.paramCache.delete(name)
+
+  return new Promise<CommandResult>((resolve) => {
+    const timer = setTimeout(() => {
+      resolve({ success: false, resultCode: -1, message: `Param set timed out: ${name}` })
+    }, 3000)
+
+    const unsub = ctx.onParameter((param) => {
+      if (param.name === firmwareName) {
+        clearTimeout(timer)
+        unsub()
+        ctx.paramCache.set(name, { value: param.value, timestamp: Date.now() })
+        resolve({
+          success: Math.abs(param.value - value) < 0.001,
+          resultCode: 0,
+          message: `Parameter ${name} = ${param.value}`,
+        })
+      }
+    })
+
+    // PX4 integer params need byte-wise encoding
+    let encodedValue = value
+    if (ctx.firmwareHandler?.firmwareType === 'px4' && type !== 9) {
+      const tmp = new DataView(new ArrayBuffer(4))
+      tmp.setInt32(0, Math.round(value), true)
+      encodedValue = tmp.getFloat32(0, true)
+    }
+
+    ctx.transport!.send(encodeParamSet(ctx.targetSysId, ctx.targetCompId, firmwareName, encodedValue, type, ctx.sysId, ctx.compId))
+  })
+}

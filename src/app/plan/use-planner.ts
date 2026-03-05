@@ -1,734 +1,147 @@
 /**
  * @module use-planner
- * @description Core hook for the mission planner page. Encapsulates all planner
- * logic: store connections, local state, map/context handlers, save/load,
- * autosave recovery, auto-save to library, and the cancel-on-unmount cleanup.
+ * @description Core hook for the mission planner page. Composes state,
+ * actions, and IO sub-hooks into a single interface.
  * @license GPL-3.0-only
  */
 
-import { useState, useCallback, useEffect, useRef } from "react";
-import { useMissionStore } from "@/stores/mission-store";
-import { usePlannerStore } from "@/stores/planner-store";
-import { useFleetStore } from "@/stores/fleet-store";
-import { usePlanLibraryStore } from "@/stores/plan-library-store";
-import { useDroneManager } from "@/stores/drone-manager";
-import { useToast } from "@/components/ui/toast";
-import { randomId } from "@/lib/utils";
-import { DEFAULT_CENTER } from "@/lib/map-constants";
-import { useSettingsStore } from "@/stores/settings-store";
-import {
-  autoSave,
-  cancelAutoSave,
-  getAutoSave,
-  clearAutoSave,
-  exportWaypointsFormat,
-  exportQGCPlan,
-  exportMissionKML,
-  exportMissionCSV,
-} from "@/lib/mission-io";
-import { useDrawingStore } from "@/stores/drawing-store";
-import { useRallyStore } from "@/stores/rally-store";
-import { usePatternStore } from "@/stores/pattern-store";
-import { useGeofenceStore } from "@/stores/geofence-store";
-import type { ContextMenuItem } from "@/components/planner/MapContextMenu";
-import type { SuiteType, Waypoint } from "@/lib/types";
-import type { DrawnPolygon, DrawnCircle } from "@/lib/drawing/types";
-
-/** Clamp a latitude to [-90, 90]. */
-function clampLat(lat: number): number {
-  return Math.max(-90, Math.min(90, lat));
-}
-
-/** Clamp a longitude to [-180, 180]. */
-function clampLon(lon: number): number {
-  return Math.max(-180, Math.min(180, lon));
-}
-
-/** Clamp altitude to >= 0. */
-function clampAlt(alt: number): number {
-  return Math.max(0, alt);
-}
-
-export interface ContextMenuState {
-  x: number;
-  y: number;
-  items: ContextMenuItem[];
-  lat?: number;
-  lon?: number;
-  waypointId?: string;
-}
+export { type ContextMenuState } from "./use-planner-state";
+import { usePlannerState } from "./use-planner-state";
+import { usePlannerActions } from "./use-planner-actions";
+import { usePlannerIO } from "./use-planner-io";
 
 export function usePlanner() {
-  const {
-    waypoints, addWaypoint, removeWaypoint, updateWaypoint, insertWaypoint,
-    reorderWaypoints, uploadMission, downloadMission, uploadState, downloadState,
-    undoStack, redoStack, undo, redo, clearMission, setWaypoints,
-  } = useMissionStore();
-
-  const {
-    activeTool, setActiveTool,
-    panelCollapsed, togglePanel,
-    altProfileCollapsed, toggleAltProfile,
-    expandedWaypointId, setExpandedWaypoint,
-    selectedWaypointId, setSelectedWaypoint,
-    defaultAlt, defaultSpeed, defaultAcceptRadius, defaultFrame,
-    setDefaults,
-  } = usePlannerStore();
-
-  const drones = useFleetStore((s) => s.drones);
-  const { toast } = useToast();
-
-  // Mission setup state
-  const [missionName, setMissionName] = useState("");
-  const [selectedDroneId, setSelectedDroneId] = useState("");
-  const [suiteType, setSuiteType] = useState("");
-
-  // Geofence state
-  const [geofenceEnabled, setGeofenceEnabled] = useState(false);
-  const [geofenceType, setGeofenceType] = useState("circle");
-  const [geofenceMaxAlt, setGeofenceMaxAlt] = useState("120");
-  const [geofenceAction, setGeofenceAction] = useState("RTL");
-
-  // Context menu state
-  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
-
-  // Clear confirm
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
-
-  // Download from drone confirm (unsaved changes)
-  const [showDownloadConfirm, setShowDownloadConfirm] = useState(false);
-
-  // Plan library integration
-  const activePlanId = usePlanLibraryStore((s) => s.activePlanId);
-  const isDirty = usePlanLibraryStore((s) => s.isDirty);
-
-  // Rally point state
-  const rallyPoints = useRallyStore((s) => s.points);
-  const addRallyPoint = useRallyStore((s) => s.addPoint);
-  const [addingRallyPoint, setAddingRallyPoint] = useState(false);
-
-  // Drawing store
-  const drawingMode = useDrawingStore((s) => s.drawingMode);
-  const drawnPolygons = useDrawingStore((s) => s.polygons);
-  const drawnCircles = useDrawingStore((s) => s.circles);
-  const measureLine = useDrawingStore((s) => s.measureLine);
-  const clearDrawings = useDrawingStore((s) => s.clearAll);
-
-  // ── Autosave recovery ─────────────────────────────────────
-  const autoSaveChecked = useRef(false);
-  useEffect(() => {
-    if (autoSaveChecked.current) return;
-    autoSaveChecked.current = true;
-    (async () => {
-      const saved = await getAutoSave();
-      if (saved && saved.waypoints.length > 0) {
-        toast("Unsaved mission found — restoring", "info");
-        setWaypoints(saved.waypoints);
-        if (saved.metadata.name) setMissionName(saved.metadata.name);
-        if (saved.metadata.droneId) setSelectedDroneId(saved.metadata.droneId);
-        if (saved.metadata.suiteType) setSuiteType(saved.metadata.suiteType);
-      }
-    })();
-  }, [setWaypoints, toast]);
-
-  // Auto-save to IndexedDB (legacy autosave key) on waypoint changes
-  useEffect(() => {
-    if (waypoints.length > 0) {
-      autoSave(waypoints, {
-        name: missionName,
-        droneId: selectedDroneId || undefined,
-        suiteType: (suiteType as SuiteType) || undefined,
-      });
-    }
-    return () => cancelAutoSave();
-  }, [waypoints, missionName, selectedDroneId, suiteType]);
-
-  // Auto-save to library plan (debounced 3s) when waypoints change
-  const libAutoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    const libStore = usePlanLibraryStore.getState();
-    if (!libStore.activePlanId || waypoints.length === 0) return;
-
-    if (libAutoSaveTimer.current) clearTimeout(libAutoSaveTimer.current);
-    libAutoSaveTimer.current = setTimeout(() => {
-      const current = usePlanLibraryStore.getState();
-      if (!current.activePlanId || !current.isDirty) return;
-      current.savePlan(current.activePlanId, waypoints, {
-        droneId: selectedDroneId || undefined,
-        suiteType: (suiteType as SuiteType) || undefined,
-      });
-    }, 3000);
-
-    return () => {
-      if (libAutoSaveTimer.current) clearTimeout(libAutoSaveTimer.current);
-    };
-  }, [waypoints, selectedDroneId, suiteType]);
-
-  // Auto-sync plan name to library when it changes
-  useEffect(() => {
-    const libStore = usePlanLibraryStore.getState();
-    if (!libStore.activePlanId || !missionName) return;
-    libStore.updatePlanName(libStore.activePlanId, missionName);
-  }, [missionName]);
-
-  // Dirty detection — compare waypoints + name to saved snapshot
-  useEffect(() => {
-    const libStore = usePlanLibraryStore.getState();
-    if (!libStore.activePlanId) return;
-    const waypointsDirty = JSON.stringify(waypoints) !== libStore.savedSnapshot;
-    const plan = libStore.plans.find((p) => p.id === libStore.activePlanId);
-    const nameDirty = plan ? plan.name !== missionName : false;
-    libStore.setDirty(waypointsDirty || nameDirty);
-  }, [waypoints, missionName]);
-
-  // ── Map handlers ──────────────────────────────────────────
-  const TOOL_COMMAND_MAP: Record<string, Waypoint["command"]> = {
-    waypoint: "WAYPOINT",
-    takeoff: "TAKEOFF",
-    land: "LAND",
-    loiter: "LOITER",
-    roi: "ROI",
-  };
-
-  const handleMapClick = useCallback(
-    (lat: number, lon: number) => {
-      // Rally point tool — route to rally store, not mission waypoints
-      if (activeTool === "rally") {
-        addRallyPoint({
-          id: randomId(),
-          lat: clampLat(lat),
-          lon: clampLon(lon),
-          alt: clampAlt(defaultAlt),
-        });
-        toast("Rally point placed", "success");
-        return;
-      }
-
-      // Legacy rally toggle from panel (keep backward-compatible)
-      if (addingRallyPoint) {
-        addRallyPoint({
-          id: randomId(),
-          lat: clampLat(lat),
-          lon: clampLon(lon),
-          alt: clampAlt(defaultAlt),
-        });
-        setAddingRallyPoint(false);
-        return;
-      }
-
-      // Placement tools — create waypoint with appropriate command
-      const command = TOOL_COMMAND_MAP[activeTool];
-      if (!command) return; // select, polygon, circle, measure — no waypoint
-
-      if (!activePlanId) {
-        toast("Create or select a flight plan first", "info");
-        return;
-      }
-
-      const wp: Waypoint = {
-        id: randomId(),
-        lat: clampLat(lat),
-        lon: clampLon(lon),
-        alt: command === "LAND" ? 0 : clampAlt(defaultAlt),
-        speed: defaultSpeed,
-        command,
-      };
-      addWaypoint(wp);
-    },
-    [activePlanId, activeTool, addWaypoint, addRallyPoint, addingRallyPoint, defaultAlt, defaultSpeed, toast]
-  );
-
-  const handleMapRightClick = useCallback(
-    (lat: number, lon: number, x: number, y: number) => {
-      setContextMenu({
-        x, y, lat, lon,
-        items: [
-          { id: "add-wp", label: "Add Waypoint" },
-          { id: "add-takeoff", label: "Add Takeoff" },
-          { id: "add-land", label: "Add Land" },
-          { id: "add-roi", label: "Set ROI" },
-          { id: "div1", label: "", divider: true },
-          { id: "add-rally", label: "Add Rally Point Here" },
-          { id: "div2", label: "", divider: true },
-          { id: "center", label: "Center Map Here" },
-        ],
-      });
-    },
-    []
-  );
-
-  const handleWaypointRightClick = useCallback(
-    (id: string, x: number, y: number) => {
-      setContextMenu({
-        x, y, waypointId: id,
-        items: [
-          { id: "edit", label: "Edit" },
-          { id: "insert-before", label: "Insert Before" },
-          { id: "insert-after", label: "Insert After" },
-          { id: "div1", label: "", divider: true },
-          { id: "delete-wp", label: "Delete", danger: true },
-        ],
-      });
-    },
-    []
-  );
-
-  const handleContextAction = useCallback(
-    (actionId: string) => {
-      if (!contextMenu) return;
-      const { lat, lon, waypointId } = contextMenu;
-
-      const addActions = ["add-wp", "add-takeoff", "add-land", "add-roi"];
-      if (addActions.includes(actionId) && !activePlanId) {
-        toast("Create or select a flight plan first", "info");
-        setContextMenu(null);
-        return;
-      }
-
-      const makeWp = (cmd: Waypoint["command"]): Waypoint => ({
-        id: randomId(),
-        lat: clampLat(lat ?? 0),
-        lon: clampLon(lon ?? 0),
-        alt: cmd === "LAND" ? 0 : clampAlt(defaultAlt),
-        command: cmd,
-      });
-
-      switch (actionId) {
-        case "add-wp":
-          addWaypoint(makeWp("WAYPOINT"));
-          break;
-        case "add-takeoff":
-          addWaypoint(makeWp("TAKEOFF"));
-          break;
-        case "add-land":
-          addWaypoint(makeWp("LAND"));
-          break;
-        case "add-roi":
-          addWaypoint(makeWp("ROI"));
-          break;
-        case "add-rally":
-          addRallyPoint({
-            id: randomId(),
-            lat: clampLat(lat ?? 0),
-            lon: clampLon(lon ?? 0),
-            alt: clampAlt(defaultAlt),
-          });
-          break;
-        case "center":
-          break;
-        case "edit":
-          if (waypointId) {
-            setSelectedWaypoint(waypointId);
-            setExpandedWaypoint(waypointId);
-          }
-          break;
-        case "insert-before":
-        case "insert-after": {
-          if (!waypointId) break;
-          const idx = waypoints.findIndex((w) => w.id === waypointId);
-          if (idx === -1) break;
-          const ref = waypoints[idx];
-          const newWp: Waypoint = {
-            id: randomId(),
-            lat: clampLat(ref.lat + 0.0005),
-            lon: clampLon(ref.lon + 0.0005),
-            alt: clampAlt(defaultAlt),
-            command: "WAYPOINT",
-          };
-          insertWaypoint(newWp, actionId === "insert-before" ? idx : idx + 1);
-          break;
-        }
-        case "delete-wp":
-          if (waypointId) removeWaypoint(waypointId);
-          break;
-      }
-      setContextMenu(null);
-    },
-    [contextMenu, activePlanId, addWaypoint, addRallyPoint, insertWaypoint, removeWaypoint, defaultAlt, waypoints, setSelectedWaypoint, setExpandedWaypoint, toast]
-  );
-
-  const handleWaypointClick = useCallback(
-    (id: string) => setSelectedWaypoint(id),
-    [setSelectedWaypoint]
-  );
-
-  const handleWaypointDragEnd = useCallback(
-    (id: string, lat: number, lon: number) => {
-      updateWaypoint(id, { lat: clampLat(lat), lon: clampLon(lon) });
-    },
-    [updateWaypoint]
-  );
-
-  // ── Toolbar handlers ──────────────────────────────────────
-  const handleClearAll = useCallback(() => {
-    if (waypoints.length > 0) setShowClearConfirm(true);
-  }, [waypoints.length]);
-
-  const confirmClear = useCallback(() => {
-    clearMission();
-    void clearAutoSave();
-    setSelectedWaypoint(null);
-    setExpandedWaypoint(null);
-    setMissionName("");
-    setSelectedDroneId("");
-    setSuiteType("");
-    setShowClearConfirm(false);
-    toast("Mission cleared", "info");
-  }, [clearMission, setSelectedWaypoint, setExpandedWaypoint, toast]);
-
-  // ── Save/Load (Library-based) ────────────────────────────
-  /** Cmd+S — save to active plan in library, or create new if none. */
-  const handleSave = useCallback(() => {
-    const libStore = usePlanLibraryStore.getState();
-    if (libStore.activePlanId) {
-      // Sync plan name to library before saving
-      if (missionName) {
-        libStore.updatePlanName(libStore.activePlanId, missionName);
-      }
-      libStore.savePlan(libStore.activePlanId, waypoints, {
-        droneId: selectedDroneId || undefined,
-        suiteType: (suiteType as SuiteType) || undefined,
-        totalDistance: undefined,
-        estimatedTime: undefined,
-      });
-    } else {
-      libStore.createPlan(missionName || "Untitled Plan", waypoints, {
-        droneId: selectedDroneId || undefined,
-        suiteType: (suiteType as SuiteType) || undefined,
-      });
-    }
-    // Cancel pending library auto-save since we just saved explicitly
-    if (libAutoSaveTimer.current) clearTimeout(libAutoSaveTimer.current);
-    useSettingsStore.getState().incrementSaveCount();
-    toast("Plan saved", "success");
-  }, [waypoints, missionName, selectedDroneId, suiteType, toast]);
-
-  /** Save As — always create a new plan in the library. */
-  const handleSaveAs = useCallback(() => {
-    const libStore = usePlanLibraryStore.getState();
-    libStore.createPlan(missionName || "Untitled Plan", waypoints, {
-      droneId: selectedDroneId || undefined,
-      suiteType: (suiteType as SuiteType) || undefined,
-    });
-    useSettingsStore.getState().incrementSaveCount();
-    toast("Plan saved as new copy", "success");
-  }, [waypoints, missionName, selectedDroneId, suiteType, toast]);
-
-  /** Export as .waypoints file download. */
-  const handleExportWaypoints = useCallback(() => {
-    exportWaypointsFormat(waypoints, missionName || "mission");
-    toast("Exported (.waypoints)", "success");
-  }, [waypoints, missionName, toast]);
-
-  /** Export as QGC .plan file download. */
-  const handleExportPlan = useCallback(() => {
-    exportQGCPlan(waypoints, missionName || "mission");
-    toast("Exported (.plan)", "success");
-  }, [waypoints, missionName, toast]);
-
-  /** Export as .kml file download. */
-  const handleExportKML = useCallback(() => {
-    exportMissionKML(waypoints, missionName || "mission");
-    toast("Exported (.kml)", "success");
-  }, [waypoints, missionName, toast]);
-
-  /** Export as .csv file download. */
-  const handleExportCSV = useCallback(() => {
-    exportMissionCSV(waypoints, missionName || "mission");
-    toast("Exported (.csv)", "success");
-  }, [waypoints, missionName, toast]);
-
-  /** Callback from FlightPlanLibrary when a plan is selected/loaded. */
-  const handlePlanLoaded = useCallback(
-    (plan: { name: string; droneId?: string; suiteType?: string }) => {
-      setMissionName(plan.name);
-      setSelectedDroneId(plan.droneId || "");
-      setSuiteType(plan.suiteType || "");
-    },
-    []
-  );
-
-  /** Called when the active plan is renamed via context menu — syncs local missionName. */
-  const handlePlanRenamed = useCallback((name: string) => {
-    setMissionName(name);
-  }, []);
-
-  /** New plan — clear state and create in library. */
-  const handleNewPlan = useCallback(() => {
-    const libStore = usePlanLibraryStore.getState();
-    libStore.createPlan();
-    clearMission();
-    setMissionName("Untitled Plan");
-    setSelectedDroneId("");
-    setSuiteType("");
-    setSelectedWaypoint(null);
-    setExpandedWaypoint(null);
-    toast("New plan created", "info");
-  }, [clearMission, setSelectedWaypoint, setExpandedWaypoint, toast]);
-
-  /** Focus library search — dispatches custom event for the search bar. */
-  const handleFocusSearch = useCallback(() => {
-    document.dispatchEvent(new CustomEvent("plan-library:focus-search"));
-  }, []);
-
-  const handleReverseWaypoints = useCallback(() => {
-    if (waypoints.length < 2) return;
-    setWaypoints([...waypoints].reverse());
-    toast("Waypoints reversed", "info");
-  }, [waypoints, setWaypoints, toast]);
-
-  const handleUpload = useCallback(() => {
-    uploadMission();
-  }, [uploadMission]);
-
-  /** Execute the actual download from drone and create a library plan. */
-  const executeDownloadFromDrone = useCallback(async () => {
-    const downloaded = await downloadMission();
-    if (downloaded.length === 0) {
-      toast("No mission found on drone", "info");
-      return;
-    }
-
-    // Create a new plan in the library
-    const time = new Date().toLocaleTimeString("en-US", { hour12: false });
-    const name = `Drone Mission (${time})`;
-    const libStore = usePlanLibraryStore.getState();
-    libStore.createPlan(name, downloaded);
-
-    // Sync local state
-    setMissionName(name);
-    setSelectedDroneId(selectedDroneId);
-    setSuiteType("");
-
-    // Fit map to downloaded waypoints
-    usePlannerStore.getState().requestFit();
-
-    toast(`Loaded ${downloaded.length} waypoints from drone`, "success");
-  }, [downloadMission, selectedDroneId, toast]);
-
-  /** Handle download from drone — checks for drone connection and unsaved changes first. */
-  const handleDownloadFromDrone = useCallback(() => {
-    // Check if any drone is connected
-    const droneManager = useDroneManager.getState();
-    const hasDrone = droneManager.selectedDroneId !== null || droneManager.drones.size > 0;
-    if (!hasDrone) {
-      toast("Connect a drone first", "info");
-      return;
-    }
-
-    // Check for unsaved changes
-    if (isDirty && activePlanId) {
-      setShowDownloadConfirm(true);
-      return;
-    }
-
-    executeDownloadFromDrone();
-  }, [isDirty, activePlanId, executeDownloadFromDrone, toast]);
-
-  /** Save current plan, then download from drone. */
-  const handleSaveAndDownload = useCallback(() => {
-    handleSave();
-    setShowDownloadConfirm(false);
-    executeDownloadFromDrone();
-  }, [handleSave, executeDownloadFromDrone]);
-
-  /** Discard current changes, then download from drone. */
-  const handleDiscardAndDownload = useCallback(() => {
-    setShowDownloadConfirm(false);
-    executeDownloadFromDrone();
-  }, [executeDownloadFromDrone]);
-
-  /** Cancel download dialog. */
-  const handleCancelDownload = useCallback(() => {
-    setShowDownloadConfirm(false);
-  }, []);
-
-  /** Handle a completed drawing shape (polygon or circle). */
-  const handleDrawingComplete = useCallback(
-    (shape: DrawnPolygon | DrawnCircle) => {
-      const patternStore = usePatternStore.getState();
-      const patternType = patternStore.activePatternType;
-      const geoStore = useGeofenceStore.getState();
-
-      if ("vertices" in shape) {
-        // Polygon drawn — route to geofence if enabled, else pattern/generic
-        if (geofenceEnabled && geoStore.fenceType === "polygon") {
-          geoStore.setPolygonPoints(shape.vertices);
-          toast(`Geofence polygon set (${shape.vertices.length} vertices)`, "success");
-        } else if (patternType === "survey") {
-          patternStore.updateSurveyConfig({ polygon: shape.vertices });
-          toast(`Survey area set (${shape.vertices.length} vertices)`, "success");
-        } else {
-          toast(`Polygon drawn (${shape.vertices.length} vertices)`, "success");
-        }
-      } else {
-        // Circle drawn — route to geofence if enabled, else pattern/generic
-        if (geofenceEnabled && geoStore.fenceType === "circle") {
-          geoStore.setCircle(shape.center, shape.radius);
-          toast(`Geofence circle set (r=${Math.round(shape.radius)}m)`, "success");
-        } else if (patternType === "orbit") {
-          patternStore.updateOrbitConfig({ center: shape.center, radius: shape.radius });
-          toast(`Orbit area set (r=${Math.round(shape.radius)}m)`, "success");
-        } else {
-          toast(`Circle drawn (r=${Math.round(shape.radius)}m)`, "success");
-        }
-      }
-    },
-    [geofenceEnabled, toast]
-  );
-
-  /** Apply generated pattern waypoints to the mission. */
-  const handlePatternApply = useCallback(() => {
-    const patternStore = usePatternStore.getState();
-    const result = patternStore.patternResult;
-    if (!result || result.waypoints.length === 0) {
-      toast("No pattern generated yet", "info");
-      return;
-    }
-    if (!activePlanId) {
-      toast("Create or select a flight plan first", "info");
-      return;
-    }
-
-    // Convert pattern waypoints to mission waypoints
-    const newWaypoints: Waypoint[] = result.waypoints.map((pw) => ({
-      id: randomId(),
-      lat: pw.lat,
-      lon: pw.lon,
-      alt: pw.alt,
-      speed: pw.speed,
-      command: (pw.command ?? "WAYPOINT") as Waypoint["command"],
-      param1: pw.param1,
-      param2: pw.param2,
-    }));
-
-    // Optionally prepend TAKEOFF if first waypoint isn't one
-    const firstCmd = newWaypoints[0]?.command;
-    if (firstCmd !== "TAKEOFF") {
-      const takeoffWp: Waypoint = {
-        id: randomId(),
-        lat: newWaypoints[0].lat,
-        lon: newWaypoints[0].lon,
-        alt: newWaypoints[0].alt,
-        command: "TAKEOFF",
-      };
-      newWaypoints.unshift(takeoffWp);
-    }
-
-    // Append RTL at end
-    const lastWp = newWaypoints[newWaypoints.length - 1];
-    newWaypoints.push({
-      id: randomId(),
-      lat: lastWp.lat,
-      lon: lastWp.lon,
-      alt: 0,
-      command: "RTL",
-    });
-
-    setWaypoints(newWaypoints);
-    patternStore.clear();
-
-    const stats = result.stats;
-    const distStr = stats.totalDistance >= 1000
-      ? `${(stats.totalDistance / 1000).toFixed(1)} km`
-      : `${Math.round(stats.totalDistance)} m`;
-    const timeStr = stats.estimatedTime >= 60
-      ? `${Math.round(stats.estimatedTime / 60)} min`
-      : `${Math.round(stats.estimatedTime)} sec`;
-
-    toast(`Pattern applied: ${newWaypoints.length} waypoints, ${distStr}, ~${timeStr}`, "success");
-  }, [activePlanId, setWaypoints, toast]);
-
-  const handleAddManualWaypoint = useCallback(() => {
-    if (!activePlanId) {
-      toast("Create or select a flight plan first", "info");
-      return;
-    }
-    const lastWp = waypoints[waypoints.length - 1];
-    const wp: Waypoint = {
-      id: randomId(),
-      lat: clampLat(lastWp ? lastWp.lat + 0.001 : DEFAULT_CENTER[0]),
-      lon: clampLon(lastWp ? lastWp.lon + 0.001 : DEFAULT_CENTER[1]),
-      alt: clampAlt(defaultAlt),
-      command: "WAYPOINT",
-    };
-    addWaypoint(wp);
-  }, [activePlanId, waypoints, addWaypoint, defaultAlt, toast]);
+  const state = usePlannerState();
+
+  const actions = usePlannerActions({
+    waypoints: state.waypoints,
+    activePlanId: state.activePlanId,
+    isDirty: state.isDirty,
+    activeTool: state.activeTool,
+    defaultAlt: state.defaultAlt,
+    defaultSpeed: state.defaultSpeed,
+    selectedDroneId: state.selectedDroneId,
+    missionName: state.missionName,
+    contextMenu: state.contextMenu,
+    addingRallyPoint: state.addingRallyPoint,
+    geofenceEnabled: state.geofenceEnabled,
+    addWaypoint: state.addWaypoint,
+    removeWaypoint: state.removeWaypoint,
+    insertWaypoint: state.insertWaypoint,
+    clearMission: state.clearMission,
+    setWaypoints: state.setWaypoints,
+    downloadMission: state.downloadMission,
+    uploadMission: state.uploadMission,
+    addRallyPoint: state.addRallyPoint,
+    setContextMenu: state.setContextMenu,
+    setSelectedWaypoint: state.setSelectedWaypoint,
+    setExpandedWaypoint: state.setExpandedWaypoint,
+    setShowClearConfirm: state.setShowClearConfirm,
+    setShowDownloadConfirm: state.setShowDownloadConfirm,
+    setMissionName: state.setMissionName,
+    setSelectedDroneId: state.setSelectedDroneId,
+    setSuiteType: state.setSuiteType,
+    setAddingRallyPoint: state.setAddingRallyPoint,
+    toast: state.toast,
+    updateWaypoint: state.updateWaypoint,
+  });
+
+  const io = usePlannerIO({
+    waypoints: state.waypoints,
+    missionName: state.missionName,
+    selectedDroneId: state.selectedDroneId,
+    suiteType: state.suiteType,
+    activePlanId: state.activePlanId,
+    isDirty: state.isDirty,
+    libAutoSaveTimer: state.libAutoSaveTimer,
+    setWaypoints: state.setWaypoints,
+    setMissionName: state.setMissionName,
+    setSelectedDroneId: state.setSelectedDroneId,
+    setSuiteType: state.setSuiteType,
+    setSelectedWaypoint: state.setSelectedWaypoint,
+    setExpandedWaypoint: state.setExpandedWaypoint,
+    setShowDownloadConfirm: state.setShowDownloadConfirm,
+    clearMission: state.clearMission,
+    downloadMission: state.downloadMission,
+    toast: state.toast,
+  });
 
   return {
     // Store state
-    waypoints, undoStack, redoStack, uploadState, downloadState,
-    activeTool, setActiveTool,
-    panelCollapsed, togglePanel,
-    altProfileCollapsed, toggleAltProfile,
-    expandedWaypointId, setExpandedWaypoint,
-    selectedWaypointId, setSelectedWaypoint,
-    defaultAlt, defaultSpeed, defaultAcceptRadius, defaultFrame, setDefaults,
-    drones,
+    waypoints: state.waypoints,
+    undoStack: state.undoStack,
+    redoStack: state.redoStack,
+    uploadState: state.uploadState,
+    downloadState: state.downloadState,
+    activeTool: state.activeTool,
+    setActiveTool: state.setActiveTool,
+    panelCollapsed: state.panelCollapsed,
+    togglePanel: state.togglePanel,
+    altProfileCollapsed: state.altProfileCollapsed,
+    toggleAltProfile: state.toggleAltProfile,
+    expandedWaypointId: state.expandedWaypointId,
+    setExpandedWaypoint: state.setExpandedWaypoint,
+    selectedWaypointId: state.selectedWaypointId,
+    setSelectedWaypoint: state.setSelectedWaypoint,
+    defaultAlt: state.defaultAlt,
+    defaultSpeed: state.defaultSpeed,
+    defaultAcceptRadius: state.defaultAcceptRadius,
+    defaultFrame: state.defaultFrame,
+    setDefaults: state.setDefaults,
+    drones: state.drones,
 
     // Mission setup
-    missionName, setMissionName,
-    selectedDroneId, setSelectedDroneId,
-    suiteType, setSuiteType,
+    missionName: state.missionName,
+    setMissionName: state.setMissionName,
+    selectedDroneId: state.selectedDroneId,
+    setSelectedDroneId: state.setSelectedDroneId,
+    suiteType: state.suiteType,
+    setSuiteType: state.setSuiteType,
 
     // Geofence
-    geofenceEnabled, setGeofenceEnabled,
-    geofenceType, setGeofenceType,
-    geofenceMaxAlt, setGeofenceMaxAlt,
-    geofenceAction, setGeofenceAction,
+    geofenceEnabled: state.geofenceEnabled,
+    setGeofenceEnabled: state.setGeofenceEnabled,
+    geofenceType: state.geofenceType,
+    setGeofenceType: state.setGeofenceType,
+    geofenceMaxAlt: state.geofenceMaxAlt,
+    setGeofenceMaxAlt: state.setGeofenceMaxAlt,
+    geofenceAction: state.geofenceAction,
+    setGeofenceAction: state.setGeofenceAction,
 
     // Context menu
-    contextMenu, setContextMenu,
-    showClearConfirm, setShowClearConfirm,
-    showDownloadConfirm,
+    contextMenu: state.contextMenu,
+    setContextMenu: state.setContextMenu,
+    showClearConfirm: state.showClearConfirm,
+    setShowClearConfirm: state.setShowClearConfirm,
+    showDownloadConfirm: state.showDownloadConfirm,
 
     // Library integration
-    isDirty,
-    activePlanId,
+    isDirty: state.isDirty,
+    activePlanId: state.activePlanId,
 
-    // Handlers
-    handleMapClick,
-    handleMapRightClick,
-    handleWaypointRightClick,
-    handleContextAction,
-    handleWaypointClick,
-    handleWaypointDragEnd,
-    handleClearAll,
-    confirmClear,
-    handleSave,
-    handleSaveAs,
-    handleExportWaypoints,
-    handleExportPlan,
-    handleExportKML,
-    handleExportCSV,
-    handlePlanLoaded,
-    handlePlanRenamed,
-    handleNewPlan,
-    handleFocusSearch,
-    handleReverseWaypoints,
-    handleUpload,
-    handleDownloadFromDrone,
-    handleSaveAndDownload,
-    handleDiscardAndDownload,
-    handleCancelDownload,
-    handleAddManualWaypoint,
+    // Handlers from actions
+    ...actions,
+
+    // Handlers from IO
+    ...io,
 
     // Drawing state
-    drawingMode,
-    drawnPolygons,
-    drawnCircles,
-    measureLine,
-    clearDrawings,
-    handleDrawingComplete,
-    handlePatternApply,
+    drawingMode: state.drawingMode,
+    drawnPolygons: state.drawnPolygons,
+    drawnCircles: state.drawnCircles,
+    measureLine: state.measureLine,
+    clearDrawings: state.clearDrawings,
 
     // Rally points
-    rallyPoints,
-    addingRallyPoint,
-    setAddingRallyPoint,
+    rallyPoints: state.rallyPoints,
+    addingRallyPoint: state.addingRallyPoint,
+    setAddingRallyPoint: state.setAddingRallyPoint,
 
     // Store actions passed through
-    undo, redo,
-    updateWaypoint, removeWaypoint, reorderWaypoints,
+    undo: state.undo,
+    redo: state.redo,
+    updateWaypoint: state.updateWaypoint,
+    removeWaypoint: state.removeWaypoint,
+    reorderWaypoints: state.reorderWaypoints,
   };
 }

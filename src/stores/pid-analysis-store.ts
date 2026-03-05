@@ -1,9 +1,5 @@
 /**
  * Zustand store for PID analysis state.
- *
- * Manages the analysis worker lifecycle, AI recommendation requests,
- * wizard navigation, and comparison snapshots.
- *
  * @license GPL-3.0-only
  */
 
@@ -11,17 +7,12 @@ import { create } from "zustand";
 import type {
   PidAnalysisResult,
   AiRecommendation,
-  AiAnalysisResponse,
-  AiAnalysisRequest,
   WizardStep,
   AnalysisMode,
   WorkerOutMessage,
 } from "@/lib/analysis/types";
 import type { VehicleType } from "@/components/fc/pid/pid-constants";
-
-// ---------------------------------------------------------------------------
-// State + Actions
-// ---------------------------------------------------------------------------
+import { requestAiPidAnalysis } from "./pid-analysis-ai";
 
 interface PidAnalysisState {
   // Analysis state
@@ -79,10 +70,6 @@ interface PidAnalysisActions {
   clearRecommendations: () => void;
 }
 
-// ---------------------------------------------------------------------------
-// Initial state
-// ---------------------------------------------------------------------------
-
 const initialState: PidAnalysisState = {
   analysisResult: null,
   aiRecommendations: [],
@@ -99,15 +86,7 @@ const initialState: PidAnalysisState = {
   previousResult: null,
 };
 
-// ---------------------------------------------------------------------------
-// Worker ref (module-level, not in state — Workers are not serializable)
-// ---------------------------------------------------------------------------
-
 let activeWorker: Worker | null = null;
-
-// ---------------------------------------------------------------------------
-// Store
-// ---------------------------------------------------------------------------
 
 export const usePidAnalysisStore = create<PidAnalysisState & PidAnalysisActions>(
   (set, get) => ({
@@ -220,98 +199,30 @@ export const usePidAnalysisStore = create<PidAnalysisState & PidAnalysisActions>
 
       set({ aiLoading: true, error: null });
 
-      // Build condensed metrics for the AI request
-      const fftPeaks = (["roll", "pitch", "yaw"] as const).flatMap((axis) =>
-        analysisResult.fft[axis].peaks.map((p) => ({
-          axis,
-          frequency: p.frequency,
-          magnitudeDb: p.magnitudeDb,
-          zone: p.zone,
-        })),
-      );
-
-      const stepResponse = (["roll", "pitch", "yaw"] as const).map((axis) => {
-        const events = analysisResult.stepResponse[axis];
-        const count = events.length || 1;
-        return {
-          axis,
-          avgOvershoot:
-            events.reduce((s, e) => s + e.overshootPercent, 0) / count,
-          avgRiseTime: events.reduce((s, e) => s + e.riseTimeMs, 0) / count,
-          avgSettlingTime:
-            events.reduce((s, e) => s + e.settlingTimeMs, 0) / count,
-          avgDamping: events.reduce((s, e) => s + e.dampingRatio, 0) / count,
-        };
-      });
-
-      const tracking = (["roll", "pitch", "yaw"] as const).map((axis) => ({
-        axis,
-        rmsError: analysisResult.tracking[axis].rmsError,
-        score: analysisResult.tracking[axis].score,
-      }));
-
-      const body: AiAnalysisRequest = {
-        vehicleType,
-        currentParams,
-        analysisMetrics: {
-          tuneScore: analysisResult.tuneScore,
-          fftPeaks,
-          stepResponse,
-          tracking,
-          motorImbalance: analysisResult.motors.imbalanceScore,
-          vibrationLevel: analysisResult.vibration.level,
-          issues: analysisResult.issues.map((i) => ({
-            severity: i.severity,
-            title: i.title,
-            description: i.description,
-          })),
-        },
-      };
-
       try {
-        const res = await fetch("/api/pid-analysis", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
+        const result = await requestAiPidAnalysis(analysisResult, vehicleType, currentParams);
 
-        if (res.status === 401) {
+        if (result.needsAuth) {
           set({ aiLoading: false });
           window.dispatchEvent(new CustomEvent("open-signin"));
           return;
         }
 
-        if (res.status === 503) {
+        if (result.error) {
           set({
-            error: "AI analysis is not configured on this server. Set GROQ_API_KEY to enable it.",
+            error: result.error,
             aiLoading: false,
+            ...(result.rateLimited ? { aiRemainingUses: 0, aiWeeklyLimit: result.weeklyLimit } : {}),
           });
-          return;
-        }
-
-        const data: AiAnalysisResponse = await res.json();
-
-        if (res.status === 429) {
-          set({
-            error: "Weekly AI analysis limit reached. Resets Monday.",
-            aiLoading: false,
-            aiRemainingUses: 0,
-            aiWeeklyLimit: data.weeklyLimit ?? null,
-          });
-          return;
-        }
-
-        if (data.error) {
-          set({ error: data.error, aiLoading: false });
           return;
         }
 
         set({
-          aiRecommendations: data.recommendations,
-          aiSummary: data.summary,
+          aiRecommendations: result.recommendations,
+          aiSummary: result.summary,
           aiLoading: false,
-          aiRemainingUses: data.remaining ?? null,
-          aiWeeklyLimit: data.weeklyLimit ?? null,
+          aiRemainingUses: result.remaining,
+          aiWeeklyLimit: result.weeklyLimit,
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : "AI request failed";

@@ -6,54 +6,10 @@ import { cn } from "@/lib/utils";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useParamSafetyStore } from "@/stores/param-safety-store";
 import { ParamTooltip } from "./ParamTooltip";
+import { PARAM_TYPE_LABELS, isReadOnly, getDangerousWarning, isValueOutOfRange } from "./parameter-grid-utils";
 import type { ParameterValue } from "@/lib/protocol/types";
 import type { ParamMetadata } from "@/lib/protocol/param-metadata";
 import type { ParamColumnVisibility } from "@/stores/settings-store";
-
-/** MAV_PARAM_TYPE display names. */
-const PARAM_TYPE_LABELS: Record<number, string> = {
-  1: "UINT8",
-  2: "INT8",
-  3: "UINT16",
-  4: "INT16",
-  5: "UINT32",
-  6: "INT32",
-  8: "UINT64",
-  9: "INT64",
-  10: "REAL32",
-  11: "REAL64",
-};
-
-/** Read-only parameter name patterns. */
-const READ_ONLY_PATTERNS = [/^STAT_/, /^INS_\w+_ID$/, /^GND_\w+_ID$/];
-
-function isReadOnly(name: string, _meta: ParamMetadata | undefined): boolean {
-  return READ_ONLY_PATTERNS.some((p) => p.test(name));
-}
-
-/** Dangerous value validation rules for specific parameter patterns. */
-interface DangerousRule {
-  test: (name: string) => boolean;
-  check: (value: number) => boolean;
-  message: string;
-}
-
-const DANGEROUS_VALUE_RULES: DangerousRule[] = [
-  { test: (n) => n === "BATT_CAPACITY", check: (v) => v < 0, message: "Battery capacity cannot be negative" },
-  { test: (n) => n === "MOT_SPIN_ARM", check: (v) => v === 0, message: "Zero spin arm may prevent motor start" },
-  { test: (n) => n.startsWith("FS_") && n.endsWith("_TIMEOUT"), check: (v) => v < 0, message: "Failsafe timeout cannot be negative" },
-  { test: (n) => n === "FENCE_ALT_MAX", check: (v) => v < 0, message: "Fence max altitude cannot be negative" },
-  { test: (n) => n === "FENCE_RADIUS", check: (v) => v < 0, message: "Fence radius cannot be negative" },
-  { test: (n) => n === "BATT_LOW_VOLT", check: (v) => v < 0, message: "Low battery voltage cannot be negative" },
-  { test: (n) => n === "BATT_CRT_VOLT", check: (v) => v < 0, message: "Critical battery voltage cannot be negative" },
-];
-
-function getDangerousWarning(name: string, value: number): string | null {
-  for (const rule of DANGEROUS_VALUE_RULES) {
-    if (rule.test(name) && rule.check(value)) return rule.message;
-  }
-  return null;
-}
 
 interface ParameterGridProps {
   parameters: ParameterValue[];
@@ -63,12 +19,6 @@ interface ParameterGridProps {
   showModifiedOnly: boolean;
   metadata?: Map<string, ParamMetadata>;
   columnVisibility: ParamColumnVisibility;
-}
-
-/** Check if a value is outside the parameter's defined range. */
-function isValueOutOfRange(value: number, meta: ParamMetadata | undefined): boolean {
-  if (!meta?.range) return false;
-  return value < meta.range.min || value > meta.range.max;
 }
 
 export function ParameterGrid({ parameters, modified, onModify, filter, showModifiedOnly, metadata, columnVisibility }: ParameterGridProps) {
@@ -83,13 +33,9 @@ export function ParameterGrid({ parameters, modified, onModify, filter, showModi
 
   const filtered = useMemo(() => {
     let result = parameters;
-
-    // Apply modified-only filter first
     if (showModifiedOnly) {
       result = result.filter((p) => modified.has(p.name));
     }
-
-    // Then text search
     if (filter) {
       const lower = filter.toLowerCase();
       result = result.filter((p) => {
@@ -100,33 +46,23 @@ export function ParameterGrid({ parameters, modified, onModify, filter, showModi
         return false;
       });
     }
-
     return result;
   }, [parameters, filter, showModifiedOnly, modified, metadata]);
 
   const startEdit = useCallback((param: ParameterValue) => {
     const meta = metadata?.get(param.name);
     if (isReadOnly(param.name, meta)) return;
-
-    const current = modified.has(param.name)
-      ? modified.get(param.name)!
-      : param.value;
+    const current = modified.has(param.name) ? modified.get(param.name)! : param.value;
     setEditingParam(param.name);
     setEditValue(String(current));
-    requestAnimationFrame(() => {
-      inputRef.current?.focus();
-      selectRef.current?.focus();
-    });
+    requestAnimationFrame(() => { inputRef.current?.focus(); selectRef.current?.focus(); });
   }, [modified, metadata]);
 
   const commitEdit = useCallback((name: string) => {
     const num = parseFloat(editValue);
     if (!isNaN(num)) {
       const warning = getDangerousWarning(name, num);
-      if (warning) {
-        setDangerousWarning({ name, message: warning });
-        return;
-      }
+      if (warning) { setDangerousWarning({ name, message: warning }); return; }
       setDangerousWarning(null);
       onModify(name, num);
     }
@@ -135,16 +71,11 @@ export function ParameterGrid({ parameters, modified, onModify, filter, showModi
 
   const commitSelectEdit = useCallback((name: string, value: string) => {
     const num = parseFloat(value);
-    if (!isNaN(num)) {
-      onModify(name, num);
-    }
+    if (!isNaN(num)) onModify(name, num);
     setEditingParam(null);
   }, [onModify]);
 
-  const cancelEdit = useCallback(() => {
-    setEditingParam(null);
-    setDangerousWarning(null);
-  }, []);
+  const cancelEdit = useCallback(() => { setEditingParam(null); setDangerousWarning(null); }, []);
 
   const vis = columnVisibility;
   const colCount = Object.values(vis).filter(Boolean).length;
@@ -154,7 +85,6 @@ export function ParameterGrid({ parameters, modified, onModify, filter, showModi
       <table className="w-full text-xs">
         <thead className="sticky top-0 bg-bg-secondary z-10">
           <tr className="border-b border-border-default">
-            {/* Favorite star column (always visible, narrow) */}
             <th className="w-6 px-1" />
             {vis.index && <th className="px-3 py-2 text-left font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">#</th>}
             {vis.name && <th className="px-3 py-2 text-left font-semibold text-text-secondary uppercase tracking-wider">Name</th>}
@@ -182,26 +112,9 @@ export function ParameterGrid({ parameters, modified, onModify, filter, showModi
             const isFav = favoriteParams.includes(param.name);
 
             return (
-              <tr
-                key={`${param.name}-${param.index}`}
-                className={cn(
-                  "border-b border-border-default h-8 transition-colors",
-                  isModified
-                    ? "bg-status-warning/5"
-                    : isPendingRam
-                      ? "bg-orange-500/8"
-                      : differsFromDefault && "border-l-2 border-l-accent-primary bg-accent-primary/5"
-                )}
-              >
-                {/* Favorite star */}
+              <tr key={`${param.name}-${param.index}`} className={cn("border-b border-border-default h-8 transition-colors", isModified ? "bg-status-warning/5" : isPendingRam ? "bg-orange-500/8" : differsFromDefault && "border-l-2 border-l-accent-primary bg-accent-primary/5")}>
                 <td className="px-1 text-center">
-                  <button
-                    onClick={() => toggleFavorite(param.name)}
-                    className={cn(
-                      "flex-shrink-0 p-0.5 transition-colors cursor-pointer",
-                      isFav ? "text-status-warning" : "text-text-tertiary hover:text-text-secondary"
-                    )}
-                  >
+                  <button onClick={() => toggleFavorite(param.name)} className={cn("flex-shrink-0 p-0.5 transition-colors cursor-pointer", isFav ? "text-status-warning" : "text-text-tertiary hover:text-text-secondary")}>
                     <Star size={10} fill={isFav ? "currentColor" : "none"} />
                   </button>
                 </td>
@@ -209,217 +122,71 @@ export function ParameterGrid({ parameters, modified, onModify, filter, showModi
                 {vis.name && (
                   <td className={cn("px-3 font-mono", differsFromDefault && !isModified ? "text-accent-primary" : "text-text-primary")}>
                     <div className="flex items-center gap-1">
-                      <ParamTooltip meta={meta}>
-                        <span className="cursor-default">{param.name}</span>
-                      </ParamTooltip>
-                      {readOnly && (
-                        <Lock size={10} className="text-text-tertiary flex-shrink-0" />
-                      )}
+                      <ParamTooltip meta={meta}><span className="cursor-default">{param.name}</span></ParamTooltip>
+                      {readOnly && <Lock size={10} className="text-text-tertiary flex-shrink-0" />}
                     </div>
                   </td>
                 )}
-                {vis.description && (
-                  <td className="px-3 text-text-secondary max-w-[200px] truncate" title={meta?.description}>
-                    {meta?.humanName || meta?.description || "—"}
-                  </td>
-                )}
+                {vis.description && <td className="px-3 text-text-secondary max-w-[200px] truncate" title={meta?.description}>{meta?.humanName || meta?.description || "\u2014"}</td>}
                 {vis.value && (
                   <td className="px-3">
                     <div className="flex items-center gap-1">
                       {isEditing && hasBitmask ? (
-                        /* Bitmask checkbox editor */
                         <div className="flex flex-col gap-0.5 py-1">
                           {Array.from(meta!.bitmask!.entries()).map(([bit, label]) => {
                             const currentVal = parseInt(editValue) || 0;
                             const isSet = (currentVal & (1 << bit)) !== 0;
                             return (
                               <label key={bit} className="flex items-center gap-1.5 text-[10px] text-text-secondary cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={isSet}
-                                  onChange={() => {
-                                    const newVal = currentVal ^ (1 << bit);
-                                    setEditValue(String(newVal));
-                                    onModify(param.name, newVal);
-                                  }}
-                                  className="w-3 h-3"
-                                />
+                                <input type="checkbox" checked={isSet} onChange={() => { const newVal = currentVal ^ (1 << bit); setEditValue(String(newVal)); onModify(param.name, newVal); }} className="w-3 h-3" />
                                 <span className="font-mono">{bit}:</span> {label}
                               </label>
                             );
                           })}
-                          <button
-                            onClick={() => setEditingParam(null)}
-                            className="text-[10px] text-accent-primary hover:underline mt-0.5 text-left cursor-pointer"
-                          >
-                            Done
-                          </button>
+                          <button onClick={() => setEditingParam(null)} className="text-[10px] text-accent-primary hover:underline mt-0.5 text-left cursor-pointer">Done</button>
                         </div>
                       ) : isEditing ? (
                         hasEnum ? (
-                          <select
-                            ref={selectRef}
-                            value={editValue}
-                            onChange={(e) => {
-                              setEditValue(e.target.value);
-                              commitSelectEdit(param.name, e.target.value);
-                            }}
-                            onBlur={() => commitEdit(param.name)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Escape") cancelEdit();
-                            }}
-                            className="w-full h-6 px-1 bg-bg-tertiary border border-accent-primary text-xs font-mono text-text-primary focus:outline-none"
-                          >
-                            {Array.from(meta!.values!.entries()).map(([code, label]) => (
-                              <option key={code} value={code}>
-                                {code}: {label}
-                              </option>
-                            ))}
-                            {/* Show current value if not in enum */}
-                            {!meta!.values!.has(Number(editValue)) && (
-                              <option value={editValue}>{editValue} (custom)</option>
-                            )}
+                          <select ref={selectRef} value={editValue} onChange={(e) => { setEditValue(e.target.value); commitSelectEdit(param.name, e.target.value); }} onBlur={() => commitEdit(param.name)} onKeyDown={(e) => { if (e.key === "Escape") cancelEdit(); }} className="w-full h-6 px-1 bg-bg-tertiary border border-accent-primary text-xs font-mono text-text-primary focus:outline-none">
+                            {Array.from(meta!.values!.entries()).map(([code, label]) => (<option key={code} value={code}>{code}: {label}</option>))}
+                            {!meta!.values!.has(Number(editValue)) && <option value={editValue}>{editValue} (custom)</option>}
                           </select>
                         ) : (
                           <div className="w-full">
-                            <input
-                              ref={inputRef}
-                              type="text"
-                              value={editValue}
-                              onChange={(e) => {
-                                setEditValue(e.target.value);
-                                if (dangerousWarning?.name === param.name) setDangerousWarning(null);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") commitEdit(param.name);
-                                if (e.key === "Escape") cancelEdit();
-                              }}
-                              onBlur={() => commitEdit(param.name)}
-                              title={editOutOfRange && meta?.range ? `Expected range: ${meta.range.min} .. ${meta.range.max}` : undefined}
-                              className={cn(
-                                "w-full h-6 px-1.5 bg-bg-tertiary border text-xs font-mono text-text-primary focus:outline-none",
-                                dangerousWarning?.name === param.name
-                                  ? "border-status-error"
-                                  : editOutOfRange ? "border-status-warning" : "border-accent-primary"
-                              )}
-                            />
-                            {dangerousWarning?.name === param.name && (
-                              <div className="flex items-center gap-1 mt-0.5 text-[10px] text-status-error">
-                                <AlertTriangle size={9} />
-                                {dangerousWarning.message}
-                              </div>
-                            )}
+                            <input ref={inputRef} type="text" value={editValue} onChange={(e) => { setEditValue(e.target.value); if (dangerousWarning?.name === param.name) setDangerousWarning(null); }} onKeyDown={(e) => { if (e.key === "Enter") commitEdit(param.name); if (e.key === "Escape") cancelEdit(); }} onBlur={() => commitEdit(param.name)} title={editOutOfRange && meta?.range ? `Expected range: ${meta.range.min} .. ${meta.range.max}` : undefined} className={cn("w-full h-6 px-1.5 bg-bg-tertiary border text-xs font-mono text-text-primary focus:outline-none", dangerousWarning?.name === param.name ? "border-status-error" : editOutOfRange ? "border-status-warning" : "border-accent-primary")} />
+                            {dangerousWarning?.name === param.name && (<div className="flex items-center gap-1 mt-0.5 text-[10px] text-status-error"><AlertTriangle size={9} />{dangerousWarning.message}</div>)}
                           </div>
                         )
                       ) : (
                         <>
-                          <button
-                            onClick={() => !readOnly && startEdit(param)}
-                            title={
-                              readOnly ? "Read-only parameter" :
-                              outOfRange && meta?.range ? `Out of range: expected ${meta.range.min} .. ${meta.range.max}` :
-                              isPendingRam && !isModified ? "Written to RAM — not yet committed to flash" :
-                              undefined
-                            }
-                            className={cn(
-                              "flex-1 h-6 px-1.5 text-left font-mono transition-colors flex items-center gap-1",
-                              readOnly
-                                ? "text-text-tertiary cursor-not-allowed"
-                                : outOfRange
-                                  ? "text-status-warning border border-status-warning/60 bg-status-warning/5 cursor-pointer hover:bg-bg-tertiary"
-                                  : isModified
-                                    ? "text-status-warning border border-status-warning/40 cursor-pointer hover:bg-bg-tertiary"
-                                    : isPendingRam
-                                      ? "text-orange-400 border border-orange-500/40 cursor-pointer hover:bg-bg-tertiary"
-                                      : "text-text-primary border border-transparent cursor-pointer hover:bg-bg-tertiary"
-                            )}
-                          >
-                            <span>
-                              {hasEnum && meta!.values!.has(displayValue)
-                                ? `${displayValue}: ${meta!.values!.get(displayValue)}`
-                                : displayValue}
-                            </span>
+                          <button onClick={() => !readOnly && startEdit(param)} title={readOnly ? "Read-only parameter" : outOfRange && meta?.range ? `Out of range: expected ${meta.range.min} .. ${meta.range.max}` : isPendingRam && !isModified ? "Written to RAM \u2014 not yet committed to flash" : undefined} className={cn("flex-1 h-6 px-1.5 text-left font-mono transition-colors flex items-center gap-1", readOnly ? "text-text-tertiary cursor-not-allowed" : outOfRange ? "text-status-warning border border-status-warning/60 bg-status-warning/5 cursor-pointer hover:bg-bg-tertiary" : isModified ? "text-status-warning border border-status-warning/40 cursor-pointer hover:bg-bg-tertiary" : isPendingRam ? "text-orange-400 border border-orange-500/40 cursor-pointer hover:bg-bg-tertiary" : "text-text-primary border border-transparent cursor-pointer hover:bg-bg-tertiary")}>
+                            <span>{hasEnum && meta!.values!.has(displayValue) ? `${displayValue}: ${meta!.values!.get(displayValue)}` : displayValue}</span>
                             {outOfRange && <span className="text-[10px]" title={`Range: ${meta?.range?.min} .. ${meta?.range?.max}`}>!</span>}
-                            {isPendingRam && !isModified && (
-                              <span className="flex-shrink-0" title="RAM only, not flashed">
-                                <HardDrive size={10} className="text-orange-400" />
-                              </span>
-                            )}
+                            {isPendingRam && !isModified && <span className="flex-shrink-0" title="RAM only, not flashed"><HardDrive size={10} className="text-orange-400" /></span>}
                           </button>
-                          {/* Increment arrows for params with defined step */}
                           {!readOnly && meta?.increment && !hasEnum && !hasBitmask && (
                             <div className="flex flex-col">
-                              <button
-                                onClick={() => {
-                                  const newVal = displayValue + meta.increment!;
-                                  if (meta.range && newVal > meta.range.max) return;
-                                  onModify(param.name, parseFloat(newVal.toFixed(10)));
-                                }}
-                                className="text-text-tertiary hover:text-text-primary p-0 leading-none cursor-pointer"
-                                title={`+${meta.increment}`}
-                              >
-                                <ChevronUp size={10} />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  const newVal = displayValue - meta.increment!;
-                                  if (meta.range && newVal < meta.range.min) return;
-                                  onModify(param.name, parseFloat(newVal.toFixed(10)));
-                                }}
-                                className="text-text-tertiary hover:text-text-primary p-0 leading-none cursor-pointer"
-                                title={`-${meta.increment}`}
-                              >
-                                <ChevronDown size={10} />
-                              </button>
+                              <button onClick={() => { const newVal = displayValue + meta.increment!; if (meta.range && newVal > meta.range.max) return; onModify(param.name, parseFloat(newVal.toFixed(10))); }} className="text-text-tertiary hover:text-text-primary p-0 leading-none cursor-pointer" title={`+${meta.increment}`}><ChevronUp size={10} /></button>
+                              <button onClick={() => { const newVal = displayValue - meta.increment!; if (meta.range && newVal < meta.range.min) return; onModify(param.name, parseFloat(newVal.toFixed(10))); }} className="text-text-tertiary hover:text-text-primary p-0 leading-none cursor-pointer" title={`-${meta.increment}`}><ChevronDown size={10} /></button>
                             </div>
                           )}
-                          {differsFromDefault && !readOnly && (
-                            <button
-                              onClick={() => onModify(param.name, meta!.defaultValue!)}
-                              title={`Reset to default: ${meta!.defaultValue}`}
-                              className="flex-shrink-0 p-0.5 text-text-tertiary hover:text-accent-primary transition-colors cursor-pointer"
-                            >
-                              <RotateCw size={10} />
-                            </button>
-                          )}
-                          {hasDefault && (
-                            <span className="flex-shrink-0 text-[10px] text-text-tertiary font-mono" title={`Default: ${meta!.defaultValue}`}>
-                              d:{meta!.defaultValue}
-                            </span>
-                          )}
+                          {differsFromDefault && !readOnly && <button onClick={() => onModify(param.name, meta!.defaultValue!)} title={`Reset to default: ${meta!.defaultValue}`} className="flex-shrink-0 p-0.5 text-text-tertiary hover:text-accent-primary transition-colors cursor-pointer"><RotateCw size={10} /></button>}
+                          {hasDefault && <span className="flex-shrink-0 text-[10px] text-text-tertiary font-mono" title={`Default: ${meta!.defaultValue}`}>d:{meta!.defaultValue}</span>}
                         </>
                       )}
                     </div>
                   </td>
                 )}
-                {vis.range && (
-                  <td className="px-3 text-text-tertiary font-mono">
-                    {meta?.range ? `${meta.range.min} .. ${meta.range.max}` : "—"}
-                  </td>
-                )}
-                {vis.units && (
-                  <td className="px-3 text-text-tertiary">
-                    {meta?.units || "—"}
-                  </td>
-                )}
-                {vis.type && (
-                  <td className="px-3 text-text-tertiary font-mono">
-                    {PARAM_TYPE_LABELS[param.type] ?? `T${param.type}`}
-                  </td>
-                )}
+                {vis.range && <td className="px-3 text-text-tertiary font-mono">{meta?.range ? `${meta.range.min} .. ${meta.range.max}` : "\u2014"}</td>}
+                {vis.units && <td className="px-3 text-text-tertiary">{meta?.units || "\u2014"}</td>}
+                {vis.type && <td className="px-3 text-text-tertiary font-mono">{PARAM_TYPE_LABELS[param.type] ?? `T${param.type}`}</td>}
               </tr>
             );
           })}
           {filtered.length === 0 && (
             <tr>
               <td colSpan={colCount + 1} className="px-3 py-8 text-center text-text-tertiary">
-                {parameters.length === 0
-                  ? "No parameters loaded"
-                  : showModifiedOnly && modified.size === 0
-                    ? "No modified parameters"
-                    : showModifiedOnly
-                      ? "No modified parameters match the search"
-                      : "No matching parameters"}
+                {parameters.length === 0 ? "No parameters loaded" : showModifiedOnly && modified.size === 0 ? "No modified parameters" : showModifiedOnly ? "No modified parameters match the search" : "No matching parameters"}
               </td>
             </tr>
           )}

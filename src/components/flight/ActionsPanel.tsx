@@ -1,23 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
-  Power,
-  ArrowUpFromLine,
-  Home,
-  ArrowDownToLine,
-  Pause,
-  Play,
-  XOctagon,
-  Skull,
-  ClipboardCheck,
+  Power, ArrowUpFromLine, Home, ArrowDownToLine,
+  Pause, Play, XOctagon, Skull, ClipboardCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Modal } from "@/components/ui/modal";
 import { FlightModeSelector } from "@/components/shared/flight-mode-selector";
-import { PreFlightChecklist } from "@/components/flight/PreFlightChecklist";
+import { ActionDialogs } from "./action-dialogs";
 import { useDroneStore } from "@/stores/drone-store";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useChecklistStore } from "@/stores/checklist-store";
@@ -38,8 +29,6 @@ export function ActionsPanel() {
   const [showRthConfirm, setShowRthConfirm] = useState(false);
   const [showAbortConfirm, setShowAbortConfirm] = useState(false);
   const [showKillConfirm, setShowKillConfirm] = useState(false);
-  const [showKillFinal, setShowKillFinal] = useState(false);
-  const [killCountdown, setKillCountdown] = useState(3);
   const [takeoffAlt, setTakeoffAlt] = useState("10");
   const [showChecklist, setShowChecklist] = useState(false);
   const checklistReady = useChecklistStore(
@@ -68,17 +57,6 @@ export function ActionsPanel() {
     onAbortConfirm: () => setShowAbortConfirm(true),
     takeoffAlt,
   });
-
-  // Kill switch countdown
-  useEffect(() => {
-    if (!showKillFinal) {
-      setKillCountdown(3);
-      return;
-    }
-    if (killCountdown <= 0) return;
-    const timer = setTimeout(() => setKillCountdown(killCountdown - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [showKillFinal, killCountdown]);
 
   return (
     <>
@@ -274,83 +252,16 @@ export function ActionsPanel() {
         </div>
       </div>
 
-      {/* RTH Confirmation */}
-      <ConfirmDialog
-        open={showRthConfirm}
-        onCancel={() => setShowRthConfirm(false)}
-        onConfirm={() => {
-          if (protocol) protocol.returnToLaunch();
-          else setFlightMode("RTL");
-          setShowRthConfirm(false);
-        }}
-        title="Return to Home"
-        message="The drone will abort its current mission and return to the home position. Are you sure?"
-        confirmLabel="Return to Home"
-        variant="primary"
+      <ActionDialogs
+        showRthConfirm={showRthConfirm}
+        setShowRthConfirm={setShowRthConfirm}
+        showAbortConfirm={showAbortConfirm}
+        setShowAbortConfirm={setShowAbortConfirm}
+        showKillConfirm={showKillConfirm}
+        setShowKillConfirm={setShowKillConfirm}
+        showChecklist={showChecklist}
+        setShowChecklist={setShowChecklist}
       />
-
-      {/* Abort Confirmation */}
-      <ConfirmDialog
-        open={showAbortConfirm}
-        onCancel={() => setShowAbortConfirm(false)}
-        onConfirm={() => {
-          if (protocol) {
-            protocol.land();
-            protocol.disarm();
-          } else {
-            setFlightMode("LAND");
-            setArmState("disarmed");
-          }
-          setShowAbortConfirm(false);
-        }}
-        title="Emergency Abort"
-        message="This will immediately stop the mission and initiate emergency landing. This action cannot be undone. Are you sure?"
-        confirmLabel="ABORT MISSION"
-        variant="danger"
-      />
-
-      {/* Kill Switch - Step 1 */}
-      <ConfirmDialog
-        open={showKillConfirm}
-        onCancel={() => setShowKillConfirm(false)}
-        onConfirm={() => {
-          setShowKillConfirm(false);
-          setShowKillFinal(true);
-        }}
-        title="Kill Switch"
-        message="This will IMMEDIATELY CUT ALL MOTORS. The drone will fall from the sky. This is an emergency-only action. Are you absolutely sure?"
-        confirmLabel="I understand - proceed"
-        variant="danger"
-      />
-
-      {/* Kill Switch - Step 2: Countdown */}
-      <ConfirmDialog
-        open={showKillFinal}
-        onCancel={() => {
-          setShowKillFinal(false);
-          setKillCountdown(3);
-        }}
-        onConfirm={() => {
-          if (protocol) protocol.killSwitch();
-          setShowKillFinal(false);
-          setKillCountdown(3);
-        }}
-        title="FINAL CONFIRMATION - KILL MOTORS"
-        message={`Motors will be cut immediately. Drone will fall. ${killCountdown > 0 ? `Wait ${killCountdown}s...` : "Button enabled."}`}
-        confirmLabel={killCountdown > 0 ? `Wait ${killCountdown}s...` : "KILL MOTORS NOW"}
-        variant="danger"
-        confirmDisabled={killCountdown > 0}
-      />
-
-      {/* Pre-Flight Checklist Modal */}
-      <Modal
-        open={showChecklist}
-        onClose={() => setShowChecklist(false)}
-        title="Pre-Flight Checklist"
-        className="max-w-md max-h-[80vh] flex flex-col"
-      >
-        <PreFlightChecklist className="max-h-[60vh] -mx-4 -my-4" />
-      </Modal>
     </>
   );
 }

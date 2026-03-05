@@ -13,86 +13,10 @@ import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
 import { SlidersHorizontal, Save, RotateCcw, HardDrive, Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePanelScroll } from "@/hooks/use-panel-scroll";
+import { AdjustmentRangeSlider, stepToPwm, pwmToStep, TOTAL_STEPS } from "./AdjustmentRangeSlider";
+import { ADJUSTMENT_FUNCTIONS, AUX_CHANNELS, ADJUSTMENT_SLOT_COUNT, buildAdjustmentParamNames } from "./adjustment-constants";
 
-// ── Constants ──
-
-const ADJUSTMENT_SLOT_COUNT = 4;
-
-/** Step-to-PWM conversion (Betaflight convention: PWM = 900 + step * 25) */
-function stepToPwm(step: number): number {
-  return 900 + step * 25;
-}
-
-function pwmToStep(pwm: number): number {
-  return Math.round((pwm - 900) / 25);
-}
-
-const TOTAL_STEPS = 48; // 900-2100 in steps of 25
-
-/**
- * Adjustment function names (Betaflight MSP_ADJUSTMENT_RANGES).
- * 33 functions (0-32) matching BF Configurator AdjustmentsTab.vue.
- */
-const ADJUSTMENT_FUNCTIONS = [
-  { value: "0", label: "RC Rate" },
-  { value: "1", label: "RC Expo" },
-  { value: "2", label: "Throttle Expo" },
-  { value: "3", label: "Roll Rate" },
-  { value: "4", label: "Pitch Rate" },
-  { value: "5", label: "Yaw Rate" },
-  { value: "6", label: "PID Roll P" },
-  { value: "7", label: "PID Roll I" },
-  { value: "8", label: "PID Roll D" },
-  { value: "9", label: "PID Pitch P" },
-  { value: "10", label: "PID Pitch I" },
-  { value: "11", label: "PID Pitch D" },
-  { value: "12", label: "PID Yaw P" },
-  { value: "13", label: "PID Yaw I" },
-  { value: "14", label: "PID Yaw D" },
-  { value: "15", label: "PID Roll F" },
-  { value: "16", label: "PID Pitch F" },
-  { value: "17", label: "PID Yaw F" },
-  { value: "18", label: "Rate Profile" },
-  { value: "19", label: "PID Profile" },
-  { value: "20", label: "OSD Profile" },
-  { value: "21", label: "LED Profile" },
-  { value: "22", label: "Gyro LPF" },
-  { value: "23", label: "D-term LPF" },
-  { value: "24", label: "RC Rate Yaw" },
-  { value: "25", label: "PID Audio" },
-  { value: "26", label: "Roll Pitch Ratio" },
-  { value: "27", label: "Anti Gravity" },
-  { value: "28", label: "Landing Gear" },
-  { value: "29", label: "OSD Profile Change" },
-  { value: "30", label: "LED Profile Change" },
-  { value: "31", label: "Rates Collection" },
-  { value: "32", label: "Slider Master Multiplier" },
-];
-
-const AUX_CHANNELS = Array.from({ length: 12 }, (_, i) => ({
-  value: String(i),
-  label: `AUX ${i + 1}`,
-}));
-
-// Virtual params for adjustments — these map to MSP adjustment range data
-function buildParamNames(): string[] {
-  const names: string[] = [];
-  for (let i = 0; i < ADJUSTMENT_SLOT_COUNT; i++) {
-    names.push(
-      `BF_ADJ${i}_ENABLE`,
-      `BF_ADJ${i}_CHANNEL`,
-      `BF_ADJ${i}_RANGE_LOW`,
-      `BF_ADJ${i}_RANGE_HIGH`,
-      `BF_ADJ${i}_FUNCTION`,
-      `BF_ADJ${i}_VIA_CHANNEL`,
-    );
-  }
-  return names;
-}
-
-const paramNames = buildParamNames();
-
-// ── Panel ──
+const paramNames = buildAdjustmentParamNames();
 
 export function AdjustmentsPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
@@ -110,22 +34,18 @@ export function AdjustmentsPanel() {
   const connected = !!getSelectedProtocol();
   const hasDirty = dirtyParams.size > 0;
 
-  // Live RC channel data for range slider indicators
   const rcBuffer = useTelemetryStore((s) => s.rc);
   const latestRc = rcBuffer.latest();
 
   const p = (name: string, fallback = 0) => String(params.get(name) ?? fallback);
   const pNum = (name: string, fallback = 0) => Number(params.get(name) ?? fallback);
 
-  // Handle enable toggle — when disabling, reset range to 900-900 (BF convention)
   const handleEnableToggle = useCallback((slotIndex: number, currentlyEnabled: boolean) => {
     if (currentlyEnabled) {
-      // Disabling: reset range to 900-900
       setLocalValue(`BF_ADJ${slotIndex}_ENABLE`, 0);
       setLocalValue(`BF_ADJ${slotIndex}_RANGE_LOW`, 900);
       setLocalValue(`BF_ADJ${slotIndex}_RANGE_HIGH`, 900);
     } else {
-      // Enabling: set default range if both are the same
       setLocalValue(`BF_ADJ${slotIndex}_ENABLE`, 1);
       const low = pNum(`BF_ADJ${slotIndex}_RANGE_LOW`);
       const high = pNum(`BF_ADJ${slotIndex}_RANGE_HIGH`);
@@ -155,14 +75,11 @@ export function AdjustmentsPanel() {
     toast("Reverted to FC values", "info");
   }
 
-  // Get the live PWM for a given AUX channel (0-based, AUX1=0)
   const getAuxPwm = useCallback((auxChannelIndex: number): number => {
     if (!latestRc) return 0;
-    // AUX channels start at RC channel index 4
     return latestRc.channels[auxChannelIndex + 4] ?? 0;
   }, [latestRc]);
 
-  // Sorted function options (alphabetical, keeping original indices)
   const sortedFunctions = useMemo(() => {
     const copy = [...ADJUSTMENT_FUNCTIONS];
     copy.sort((a, b) => a.label.localeCompare(b.label));
@@ -243,7 +160,6 @@ export function AdjustmentsPanel() {
                     !enabled && "opacity-50",
                   )}
                 >
-                  {/* Slot header */}
                   <div className="flex items-center gap-3">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -252,9 +168,7 @@ export function AdjustmentsPanel() {
                         onChange={() => handleEnableToggle(i, enabled)}
                         className="accent-accent-primary w-4 h-4"
                       />
-                      <span className="text-xs font-medium text-text-primary">
-                        Slot {i}
-                      </span>
+                      <span className="text-xs font-medium text-text-primary">Slot {i}</span>
                     </label>
                     {enabled && (
                       <span className="text-[10px] text-text-tertiary">
@@ -265,12 +179,9 @@ export function AdjustmentsPanel() {
 
                   {enabled && (
                     <>
-                      {/* Controls row */}
                       <div className="grid grid-cols-[1fr_1fr_1fr] gap-3">
                         <div>
-                          <label className="text-[10px] text-text-tertiary block mb-1">
-                            When Channel
-                          </label>
+                          <label className="text-[10px] text-text-tertiary block mb-1">When Channel</label>
                           <Select
                             options={AUX_CHANNELS}
                             value={p(`BF_ADJ${i}_CHANNEL`)}
@@ -278,9 +189,7 @@ export function AdjustmentsPanel() {
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] text-text-tertiary block mb-1">
-                            Apply Function
-                          </label>
+                          <label className="text-[10px] text-text-tertiary block mb-1">Apply Function</label>
                           <Select
                             options={sortedFunctions}
                             value={p(`BF_ADJ${i}_FUNCTION`)}
@@ -290,9 +199,7 @@ export function AdjustmentsPanel() {
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] text-text-tertiary block mb-1">
-                            Via Channel
-                          </label>
+                          <label className="text-[10px] text-text-tertiary block mb-1">Via Channel</label>
                           <Select
                             options={AUX_CHANNELS}
                             value={p(`BF_ADJ${i}_VIA_CHANNEL`)}
@@ -301,7 +208,6 @@ export function AdjustmentsPanel() {
                         </div>
                       </div>
 
-                      {/* Range slider */}
                       <div className="space-y-1">
                         <div className="flex justify-between text-[10px] text-text-secondary">
                           <span>{rangeLow} \u00B5s</span>
@@ -344,140 +250,22 @@ export function AdjustmentsPanel() {
 
         {/* Save / Revert */}
         <div className="flex items-center gap-3 pt-2 pb-4">
-          <Button
-            variant="primary"
-            size="lg"
-            icon={<Save size={14} />}
-            disabled={!hasDirty || !connected}
-            loading={saving}
-            onClick={handleSave}
-          >
+          <Button variant="primary" size="lg" icon={<Save size={14} />} disabled={!hasDirty || !connected} loading={saving} onClick={handleSave}>
             Save to Flight Controller
           </Button>
-          <Button
-            variant="secondary"
-            size="lg"
-            icon={<RotateCcw size={14} />}
-            disabled={!hasDirty}
-            onClick={handleRevert}
-          >
+          <Button variant="secondary" size="lg" icon={<RotateCcw size={14} />} disabled={!hasDirty} onClick={handleRevert}>
             Revert
           </Button>
           {hasRamWrites && (
-            <Button
-              variant="secondary"
-              size="lg"
-              icon={<HardDrive size={14} />}
-              onClick={handleFlash}
-            >
+            <Button variant="secondary" size="lg" icon={<HardDrive size={14} />} onClick={handleFlash}>
               Write to Flash
             </Button>
           )}
-          {!connected && (
-            <span className="text-[10px] text-text-tertiary">Connect a drone to save parameters</span>
-          )}
-          {hasDirty && connected && (
-            <span className="text-[10px] text-status-warning">Unsaved changes</span>
-          )}
+          {!connected && <span className="text-[10px] text-text-tertiary">Connect a drone to save parameters</span>}
+          {hasDirty && connected && <span className="text-[10px] text-status-warning">Unsaved changes</span>}
         </div>
       </div>
     </div>
     </ArmedLockOverlay>
-  );
-}
-
-// ── Range Slider Component ──
-
-function AdjustmentRangeSlider({
-  start,
-  end,
-  activePwm,
-  onChange,
-  dirty,
-}: {
-  start: number; // step value 0-48
-  end: number;
-  activePwm: number;
-  onChange: (start: number, end: number) => void;
-  dirty: boolean;
-}) {
-  const startPct = (start / TOTAL_STEPS) * 100;
-  const endPct = (end / TOTAL_STEPS) * 100;
-  const activePct =
-    activePwm > 0
-      ? (pwmToStep(Math.min(2100, Math.max(900, activePwm))) / TOTAL_STEPS) * 100
-      : -1;
-  const isInRange =
-    activePwm > 0 &&
-    activePwm >= stepToPwm(start) &&
-    activePwm <= stepToPwm(end);
-
-  return (
-    <div className="relative h-8 select-none">
-      {/* Track background */}
-      <div className="absolute top-3 left-0 right-0 h-2 bg-bg-tertiary rounded-full" />
-
-      {/* Active range highlight */}
-      <div
-        className={cn(
-          "absolute top-3 h-2 rounded-full transition-colors",
-          dirty
-            ? "bg-status-warning/50"
-            : isInRange
-              ? "bg-status-success/60"
-              : "bg-accent-primary/40",
-        )}
-        style={{
-          left: `${startPct}%`,
-          width: `${Math.max(0, endPct - startPct)}%`,
-        }}
-      />
-
-      {/* Live channel indicator */}
-      {activePct >= 0 && (
-        <div
-          className={cn(
-            "absolute top-1.5 w-0.5 h-5 rounded-full",
-            isInRange ? "bg-status-success" : "bg-text-tertiary",
-          )}
-          style={{ left: `${activePct}%` }}
-        />
-      )}
-
-      {/* Start thumb */}
-      <input
-        type="range"
-        min={0}
-        max={TOTAL_STEPS}
-        value={start}
-        onChange={(e) => {
-          const v = Number(e.target.value);
-          if (v < end) onChange(v, end);
-        }}
-        className="absolute inset-0 w-full opacity-0 cursor-pointer z-10"
-        style={{ pointerEvents: "auto" }}
-      />
-
-      {/* End thumb */}
-      <input
-        type="range"
-        min={0}
-        max={TOTAL_STEPS}
-        value={end}
-        onChange={(e) => {
-          const v = Number(e.target.value);
-          if (v > start) onChange(start, v);
-        }}
-        className="absolute inset-0 w-full opacity-0 cursor-pointer z-10"
-        style={{ pointerEvents: "auto" }}
-      />
-
-      {/* PWM labels */}
-      <div className="absolute -bottom-1 left-0 right-0 flex justify-between text-[8px] text-text-tertiary font-mono">
-        <span>900</span>
-        <span>1500</span>
-        <span>2100</span>
-      </div>
-    </div>
   );
 }

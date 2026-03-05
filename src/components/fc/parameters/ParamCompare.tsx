@@ -8,33 +8,14 @@ import { useDroneManager } from "@/stores/drone-manager";
 import { parseParamFile, compareParams, type ParamDiff } from "@/lib/formats/param-file-parser";
 import { cn } from "@/lib/utils";
 import {
-  Upload,
-  Search,
-  CheckSquare,
-  Square,
-  FileText,
-  PenLine,
-  HardDrive,
+  Upload, Search, CheckSquare, Square, FileText, PenLine, HardDrive,
 } from "lucide-react";
+import { STATUS_STYLES, STATUS_LABELS, FILTER_MODES, TH, filterLabel, type FilterMode } from "./param-compare-helpers";
 
 interface ParamCompareProps {
   fcParams: Map<string, number>;
   onApplied: () => void;
 }
-
-type FilterMode = "all" | "changed" | "added" | "unchanged";
-
-const STATUS_STYLES: Record<string, string> = {
-  changed: "text-status-warning",
-  added: "text-accent-primary",
-  unchanged: "text-text-tertiary",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  changed: "Changed",
-  added: "New",
-  unchanged: "Same",
-};
 
 export function ParamCompare({ fcParams, onApplied }: ParamCompareProps) {
   const { toast } = useToast();
@@ -207,7 +188,7 @@ export function ParamCompare({ fcParams, onApplied }: ParamCompareProps) {
                 className="w-full h-7 pl-7 pr-2 bg-bg-tertiary border border-border-default text-xs font-mono text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent-primary transition-colors"
               />
             </div>
-            {(["all", "changed", "added", "unchanged"] as FilterMode[]).map((mode) => (
+            {FILTER_MODES.map((mode) => (
               <button
                 key={mode}
                 onClick={() => setFilterMode(mode)}
@@ -218,10 +199,7 @@ export function ParamCompare({ fcParams, onApplied }: ParamCompareProps) {
                     : "text-text-tertiary hover:text-text-secondary"
                 )}
               >
-                {mode === "all" ? `All (${stats.total})` :
-                 mode === "changed" ? `Changed (${stats.changed})` :
-                 mode === "added" ? `New (${stats.added})` :
-                 `Same (${stats.unchanged})`}
+                {filterLabel(mode, stats)}
               </button>
             ))}
           </div>
@@ -229,15 +207,13 @@ export function ParamCompare({ fcParams, onApplied }: ParamCompareProps) {
           {/* Diff table */}
           <div className="flex-1 overflow-y-auto min-h-0 border border-border-default">
             <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-bg-tertiary border-b border-border-default z-10">
-                <tr>
-                  <th className="w-8 px-2 py-1.5 text-left"></th>
-                  <th className="px-2 py-1.5 text-left text-text-tertiary font-semibold uppercase tracking-wider text-[10px]">Parameter</th>
-                  <th className="px-2 py-1.5 text-right text-text-tertiary font-semibold uppercase tracking-wider text-[10px] w-28">FC Value</th>
-                  <th className="px-2 py-1.5 text-right text-text-tertiary font-semibold uppercase tracking-wider text-[10px] w-28">File Value</th>
-                  <th className="px-2 py-1.5 text-center text-text-tertiary font-semibold uppercase tracking-wider text-[10px] w-20">Status</th>
-                </tr>
-              </thead>
+              <thead className="sticky top-0 bg-bg-tertiary border-b border-border-default z-10"><tr>
+                <th className="w-8 px-2 py-1.5 text-left"></th>
+                <th className={cn(TH, "text-left")}>Parameter</th>
+                <th className={cn(TH, "text-right w-28")}>FC Value</th>
+                <th className={cn(TH, "text-right w-28")}>File Value</th>
+                <th className={cn(TH, "text-center w-20")}>Status</th>
+              </tr></thead>
               <tbody>
                 {filteredDiffs.map((d) => {
                   const selectable = d.status === "changed" || d.status === "added";
@@ -291,35 +267,18 @@ export function ParamCompare({ fcParams, onApplied }: ParamCompareProps) {
             </table>
           </div>
 
-          {/* Apply progress */}
           {applying && applyProgress.total > 0 && (
             <div className="flex items-center gap-3">
               <PenLine size={12} className="text-status-warning flex-shrink-0" />
-              <span className="text-xs text-text-secondary">
-                Applying {applyProgress.current}/{applyProgress.total}...
-              </span>
+              <span className="text-xs text-text-secondary">Applying {applyProgress.current}/{applyProgress.total}...</span>
               <div className="flex-1 h-1.5 bg-bg-tertiary rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-status-warning transition-all duration-200"
-                  style={{ width: `${Math.round((applyProgress.current / applyProgress.total) * 100)}%` }}
-                />
+                <div className="h-full bg-status-warning transition-all duration-200" style={{ width: `${Math.round((applyProgress.current / applyProgress.total) * 100)}%` }} />
               </div>
             </div>
           )}
-
-          {/* Apply button */}
           <div className="flex items-center justify-between">
-            <span className="text-xs text-text-tertiary">
-              {selected.size} of {selectableCount} selectable params selected
-            </span>
-            <Button
-              variant="primary"
-              size="sm"
-              icon={<HardDrive size={12} />}
-              onClick={handleApply}
-              disabled={selected.size === 0 || applying}
-              loading={applying}
-            >
+            <span className="text-xs text-text-tertiary">{selected.size} of {selectableCount} selectable params selected</span>
+            <Button variant="primary" size="sm" icon={<HardDrive size={12} />} onClick={handleApply} disabled={selected.size === 0 || applying} loading={applying}>
               Apply {selected.size} Parameter{selected.size !== 1 ? "s" : ""}
             </Button>
           </div>

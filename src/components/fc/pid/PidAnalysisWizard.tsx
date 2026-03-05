@@ -2,7 +2,6 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { usePidAnalysisStore } from "@/stores/pid-analysis-store";
 import { useArmedLock } from "@/hooks/use-armed-lock";
 import { PidLogUploader } from "./PidLogUploader";
@@ -13,13 +12,11 @@ import { PidMotorChart } from "./PidMotorChart";
 import { PidAnalysisSummary } from "./PidAnalysisSummary";
 import { PidAiRecommendations } from "./PidAiRecommendations";
 import { PidComparisonView } from "./PidComparisonView";
-import {
-  Upload, BarChart3, Sparkles, CheckCircle, ChevronLeft, ChevronRight,
-  AlertTriangle, Save,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, AlertTriangle, Save } from "lucide-react";
 import { AiSuggestionsGate } from "../shared/AiSuggestionsGate";
+import { STEPS, ANALYSIS_TABS, StepIndicator, type AnalysisTab } from "./pid-wizard-steps";
 import type { VehicleType } from "./pid-constants";
-import type { WizardStep, StepResponseEvent } from "@/lib/analysis/types";
+import type { StepResponseEvent } from "@/lib/analysis/types";
 
 interface Props {
   vehicleType: VehicleType;
@@ -27,15 +24,6 @@ interface Props {
   setLocalValue: (name: string, value: number) => void;
   connected: boolean;
 }
-
-const STEPS: { id: WizardStep; label: string; icon: typeof Upload }[] = [
-  { id: "upload", label: "Upload", icon: Upload },
-  { id: "analysis", label: "Analysis", icon: BarChart3 },
-  { id: "recommendations", label: "AI Recs", icon: Sparkles },
-  { id: "apply", label: "Apply", icon: CheckCircle },
-];
-
-type AnalysisTab = "fft" | "step" | "tracking" | "motors" | "summary";
 
 export function PidAnalysisWizard({ vehicleType, params, setLocalValue, connected }: Props) {
   const wizardStep = usePidAnalysisStore((s) => s.wizardStep);
@@ -100,49 +88,7 @@ export function PidAnalysisWizard({ vehicleType, params, setLocalValue, connecte
 
   return (
     <div className="space-y-4">
-      {/* Step indicator */}
-      <div className="flex items-center justify-center gap-0">
-        {STEPS.map((step, i) => {
-          const isCompleted = i < stepIndex;
-          const isCurrent = i === stepIndex;
-          const Icon = step.icon;
-          return (
-            <div key={step.id} className="flex items-center">
-              <button
-                onClick={() => {
-                  if (isCompleted || isCurrent) setWizardStep(step.id);
-                }}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-medium transition-colors cursor-pointer",
-                  isCompleted && "text-status-success",
-                  isCurrent && "text-accent-primary",
-                  !isCompleted && !isCurrent && "text-text-tertiary",
-                )}
-              >
-                <div className={cn(
-                  "w-5 h-5 flex items-center justify-center border transition-colors",
-                  isCompleted && "border-status-success bg-status-success/10",
-                  isCurrent && "border-accent-primary bg-accent-primary/10",
-                  !isCompleted && !isCurrent && "border-border-default",
-                )}>
-                  {isCompleted ? (
-                    <CheckCircle size={10} className="text-status-success" />
-                  ) : (
-                    <Icon size={10} />
-                  )}
-                </div>
-                <span className="hidden sm:inline">{step.label}</span>
-              </button>
-              {i < STEPS.length - 1 && (
-                <div className={cn(
-                  "w-8 h-px",
-                  i < stepIndex ? "bg-status-success" : "bg-border-default",
-                )} />
-              )}
-            </div>
-          );
-        })}
-      </div>
+      <StepIndicator wizardStep={wizardStep} setWizardStep={setWizardStep} />
 
       {/* Error display */}
       {error && (
@@ -167,15 +113,7 @@ export function PidAnalysisWizard({ vehicleType, params, setLocalValue, connecte
         <div className="space-y-3">
           {/* Tab strip */}
           <div className="flex gap-0 border-b border-border-default">
-            {(
-              [
-                { id: "summary", label: "Summary" },
-                { id: "fft", label: "Noise (FFT)" },
-                { id: "step", label: "Step Response" },
-                { id: "tracking", label: "Tracking" },
-                { id: "motors", label: "Motors" },
-              ] as { id: AnalysisTab; label: string }[]
-            ).map((tab) => (
+            {ANALYSIS_TABS.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setAnalysisTab(tab.id)}

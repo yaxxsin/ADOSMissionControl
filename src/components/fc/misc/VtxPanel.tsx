@@ -13,75 +13,11 @@ import { PanelHeader } from "../shared/PanelHeader";
 import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
 import { Radio, Save, HardDrive, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const PARAM_NAMES = [
-  "BF_VTX_TYPE",
-  "BF_VTX_BAND",
-  "BF_VTX_CHANNEL",
-  "BF_VTX_POWER",
-  "BF_VTX_PIT_MODE",
-  "BF_VTX_FREQUENCY",
-  "BF_VTX_LOW_POWER_DISARM",
-] as const;
-
-const paramNames = [...PARAM_NAMES];
-
-/** Standard 5.8 GHz FPV bands — band name → channel frequencies (MHz) */
-const VTX_BANDS: Record<string, number[]> = {
-  A: [5865, 5845, 5825, 5805, 5785, 5765, 5745, 5725],
-  B: [5733, 5752, 5771, 5790, 5809, 5828, 5847, 5866],
-  E: [5705, 5685, 5665, 5645, 5885, 5905, 5925, 5945],
-  F: [5740, 5760, 5780, 5800, 5820, 5840, 5860, 5880],
-  R: [5658, 5695, 5732, 5769, 5806, 5843, 5880, 5917],
-};
-
-/** Band index (1-based) to band letter */
-const BAND_INDEX_TO_LETTER: Record<number, string> = {
-  1: "A",
-  2: "B",
-  3: "E",
-  4: "F",
-  5: "R",
-};
-
-const BAND_LETTER_TO_INDEX: Record<string, number> = {
-  A: 1,
-  B: 2,
-  E: 3,
-  F: 4,
-  R: 5,
-};
-
-const VTX_TYPE_OPTIONS = [
-  { value: "0", label: "0 — Unsupported" },
-  { value: "1", label: "1 — RTC6705" },
-  { value: "2", label: "2 — SmartAudio" },
-  { value: "3", label: "3 — Tramp" },
-  { value: "4", label: "4 — Unknown" },
-  { value: "5", label: "5 — Table" },
-];
-
-const POWER_OPTIONS = [
-  { value: "0", label: "0 — 25 mW" },
-  { value: "1", label: "1 — 200 mW" },
-  { value: "2", label: "2 — 500 mW" },
-  { value: "3", label: "3 — 800 mW" },
-];
-
-const PIT_MODE_OPTIONS = [
-  { value: "0", label: "0 — Off" },
-  { value: "1", label: "1 — On (in-band)" },
-  { value: "2", label: "2 — On (out-band)" },
-];
-
-const LOW_POWER_DISARM_OPTIONS = [
-  { value: "0", label: "0 — Off" },
-  { value: "1", label: "1 — On" },
-  { value: "2", label: "2 — Until first arm" },
-];
-
-const BAND_NAMES = Object.keys(VTX_BANDS);
-const CHANNEL_COUNT = 8;
+import {
+  vtxParamNames, VTX_BANDS, BAND_INDEX_TO_LETTER, BAND_LETTER_TO_INDEX,
+  VTX_TYPE_OPTIONS, POWER_OPTIONS, PIT_MODE_OPTIONS, LOW_POWER_DISARM_OPTIONS,
+  BAND_NAMES, CHANNEL_COUNT,
+} from "./vtx-constants";
 
 export function VtxPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
@@ -93,7 +29,7 @@ export function VtxPanel() {
     params, loading, error, dirtyParams, hasRamWrites,
     loadProgress, hasLoaded,
     refresh, setLocalValue, saveAllToRam, commitToFlash,
-  } = usePanelParams({ paramNames, panelId: "vtx", autoLoad: true });
+  } = usePanelParams({ paramNames: vtxParamNames, panelId: "vtx", autoLoad: true });
   useUnsavedGuard(dirtyParams.size > 0);
 
   const connected = !!getSelectedProtocol();

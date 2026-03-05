@@ -5,81 +5,10 @@ import { usePanelCacheStore } from "@/stores/panel-cache-store";
 import { useFcPanelActionsStore } from "@/stores/fc-panel-actions-store";
 import { useDiagnosticsStore } from "@/stores/diagnostics-store";
 import { cachePanelToIDB, getCachedPanelFromIDB } from "@/lib/param-cache-idb";
-import type { ParamMetadata } from "@/lib/protocol/param-metadata";
+import type { PanelParamOptions, PanelParamState, PanelParamActions, UndoEntry } from "./use-panel-params-types";
+import { MAX_UNDO_STACK, RETRY_DELAYS, DEFAULT_BATCH_SIZE, EMPTY_ARRAY } from "./use-panel-params-types";
 
-interface PanelParamEvent {
-  type: "read" | "write" | "flash" | "error" | "info";
-  message: string;
-}
-
-interface PanelParamOptions {
-  /** List of parameter names to load */
-  paramNames: string[];
-  /** Params that may not exist on all firmware — fail silently */
-  optionalParams?: string[];
-  /** Panel identifier for tracking */
-  panelId: string;
-  /** Whether to auto-load on mount (default: false) */
-  autoLoad?: boolean;
-  /** Max retry attempts (default: 3) */
-  maxRetries?: number;
-  /** Concurrent fetch batch size (default: 8) */
-  batchSize?: number;
-  /** Optional callback for logging parameter operations */
-  onEvent?: (event: PanelParamEvent) => void;
-  /** Optional param metadata map — used to detect rebootRequired params on write */
-  metadata?: Map<string, ParamMetadata>;
-}
-
-interface UndoEntry {
-  name: string;
-  previousValue: number;
-}
-
-const MAX_UNDO_STACK = 50;
-
-interface PanelParamState {
-  params: Map<string, number>;
-  loading: boolean;
-  error: string | null;
-  /** Which params have been modified but not saved to RAM */
-  dirtyParams: Set<string>;
-  /** Whether any params have been written to RAM but not flashed */
-  hasRamWrites: boolean;
-  /** Progress of current load operation */
-  loadProgress: { loaded: number; total: number } | null;
-  /** Whether params have been loaded at least once */
-  hasLoaded: boolean;
-  /** Optional params that were not found on this firmware */
-  missingOptional: Set<string>;
-  /** Number of entries in the undo stack */
-  undoCount: number;
-  /** If loaded from IDB cache (offline), this is the cache timestamp */
-  idbCacheTimestamp: number | null;
-}
-
-interface PanelParamActions {
-  /** Reload all params from FC */
-  refresh: () => Promise<void>;
-  /** Update a param value locally (marks as dirty) */
-  setLocalValue: (name: string, value: number) => void;
-  /** Write a single param to RAM on the FC */
-  saveToRam: (name: string, value: number) => Promise<boolean>;
-  /** Write all dirty params to RAM */
-  saveAllToRam: () => Promise<boolean>;
-  /** Commit all RAM writes to flash */
-  commitToFlash: () => Promise<boolean>;
-  /** Revert a param to its loaded value */
-  revert: (name: string) => void;
-  /** Revert all dirty params */
-  revertAll: () => void;
-  /** Undo the last param edit */
-  undo: () => void;
-}
-
-const RETRY_DELAYS = [500, 1000, 2000];
-const DEFAULT_BATCH_SIZE = 8;
-const EMPTY_ARRAY: string[] = [];
+export type { PanelParamOptions, PanelParamState, PanelParamActions, PanelParamEvent } from "./use-panel-params-types";
 
 export function usePanelParams(
   options: PanelParamOptions,
@@ -97,7 +26,6 @@ export function usePanelParams(
   const [missingOptional, setMissingOptional] = useState<Set<string>>(new Set());
   const [idbCacheTimestamp, setIdbCacheTimestamp] = useState<number | null>(null);
 
-  // Track original loaded values for revert
   const originalValues = useRef<Map<string, number>>(new Map());
   const undoStack = useRef<UndoEntry[]>([]);
   const [undoCount, setUndoCount] = useState(0);
@@ -129,7 +57,6 @@ export function usePanelParams(
     const failed: string[] = [];
     let completedCount = 0;
 
-    // Fetch a single param with retries
     const fetchOne = async (name: string): Promise<void> => {
       if (abortedRef.current) return;
       onEvent?.({ type: "read", message: `Reading ${name}...` });
@@ -155,17 +82,12 @@ export function usePanelParams(
     };
 
     try {
-      // Process in batches of `batchSize` for parallelism
       for (let i = 0; i < paramNames.length; i += batchSize) {
         if (abortedRef.current) return;
-
         const batch = paramNames.slice(i, i + batchSize);
         await Promise.allSettled(batch.map((name) => fetchOne(name)));
-
         completedCount = Math.min(i + batchSize, paramNames.length);
         if (abortedRef.current) return;
-
-        // Incremental update — UI fills in progressively
         setParams(new Map(loaded));
         setLoadProgress({ loaded: completedCount, total: paramNames.length });
       }
@@ -183,12 +105,9 @@ export function usePanelParams(
       if (failed.length > 0) {
         const criticalFailed = failed.filter((f) => !optionalSet.has(f));
         const optionalFailed = failed.filter((f) => optionalSet.has(f));
-        if (optionalFailed.length > 0) {
-          setMissingOptional(new Set(optionalFailed));
-        }
+        if (optionalFailed.length > 0) setMissingOptional(new Set(optionalFailed));
         if (criticalFailed.length > 0) {
           setError(`Failed to load: ${criticalFailed.join(", ")}`);
-          // Don't mark as loaded when critical params failed — show Retry, not Refresh
         } else {
           setHasLoaded(true);
         }
@@ -198,21 +117,16 @@ export function usePanelParams(
 
       markPanelLoaded(panelId);
       cachePanel(panelId, new Map(loaded), new Map(loaded));
-      // Persist to IndexedDB for offline access
       cachePanelToIDB(panelId, loaded).catch(() => {});
       setIdbCacheTimestamp(null);
     } finally {
-      if (!abortedRef.current) {
-        setLoading(false);
-      }
+      if (!abortedRef.current) setLoading(false);
     }
   }, [getProtocol, paramNames, optionalSet, panelId, maxRetries, batchSize, markPanelLoaded, cachePanel, onEvent]);
 
-  // Ref to decouple effect from loadParams identity changes during loading
   const loadParamsRef = useRef(loadParams);
   loadParamsRef.current = loadParams;
 
-  // Restore from cache on mount (before autoLoad triggers)
   useEffect(() => {
     const cached = getCachedPanel(panelId);
     if (cached) {
@@ -223,7 +137,6 @@ export function usePanelParams(
       setHasRamWrites(false);
       markPanelLoaded(panelId);
     } else {
-      // Try IndexedDB cache when disconnected and no in-memory cache
       const protocol = getProtocol();
       const isDisconnected = !protocol || !protocol.isConnected;
       if (isDisconnected) {
@@ -243,92 +156,62 @@ export function usePanelParams(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-load on mount (default: off)
   useEffect(() => {
     abortedRef.current = false;
-    if (autoLoad) {
-      loadParamsRef.current();
-    }
-    return () => {
-      abortedRef.current = true;
-    };
+    if (autoLoad) loadParamsRef.current();
+    return () => { abortedRef.current = true; };
   }, [autoLoad]);
 
-  const setLocalValue = useCallback(
-    (name: string, value: number) => {
-      setParams((prev) => {
-        // Push previous value onto undo stack
-        const previousValue = prev.get(name);
-        if (previousValue !== undefined) {
-          const stack = undoStack.current;
-          stack.push({ name, previousValue });
-          if (stack.length > MAX_UNDO_STACK) {
-            stack.shift();
-          }
-          setUndoCount(stack.length);
-        }
-        const next = new Map(prev);
-        next.set(name, value);
-        return next;
-      });
-      setDirtyParams((prev) => {
-        const next = new Set(prev);
-        next.add(name);
-        return next;
-      });
-    },
-    [],
-  );
-
-  const saveToRam = useCallback(
-    async (name: string, value: number): Promise<boolean> => {
-      const protocol = getProtocol();
-      if (!protocol || !protocol.isConnected) {
-        onEvent?.({ type: "error", message: `Cannot save ${name}: not connected` });
-        return false;
+  const setLocalValue = useCallback((name: string, value: number) => {
+    setParams((prev) => {
+      const previousValue = prev.get(name);
+      if (previousValue !== undefined) {
+        const stack = undoStack.current;
+        stack.push({ name, previousValue });
+        if (stack.length > MAX_UNDO_STACK) stack.shift();
+        setUndoCount(stack.length);
       }
+      const next = new Map(prev);
+      next.set(name, value);
+      return next;
+    });
+    setDirtyParams((prev) => { const next = new Set(prev); next.add(name); return next; });
+  }, []);
 
-      try {
-        const oldValue = originalValues.current.get(name) ?? 0;
-        onEvent?.({ type: "write", message: `Saving ${name} = ${value} to RAM...` });
-        const result = await protocol.setParameter(name, value);
-        if (result.success) {
-          trackWrite(name, oldValue, value, panelId);
-          // Check if this param requires a reboot to take effect
-          const meta = externalMetadata?.get(name);
-          if (meta?.rebootRequired) {
-            trackRebootParam(name);
-          }
-          setDirtyParams((prev) => {
-            const next = new Set(prev);
-            next.delete(name);
-            return next;
-          });
-          // Update the original to the saved value
-          originalValues.current.set(name, value);
-          setHasRamWrites(true);
-          useDiagnosticsStore.getState().logEvent("param_write", name + " = " + value);
-          onEvent?.({ type: "write", message: `Saved ${name} = ${value} to RAM` });
-          return true;
-        }
-        onEvent?.({ type: "error", message: `Failed to save ${name}` });
-        return false;
-      } catch {
-        onEvent?.({ type: "error", message: `Error saving ${name}` });
-        return false;
+  const saveToRam = useCallback(async (name: string, value: number): Promise<boolean> => {
+    const protocol = getProtocol();
+    if (!protocol || !protocol.isConnected) {
+      onEvent?.({ type: "error", message: `Cannot save ${name}: not connected` });
+      return false;
+    }
+    try {
+      const oldValue = originalValues.current.get(name) ?? 0;
+      onEvent?.({ type: "write", message: `Saving ${name} = ${value} to RAM...` });
+      const result = await protocol.setParameter(name, value);
+      if (result.success) {
+        trackWrite(name, oldValue, value, panelId);
+        const meta = externalMetadata?.get(name);
+        if (meta?.rebootRequired) trackRebootParam(name);
+        setDirtyParams((prev) => { const next = new Set(prev); next.delete(name); return next; });
+        originalValues.current.set(name, value);
+        setHasRamWrites(true);
+        useDiagnosticsStore.getState().logEvent("param_write", name + " = " + value);
+        onEvent?.({ type: "write", message: `Saved ${name} = ${value} to RAM` });
+        return true;
       }
-    },
-    [getProtocol, panelId, trackWrite, trackRebootParam, externalMetadata, onEvent],
-  );
+      onEvent?.({ type: "error", message: `Failed to save ${name}` });
+      return false;
+    } catch {
+      onEvent?.({ type: "error", message: `Error saving ${name}` });
+      return false;
+    }
+  }, [getProtocol, panelId, trackWrite, trackRebootParam, externalMetadata, onEvent]);
 
   const saveAllToRam = useCallback(async (): Promise<boolean> => {
     let allOk = true;
     for (const name of dirtyParams) {
       const value = params.get(name);
-      if (value !== undefined) {
-        const ok = await saveToRam(name, value);
-        if (!ok) allOk = false;
-      }
+      if (value !== undefined) { const ok = await saveToRam(name, value); if (!ok) allOk = false; }
     }
     return allOk;
   }, [dirtyParams, params, saveToRam]);
@@ -339,7 +222,6 @@ export function usePanelParams(
       onEvent?.({ type: "error", message: "Cannot write to flash: not connected" });
       return false;
     }
-
     try {
       onEvent?.({ type: "flash", message: "Writing to flash..." });
       const result = await protocol.commitParamsToFlash();
@@ -359,24 +241,13 @@ export function usePanelParams(
     }
   }, [getProtocol, commitFlashStore, panelId, onEvent]);
 
-  const revert = useCallback(
-    (name: string) => {
-      const original = originalValues.current.get(name);
-      if (original !== undefined) {
-        setParams((prev) => {
-          const next = new Map(prev);
-          next.set(name, original);
-          return next;
-        });
-        setDirtyParams((prev) => {
-          const next = new Set(prev);
-          next.delete(name);
-          return next;
-        });
-      }
-    },
-    [],
-  );
+  const revert = useCallback((name: string) => {
+    const original = originalValues.current.get(name);
+    if (original !== undefined) {
+      setParams((prev) => { const next = new Map(prev); next.set(name, original); return next; });
+      setDirtyParams((prev) => { const next = new Set(prev); next.delete(name); return next; });
+    }
+  }, []);
 
   const revertAll = useCallback(() => {
     setParams(new Map(originalValues.current));
@@ -390,25 +261,13 @@ export function usePanelParams(
     const entry = stack.pop();
     if (!entry) return;
     setUndoCount(stack.length);
-
-    setParams((prev) => {
-      const next = new Map(prev);
-      next.set(entry.name, entry.previousValue);
-      return next;
-    });
-
-    // If the restored value matches the original, remove from dirty set
+    setParams((prev) => { const next = new Map(prev); next.set(entry.name, entry.previousValue); return next; });
     const original = originalValues.current.get(entry.name);
     if (original !== undefined && original === entry.previousValue) {
-      setDirtyParams((prev) => {
-        const next = new Set(prev);
-        next.delete(entry.name);
-        return next;
-      });
+      setDirtyParams((prev) => { const next = new Set(prev); next.delete(entry.name); return next; });
     }
   }, []);
 
-  // Register panel actions for global keyboard shortcuts
   const registerActions = useFcPanelActionsStore((s) => s.register);
   const unregisterActions = useFcPanelActionsStore((s) => s.unregister);
 
@@ -419,11 +278,9 @@ export function usePanelParams(
     return () => unregisterActions();
   }, [registerActions, unregisterActions, saveAllToRam, loadParams]);
 
-  // Ctrl+Z / Cmd+Z keyboard shortcut for undo
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
-        // Don't intercept if user is typing in an input/textarea
         const tag = (e.target as HTMLElement)?.tagName;
         if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
         e.preventDefault();
@@ -435,23 +292,9 @@ export function usePanelParams(
   }, [undo]);
 
   return {
-    params,
-    loading,
-    error,
-    dirtyParams,
-    hasRamWrites,
-    loadProgress,
-    hasLoaded,
-    missingOptional,
-    undoCount,
-    idbCacheTimestamp,
-    refresh: loadParams,
-    setLocalValue,
-    saveToRam,
-    saveAllToRam,
-    commitToFlash,
-    revert,
-    revertAll,
-    undo,
+    params, loading, error, dirtyParams, hasRamWrites, loadProgress, hasLoaded,
+    missingOptional, undoCount, idbCacheTimestamp,
+    refresh: loadParams, setLocalValue, saveToRam, saveAllToRam, commitToFlash,
+    revert, revertAll, undo,
   };
 }

@@ -17,30 +17,11 @@ import type {
 import { px4Handler } from './px4'
 import { betaflightHandler } from './betaflight'
 import { inavHandler } from './inav'
+import { GenericHandler } from './generic-handler'
+import { MAV_AUTOPILOT, MAV_TYPE, ARDUPILOT_CAPABILITIES } from './ardupilot-capabilities'
 
-// ---------------------------------------------------------------------------
-// MAVLink enum constants
-// ---------------------------------------------------------------------------
-
-/** MAV_AUTOPILOT enum subset (MAVLink common.xml) */
-export const MAV_AUTOPILOT = {
-  GENERIC: 0,
-  ARDUPILOTMEGA: 3,
-  PX4: 12,
-} as const
-
-/** MAV_TYPE enum subset (MAVLink common.xml) */
-export const MAV_TYPE = {
-  FIXED_WING: 1,
-  QUADROTOR: 2,
-  COAXIAL: 3,
-  HELICOPTER: 4,
-  GCS: 6,
-  HEXAROTOR: 13,
-  OCTOROTOR: 14,
-  TRICOPTER: 15,
-  VTOL_FIXEDROTOR: 22,
-} as const
+// Re-export for consumers that import from this module
+export { MAV_AUTOPILOT, MAV_TYPE, ARDUPILOT_CAPABILITIES } from './ardupilot-capabilities'
 
 // ---------------------------------------------------------------------------
 // Mode tables — custom_mode ↔ UnifiedFlightMode
@@ -124,58 +105,7 @@ function buildMaps(
   return { modeToCustom, customToMode }
 }
 
-// ---------------------------------------------------------------------------
-// ArduPlaneHandler
-// ---------------------------------------------------------------------------
-
-/** Full ArduPilot capabilities shared by Plane and Copter */
-const ARDUPILOT_CAPABILITIES: ProtocolCapabilities = {
-  supportsArming: true,
-  supportsFlightModes: true,
-  supportsMissionUpload: true,
-  supportsMissionDownload: true,
-  supportsManualControl: true,
-  supportsParameters: true,
-  supportsCalibration: true,
-  supportsSerialPassthrough: true,
-  supportsMotorTest: true,
-  supportsGeoFence: true,
-  supportsRally: true,
-  supportsLogDownload: true,
-  supportsOsd: true,
-  supportsPidTuning: true,
-  supportsPorts: true,
-  supportsFailsafe: true,
-  supportsPowerConfig: true,
-  supportsReceiver: true,
-  supportsFirmwareFlash: true,
-  supportsCliShell: true,
-  supportsMavlinkInspector: true,
-  supportsGimbal: true,
-  supportsCamera: true,
-  supportsLed: true,
-  supportsBattery2: true,
-  supportsRangefinder: true,
-  supportsOpticalFlow: true,
-  supportsObstacleAvoidance: true,
-  supportsDebugValues: true,
-  supportsAuxModes: false,
-  supportsVtx: false,
-  supportsBlackbox: false,
-  supportsBetaflightConfig: false,
-  supportsGpsConfig: false,
-  supportsRateProfiles: false,
-  supportsAdjustments: false,
-  manualControlHz: 50,
-  parameterCount: 1500,
-}
-
-/**
- * Firmware handler for ArduPlane.
- *
- * Handles flight-mode encoding/decoding using ArduPlane's custom_mode values
- * and reports full ArduPilot capability set.
- */
+/** Firmware handler for ArduPlane. */
 export class ArduPlaneHandler implements FirmwareHandler {
   readonly firmwareType: FirmwareType = 'ardupilot-plane'
   readonly vehicleClass: VehicleClass = 'plane'
@@ -189,67 +119,25 @@ export class ArduPlaneHandler implements FirmwareHandler {
     this.customToMode = maps.customToMode
   }
 
-  /**
-   * Encode a unified flight mode into MAVLink base_mode + custom_mode
-   * for a SET_MODE command.
-   *
-   * `baseMode` is set to 1 (MAV_MODE_FLAG_CUSTOM_MODE_ENABLED).
-   * The flight controller interprets remaining flags from its own state.
-   */
   encodeFlightMode(mode: UnifiedFlightMode): { baseMode: number; customMode: number } {
     const customMode = this.modeToCustom.get(mode)
-    if (customMode === undefined) {
-      throw new Error(`Unsupported mode for ArduPlane: ${mode}`)
-    }
+    if (customMode === undefined) throw new Error(`Unsupported mode for ArduPlane: ${mode}`)
     return { baseMode: 1, customMode }
   }
 
-  /** Decode a custom_mode uint32 from HEARTBEAT into a unified flight mode. */
   decodeFlightMode(customMode: number): UnifiedFlightMode {
     return this.customToMode.get(customMode) ?? 'UNKNOWN'
   }
 
-  /** Return all flight modes available in ArduPlane. */
-  getAvailableModes(): UnifiedFlightMode[] {
-    return ARDUPLANE_MODES.map(([, mode]) => mode)
-  }
-
-  /** ArduPlane defaults to MANUAL on boot. */
-  getDefaultMode(): UnifiedFlightMode {
-    return 'MANUAL'
-  }
-
-  /** Full ArduPilot capability set. */
-  getCapabilities(): ProtocolCapabilities {
-    return ARDUPILOT_CAPABILITIES
-  }
-
-  /** Return a human-readable firmware identifier. */
-  getFirmwareVersion(_params?: Map<string, number>): string {
-    return 'ArduPlane'
-  }
-
-  /** ArduPilot uses canonical parameter names. */
-  mapParameterName(canonical: string): string {
-    return canonical
-  }
-
-  reverseMapParameterName(firmwareName: string): string {
-    return firmwareName
-  }
+  getAvailableModes(): UnifiedFlightMode[] { return ARDUPLANE_MODES.map(([, mode]) => mode) }
+  getDefaultMode(): UnifiedFlightMode { return 'MANUAL' }
+  getCapabilities(): ProtocolCapabilities { return ARDUPILOT_CAPABILITIES }
+  getFirmwareVersion(_params?: Map<string, number>): string { return 'ArduPlane' }
+  mapParameterName(canonical: string): string { return canonical }
+  reverseMapParameterName(firmwareName: string): string { return firmwareName }
 }
 
-// ---------------------------------------------------------------------------
-// ArduCopterHandler
-// ---------------------------------------------------------------------------
-
-/**
- * Firmware handler for ArduCopter.
- *
- * Handles flight-mode encoding/decoding using ArduCopter's custom_mode values.
- * Applies to quadrotors, hexarotors, octorotors, tricopters, and other
- * multirotor vehicle types running ArduPilot.
- */
+/** Firmware handler for ArduCopter. */
 export class ArduCopterHandler implements FirmwareHandler {
   readonly firmwareType: FirmwareType = 'ardupilot-copter'
   readonly vehicleClass: VehicleClass = 'copter'
@@ -263,149 +151,25 @@ export class ArduCopterHandler implements FirmwareHandler {
     this.customToMode = maps.customToMode
   }
 
-  /**
-   * Encode a unified flight mode into MAVLink base_mode + custom_mode
-   * for a SET_MODE command.
-   */
   encodeFlightMode(mode: UnifiedFlightMode): { baseMode: number; customMode: number } {
     const customMode = this.modeToCustom.get(mode)
-    if (customMode === undefined) {
-      throw new Error(`Unsupported mode for ArduCopter: ${mode}`)
-    }
+    if (customMode === undefined) throw new Error(`Unsupported mode for ArduCopter: ${mode}`)
     return { baseMode: 1, customMode }
   }
 
-  /** Decode a custom_mode uint32 from HEARTBEAT into a unified flight mode. */
   decodeFlightMode(customMode: number): UnifiedFlightMode {
     return this.customToMode.get(customMode) ?? 'UNKNOWN'
   }
 
-  /** Return all flight modes available in ArduCopter. */
-  getAvailableModes(): UnifiedFlightMode[] {
-    return ARDUCOPTER_MODES.map(([, mode]) => mode)
-  }
-
-  /** ArduCopter defaults to STABILIZE on boot. */
-  getDefaultMode(): UnifiedFlightMode {
-    return 'STABILIZE'
-  }
-
-  /** Full ArduPilot capability set. */
-  getCapabilities(): ProtocolCapabilities {
-    return ARDUPILOT_CAPABILITIES
-  }
-
-  /** Return a human-readable firmware identifier. */
-  getFirmwareVersion(_params?: Map<string, number>): string {
-    return 'ArduCopter'
-  }
-
-  /** ArduPilot uses canonical parameter names. */
-  mapParameterName(canonical: string): string {
-    return canonical
-  }
-
-  reverseMapParameterName(firmwareName: string): string {
-    return firmwareName
-  }
+  getAvailableModes(): UnifiedFlightMode[] { return ARDUCOPTER_MODES.map(([, mode]) => mode) }
+  getDefaultMode(): UnifiedFlightMode { return 'STABILIZE' }
+  getCapabilities(): ProtocolCapabilities { return ARDUPILOT_CAPABILITIES }
+  getFirmwareVersion(_params?: Map<string, number>): string { return 'ArduCopter' }
+  mapParameterName(canonical: string): string { return canonical }
+  reverseMapParameterName(firmwareName: string): string { return firmwareName }
 }
 
-// ---------------------------------------------------------------------------
-// GenericHandler (fallback for unknown autopilots)
-// ---------------------------------------------------------------------------
-
-/**
- * Minimal fallback handler for unrecognised autopilots.
- *
- * All mode operations return UNKNOWN. Capabilities report nothing supported.
- */
-class GenericHandler implements FirmwareHandler {
-  readonly firmwareType: FirmwareType = 'unknown'
-  readonly vehicleClass: VehicleClass = 'copter'
-
-  encodeFlightMode(_mode: UnifiedFlightMode): { baseMode: number; customMode: number } {
-    return { baseMode: 1, customMode: 0 }
-  }
-
-  decodeFlightMode(_customMode: number): UnifiedFlightMode {
-    return 'UNKNOWN'
-  }
-
-  getAvailableModes(): UnifiedFlightMode[] {
-    return ['UNKNOWN']
-  }
-
-  getDefaultMode(): UnifiedFlightMode {
-    return 'UNKNOWN'
-  }
-
-  getCapabilities(): ProtocolCapabilities {
-    return {
-      supportsArming: false,
-      supportsFlightModes: false,
-      supportsMissionUpload: false,
-      supportsMissionDownload: false,
-      supportsManualControl: false,
-      supportsParameters: false,
-      supportsCalibration: false,
-      supportsSerialPassthrough: false,
-      supportsMotorTest: false,
-      supportsGeoFence: false,
-      supportsRally: false,
-      supportsLogDownload: false,
-      supportsOsd: false,
-      supportsPidTuning: false,
-      supportsPorts: false,
-      supportsFailsafe: false,
-      supportsPowerConfig: false,
-      supportsReceiver: false,
-      supportsFirmwareFlash: false,
-      supportsCliShell: false,
-      supportsMavlinkInspector: false,
-      supportsGimbal: false,
-      supportsCamera: false,
-      supportsLed: false,
-      supportsBattery2: false,
-      supportsRangefinder: false,
-      supportsOpticalFlow: false,
-      supportsObstacleAvoidance: false,
-      supportsDebugValues: false,
-      supportsAuxModes: false,
-      supportsVtx: false,
-      supportsBlackbox: false,
-      supportsBetaflightConfig: false,
-      supportsGpsConfig: false,
-      supportsRateProfiles: false,
-      supportsAdjustments: false,
-      manualControlHz: 0,
-      parameterCount: 0,
-    }
-  }
-
-  getFirmwareVersion(): string {
-    return 'Unknown'
-  }
-
-  mapParameterName(canonical: string): string {
-    return canonical
-  }
-
-  reverseMapParameterName(firmwareName: string): string {
-    return firmwareName
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Factory
-// ---------------------------------------------------------------------------
-
-/**
- * Create the appropriate firmware handler based on MAVLink HEARTBEAT fields.
- *
- * @param autopilot  `MAV_AUTOPILOT` value from HEARTBEAT
- * @param vehicleType  `MAV_TYPE` value from HEARTBEAT
- * @returns A `FirmwareHandler` for the detected firmware/vehicle combination
- */
+/** Create the appropriate firmware handler based on MAVLink HEARTBEAT fields. */
 export function createFirmwareHandler(autopilot: number, vehicleType: number): FirmwareHandler {
   // PX4 autopilot
   if (autopilot === MAV_AUTOPILOT.PX4) {
@@ -437,11 +201,7 @@ export function createFirmwareHandler(autopilot: number, vehicleType: number): F
   return new GenericHandler()
 }
 
-/**
- * Create a firmware handler by FirmwareType string.
- * Useful when firmware type is known from protocol detection
- * rather than HEARTBEAT parsing.
- */
+/** Create a firmware handler by FirmwareType string. */
 export function createFirmwareHandlerByType(firmwareType: FirmwareType): FirmwareHandler {
   switch (firmwareType) {
     case 'ardupilot-copter':

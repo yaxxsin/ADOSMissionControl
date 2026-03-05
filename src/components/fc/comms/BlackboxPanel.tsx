@@ -13,41 +13,10 @@ import { PanelHeader } from "../shared/PanelHeader";
 import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
 import { Database, Save, HardDrive, Download, Trash2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const PARAM_NAMES = [
-  "BF_BLACKBOX_DEVICE",
-  "BF_BLACKBOX_RATE_NUM",
-  "BF_BLACKBOX_RATE_DENOM",
-] as const;
-
-const paramNames = [...PARAM_NAMES];
-
-const DEVICE_OPTIONS = [
-  { value: "0", label: "0 — None" },
-  { value: "1", label: "1 — Onboard Flash" },
-  { value: "2", label: "2 — SD Card" },
-  { value: "3", label: "3 — Serial Port" },
-];
-
-const RATE_PRESETS = [
-  { num: 1, denom: 1, label: "1/1 (100%)" },
-  { num: 1, denom: 2, label: "1/2 (50%)" },
-  { num: 1, denom: 4, label: "1/4 (25%)" },
-  { num: 1, denom: 8, label: "1/8 (12.5%)" },
-  { num: 1, denom: 16, label: "1/16 (6.25%)" },
-];
-
-interface DataflashSummary {
-  totalSize: number;
-  usedSize: number;
-  ready: boolean;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
+import {
+  blackboxParamNames, DEVICE_OPTIONS, RATE_PRESETS,
+  formatBytes, type DataflashSummary,
+} from "./blackbox-constants";
 
 export function BlackboxPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
@@ -55,7 +24,6 @@ export function BlackboxPanel() {
   const scrollRef = usePanelScroll("blackbox");
   const [saving, setSaving] = useState(false);
   const [erasing, setErasing] = useState(false);
-
   const [flashInfo, setFlashInfo] = useState<DataflashSummary | null>(null);
   const [flashLoading, setFlashLoading] = useState(false);
 
@@ -63,306 +31,109 @@ export function BlackboxPanel() {
     params, loading, error, dirtyParams, hasRamWrites,
     loadProgress, hasLoaded,
     refresh, setLocalValue, saveAllToRam, commitToFlash,
-  } = usePanelParams({ paramNames, panelId: "blackbox", autoLoad: true });
+  } = usePanelParams({ paramNames: blackboxParamNames, panelId: "blackbox", autoLoad: true });
   useUnsavedGuard(dirtyParams.size > 0);
 
   const connected = !!getSelectedProtocol();
   const hasDirty = dirtyParams.size > 0;
-
   const p = (name: string, fallback = "0") => String(params.get(name) ?? fallback);
   const set = (name: string, v: string) => setLocalValue(name, Number(v) || 0);
 
   const deviceType = Number(params.get("BF_BLACKBOX_DEVICE") ?? 0);
   const rateNum = Number(params.get("BF_BLACKBOX_RATE_NUM") ?? 1);
   const rateDenom = Number(params.get("BF_BLACKBOX_RATE_DENOM") ?? 1);
+  const ratePercentage = useMemo(() => rateDenom === 0 ? 100 : Math.round((rateNum / rateDenom) * 100), [rateNum, rateDenom]);
+  const usagePercent = useMemo(() => (!flashInfo || flashInfo.totalSize === 0) ? 0 : Math.round((flashInfo.usedSize / flashInfo.totalSize) * 100), [flashInfo]);
 
-  const ratePercentage = useMemo(() => {
-    if (rateDenom === 0) return 100;
-    return Math.round((rateNum / rateDenom) * 100);
-  }, [rateNum, rateDenom]);
-
-  const usagePercent = useMemo(() => {
-    if (!flashInfo || flashInfo.totalSize === 0) return 0;
-    return Math.round((flashInfo.usedSize / flashInfo.totalSize) * 100);
-  }, [flashInfo]);
-
-  // Load flash info when panel mounts and device is flash-based
   const loadFlashInfo = useCallback(async () => {
     const protocol = getSelectedProtocol();
     if (!protocol || !protocol.isConnected) return;
-
     setFlashLoading(true);
     try {
-      // Try to read dataflash summary via protocol
       if ("getDataflashSummary" in protocol && typeof protocol.getDataflashSummary === "function") {
         const summary = await (protocol as { getDataflashSummary: () => Promise<DataflashSummary> }).getDataflashSummary();
         setFlashInfo(summary);
       } else {
-        // Mock data for demo mode
-        setFlashInfo({
-          totalSize: 2 * 1024 * 1024, // 2 MB
-          usedSize: 768 * 1024, // 768 KB
-          ready: true,
-        });
+        setFlashInfo({ totalSize: 2 * 1024 * 1024, usedSize: 768 * 1024, ready: true });
       }
-    } catch {
-      // Silently fail — flash info is optional
-      setFlashInfo(null);
-    } finally {
-      setFlashLoading(false);
-    }
+    } catch { setFlashInfo(null); }
+    finally { setFlashLoading(false); }
   }, [getSelectedProtocol]);
 
-  useEffect(() => {
-    if (hasLoaded && (deviceType === 1 || deviceType === 2)) {
-      loadFlashInfo();
-    }
-  }, [hasLoaded, deviceType, loadFlashInfo]);
+  useEffect(() => { if (hasLoaded && (deviceType === 1 || deviceType === 2)) loadFlashInfo(); }, [hasLoaded, deviceType, loadFlashInfo]);
 
-  async function handleSave() {
-    setSaving(true);
-    const ok = await saveAllToRam();
-    setSaving(false);
-    if (ok) toast("Saved to flight controller", "success");
-    else toast("Some parameters failed to save", "warning");
-  }
-
-  async function handleFlash() {
-    const ok = await commitToFlash();
-    if (ok) toast("Written to flash — persists after reboot", "success");
-    else toast("Failed to write to flash", "error");
-  }
-
-  function handleDownload() {
-    toast("Blackbox download will be available in a future update", "info");
-  }
+  async function handleSave() { setSaving(true); const ok = await saveAllToRam(); setSaving(false); if (ok) toast("Saved to flight controller", "success"); else toast("Some parameters failed to save", "warning"); }
+  async function handleFlash() { const ok = await commitToFlash(); if (ok) toast("Written to flash \u2014 persists after reboot", "success"); else toast("Failed to write to flash", "error"); }
+  function handleDownload() { toast("Blackbox download will be available in a future update", "info"); }
 
   async function handleErase() {
-    const confirmed = window.confirm(
-      "Erase all blackbox logs? This cannot be undone.",
-    );
-    if (!confirmed) return;
-
+    if (!window.confirm("Erase all blackbox logs? This cannot be undone.")) return;
     const protocol = getSelectedProtocol();
-    if (!protocol || !protocol.isConnected) {
-      toast("Not connected to flight controller", "error");
-      return;
-    }
-
+    if (!protocol || !protocol.isConnected) { toast("Not connected to flight controller", "error"); return; }
     setErasing(true);
     try {
-      if ("eraseDataflash" in protocol && typeof protocol.eraseDataflash === "function") {
-        await (protocol as { eraseDataflash: () => Promise<void> }).eraseDataflash();
-        toast("Blackbox logs erased", "success");
-      } else {
-        // Demo mode
-        await new Promise((r) => setTimeout(r, 1500));
-        toast("Blackbox logs erased", "success");
-      }
-      // Refresh flash info
-      setFlashInfo((prev) =>
-        prev ? { ...prev, usedSize: 0 } : null,
-      );
-    } catch {
-      toast("Failed to erase blackbox logs", "error");
-    } finally {
-      setErasing(false);
-    }
+      if ("eraseDataflash" in protocol && typeof protocol.eraseDataflash === "function") { await (protocol as { eraseDataflash: () => Promise<void> }).eraseDataflash(); toast("Blackbox logs erased", "success"); }
+      else { await new Promise((r) => setTimeout(r, 1500)); toast("Blackbox logs erased", "success"); }
+      setFlashInfo((prev) => prev ? { ...prev, usedSize: 0 } : null);
+    } catch { toast("Failed to erase blackbox logs", "error"); }
+    finally { setErasing(false); }
   }
 
-  function handleRatePreset(num: number, denom: number) {
-    setLocalValue("BF_BLACKBOX_RATE_NUM", num);
-    setLocalValue("BF_BLACKBOX_RATE_DENOM", denom);
-  }
+  function handleRatePreset(num: number, denom: number) { setLocalValue("BF_BLACKBOX_RATE_NUM", num); setLocalValue("BF_BLACKBOX_RATE_DENOM", denom); }
 
   return (
     <ArmedLockOverlay>
     <div ref={scrollRef} className="flex-1 overflow-y-auto p-6">
       <div className="max-w-2xl space-y-6">
-        <PanelHeader
-          title="Blackbox"
-          subtitle="Flight data recording device and logging rate"
-          icon={<Database size={16} />}
-          loading={loading}
-          loadProgress={loadProgress}
-          hasLoaded={hasLoaded}
-          onRead={refresh}
-          connected={connected}
-          error={error}
-        />
+        <PanelHeader title="Blackbox" subtitle="Flight data recording device and logging rate" icon={<Database size={16} />} loading={loading} loadProgress={loadProgress} hasLoaded={hasLoaded} onRead={refresh} connected={connected} error={error} />
 
-        {/* Logging Device */}
         <div className="border border-border-default bg-bg-secondary p-4 space-y-3">
-          <div className="flex items-center gap-2 mb-1">
-            <Database size={14} className="text-accent-primary" />
-            <h2 className="text-sm font-medium text-text-primary">Logging Device</h2>
-          </div>
-          <Select
-            label="Device"
-            options={DEVICE_OPTIONS}
-            value={p("BF_BLACKBOX_DEVICE")}
-            onChange={(v) => set("BF_BLACKBOX_DEVICE", v)}
-          />
+          <div className="flex items-center gap-2 mb-1"><Database size={14} className="text-accent-primary" /><h2 className="text-sm font-medium text-text-primary">Logging Device</h2></div>
+          <Select label="Device" options={DEVICE_OPTIONS} value={p("BF_BLACKBOX_DEVICE")} onChange={(v) => set("BF_BLACKBOX_DEVICE", v)} />
         </div>
 
-        {/* Log Rate */}
         <div className="border border-border-default bg-bg-secondary p-4 space-y-3">
           <div className="flex items-center gap-2 mb-1">
-            <Database size={14} className="text-accent-primary" />
-            <h2 className="text-sm font-medium text-text-primary">Log Rate</h2>
-            <span className="text-[10px] font-mono text-accent-primary ml-auto">
-              {rateNum}/{rateDenom} = {ratePercentage}% of PID loop
-            </span>
+            <Database size={14} className="text-accent-primary" /><h2 className="text-sm font-medium text-text-primary">Log Rate</h2>
+            <span className="text-[10px] font-mono text-accent-primary ml-auto">{rateNum}/{rateDenom} = {ratePercentage}% of PID loop</span>
           </div>
-
           <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Numerator"
-              type="number"
-              step="1"
-              min="1"
-              max="32"
-              value={p("BF_BLACKBOX_RATE_NUM", "1")}
-              onChange={(e) => set("BF_BLACKBOX_RATE_NUM", e.target.value)}
-            />
-            <Input
-              label="Denominator"
-              type="number"
-              step="1"
-              min="1"
-              max="32"
-              value={p("BF_BLACKBOX_RATE_DENOM", "1")}
-              onChange={(e) => set("BF_BLACKBOX_RATE_DENOM", e.target.value)}
-            />
+            <Input label="Numerator" type="number" step="1" min="1" max="32" value={p("BF_BLACKBOX_RATE_NUM", "1")} onChange={(e) => set("BF_BLACKBOX_RATE_NUM", e.target.value)} />
+            <Input label="Denominator" type="number" step="1" min="1" max="32" value={p("BF_BLACKBOX_RATE_DENOM", "1")} onChange={(e) => set("BF_BLACKBOX_RATE_DENOM", e.target.value)} />
           </div>
-
           <div className="flex flex-wrap gap-1.5 mt-1">
             {RATE_PRESETS.map((preset) => {
               const isActive = rateNum === preset.num && rateDenom === preset.denom;
-              return (
-                <button
-                  key={preset.label}
-                  type="button"
-                  onClick={() => handleRatePreset(preset.num, preset.denom)}
-                  className={cn(
-                    "px-2 py-1 text-[10px] font-mono border transition-colors",
-                    isActive
-                      ? "bg-accent-primary/20 border-accent-primary text-accent-primary"
-                      : "bg-bg-tertiary border-border-default text-text-secondary hover:border-text-tertiary",
-                  )}
-                >
-                  {preset.label}
-                </button>
-              );
+              return (<button key={preset.label} type="button" onClick={() => handleRatePreset(preset.num, preset.denom)} className={cn("px-2 py-1 text-[10px] font-mono border transition-colors", isActive ? "bg-accent-primary/20 border-accent-primary text-accent-primary" : "bg-bg-tertiary border-border-default text-text-secondary hover:border-text-tertiary")}>{preset.label}</button>);
             })}
           </div>
         </div>
 
-        {/* Flash Storage — shown when device is Flash or SD Card */}
         {deviceType > 0 && deviceType <= 2 && (
           <div className="border border-border-default bg-bg-secondary p-4 space-y-3">
-            <div className="flex items-center gap-2 mb-1">
-              <Database size={14} className="text-accent-primary" />
-              <h2 className="text-sm font-medium text-text-primary">
-                {deviceType === 1 ? "Flash Storage" : "SD Card Storage"}
-              </h2>
-            </div>
-
-            {flashLoading && (
-              <div className="flex items-center gap-2 py-4">
-                <Loader2 size={14} className="animate-spin text-accent-primary" />
-                <span className="text-xs text-text-secondary">Reading storage info...</span>
-              </div>
-            )}
-
+            <div className="flex items-center gap-2 mb-1"><Database size={14} className="text-accent-primary" /><h2 className="text-sm font-medium text-text-primary">{deviceType === 1 ? "Flash Storage" : "SD Card Storage"}</h2></div>
+            {flashLoading && (<div className="flex items-center gap-2 py-4"><Loader2 size={14} className="animate-spin text-accent-primary" /><span className="text-xs text-text-secondary">Reading storage info...</span></div>)}
             {!flashLoading && flashInfo && (
               <>
-                {/* Usage bar */}
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] text-text-tertiary">
-                      Used: {formatBytes(flashInfo.usedSize)} / {formatBytes(flashInfo.totalSize)}
-                    </span>
-                    <span className="text-[10px] font-mono text-text-secondary">
-                      {usagePercent}%
-                    </span>
-                  </div>
-                  <div className="h-3 bg-bg-tertiary overflow-hidden">
-                    <div
-                      className={cn(
-                        "h-full transition-all",
-                        usagePercent > 90
-                          ? "bg-status-error"
-                          : usagePercent > 70
-                            ? "bg-status-warning"
-                            : "bg-accent-primary",
-                      )}
-                      style={{ width: `${usagePercent}%` }}
-                    />
-                  </div>
+                  <div className="flex items-center justify-between mb-1"><span className="text-[10px] text-text-tertiary">Used: {formatBytes(flashInfo.usedSize)} / {formatBytes(flashInfo.totalSize)}</span><span className="text-[10px] font-mono text-text-secondary">{usagePercent}%</span></div>
+                  <div className="h-3 bg-bg-tertiary overflow-hidden"><div className={cn("h-full transition-all", usagePercent > 90 ? "bg-status-error" : usagePercent > 70 ? "bg-status-warning" : "bg-accent-primary")} style={{ width: `${usagePercent}%` }} /></div>
                 </div>
-
-                {/* Actions */}
                 <div className="flex items-center gap-2 mt-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    icon={<Download size={12} />}
-                    onClick={handleDownload}
-                    disabled={flashInfo.usedSize === 0}
-                  >
-                    Download Logs
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    icon={<Trash2 size={12} />}
-                    onClick={handleErase}
-                    loading={erasing}
-                    disabled={flashInfo.usedSize === 0}
-                  >
-                    Erase
-                  </Button>
+                  <Button variant="secondary" size="sm" icon={<Download size={12} />} onClick={handleDownload} disabled={flashInfo.usedSize === 0}>Download Logs</Button>
+                  <Button variant="secondary" size="sm" icon={<Trash2 size={12} />} onClick={handleErase} loading={erasing} disabled={flashInfo.usedSize === 0}>Erase</Button>
                 </div>
               </>
             )}
-
-            {!flashLoading && !flashInfo && (
-              <p className="text-[10px] text-text-tertiary">
-                Could not read storage info. Connect to a flight controller with onboard storage.
-              </p>
-            )}
+            {!flashLoading && !flashInfo && <p className="text-[10px] text-text-tertiary">Could not read storage info. Connect to a flight controller with onboard storage.</p>}
           </div>
         )}
 
-        {/* Save */}
         <div className="flex items-center gap-3 pt-2 pb-4">
-          <Button
-            variant="primary"
-            size="lg"
-            icon={<Save size={14} />}
-            disabled={!hasDirty || !connected}
-            loading={saving}
-            onClick={handleSave}
-          >
-            Save to Flight Controller
-          </Button>
-          {hasRamWrites && (
-            <Button
-              variant="secondary"
-              size="lg"
-              icon={<HardDrive size={14} />}
-              onClick={handleFlash}
-            >
-              Write to Flash
-            </Button>
-          )}
-          {!connected && (
-            <span className="text-[10px] text-text-tertiary">Connect a drone to save parameters</span>
-          )}
-          {hasDirty && connected && (
-            <span className="text-[10px] text-status-warning">Unsaved changes</span>
-          )}
+          <Button variant="primary" size="lg" icon={<Save size={14} />} disabled={!hasDirty || !connected} loading={saving} onClick={handleSave}>Save to Flight Controller</Button>
+          {hasRamWrites && <Button variant="secondary" size="lg" icon={<HardDrive size={14} />} onClick={handleFlash}>Write to Flash</Button>}
+          {!connected && <span className="text-[10px] text-text-tertiary">Connect a drone to save parameters</span>}
+          {hasDirty && connected && <span className="text-[10px] text-status-warning">Unsaved changes</span>}
         </div>
       </div>
     </div>

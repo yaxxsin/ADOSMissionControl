@@ -18,53 +18,11 @@ import { Button } from "@/components/ui/button";
 import { Gauge, Save, HardDrive } from "lucide-react";
 import { ParamLabel } from "../parameters/ParamLabel";
 import { useFirmwareCapabilities } from "@/hooks/use-firmware-capabilities";
-
-const SENSOR_PARAMS = [
-  "GND_ABS_PRESS", "GND_TEMP", "BARO_PRIMARY",
-];
-
-const OPTIONAL_SENSOR_PARAMS = [
-  "RNGFND1_TYPE", "RNGFND1_PIN", "RNGFND1_MIN_CM", "RNGFND1_MAX_CM", "RNGFND1_ORIENT",
-  "FLOW_TYPE", "FLOW_FXSCALER", "FLOW_FYSCALER", "FLOW_ORIENT_YAW",
-  "ARSPD_TYPE", "ARSPD_USE", "ARSPD_OFFSET", "ARSPD_RATIO",
-  // PX4 rangefinder and EKF2 range params (silently fail on ArduPilot)
-  "SENS_EN_MB12XX", "SENS_EN_LL40LS", "SENS_EN_SF1XX",
-  "EKF2_RNG_AID", "EKF2_RNG_A_HMAX", "EKF2_RNG_NOISE", "EKF2_RNG_SFE", "EKF2_MIN_RNG",
-];
-
-const RNGFND_TYPE_OPTIONS = [
-  { value: "0", label: "0 — None" },
-  { value: "1", label: "1 — Analog" },
-  { value: "2", label: "2 — MaxbotixI2C" },
-  { value: "5", label: "5 — PX4" },
-  { value: "9", label: "9 — LightWareI2C" },
-  { value: "10", label: "10 — MAVLink" },
-  { value: "16", label: "16 — Benewake TFmini" },
-  { value: "17", label: "17 — LightWareSerial" },
-  { value: "20", label: "20 — Benewake TF02" },
-];
-
-const RNGFND_ORIENT_OPTIONS = [
-  { value: "0", label: "0 — Forward" },
-  { value: "24", label: "24 — Up" },
-  { value: "25", label: "25 — Down" },
-];
-
-const FLOW_TYPE_OPTIONS = [
-  { value: "0", label: "0 — None" },
-  { value: "1", label: "1 — PX4Flow" },
-  { value: "2", label: "2 — Pixart" },
-  { value: "5", label: "5 — PMW3901" },
-];
-
-const ARSPD_TYPE_OPTIONS = [
-  { value: "0", label: "0 — None" },
-  { value: "1", label: "1 — MS4525D" },
-  { value: "2", label: "2 — Analog" },
-  { value: "3", label: "3 — MS5525" },
-  { value: "7", label: "7 — DLVR" },
-  { value: "8", label: "8 — UAVCAN" },
-];
+import {
+  SENSOR_PARAMS, OPTIONAL_SENSOR_PARAMS,
+  RNGFND_TYPE_OPTIONS, RNGFND_ORIENT_OPTIONS,
+  FLOW_TYPE_OPTIONS, ARSPD_TYPE_OPTIONS,
+} from "./sensor-constants";
 
 export function SensorsPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
@@ -161,42 +119,17 @@ export function SensorsPanel() {
                     </div>
                     <div>
                       <label className="text-xs text-text-secondary mb-1 block">Max Height (m)</label>
-                      <Input
-                        type="number"
-                        step={1}
-                        min={0}
-                        max={50}
-                        value={String(params.get("EKF2_RNG_A_HMAX") ?? 5)}
-                        onChange={(e) => setLocalValue("EKF2_RNG_A_HMAX", Number(e.target.value) || 0)}
-                        className="h-8 text-xs"
-                      />
+                      <Input type="number" step={1} min={0} max={50} value={String(params.get("EKF2_RNG_A_HMAX") ?? 5)} onChange={(e) => setLocalValue("EKF2_RNG_A_HMAX", Number(e.target.value) || 0)} className="h-8 text-xs" />
                     </div>
                     <div>
                       <label className="text-xs text-text-secondary mb-1 block">Noise (m)</label>
-                      <Input
-                        type="number"
-                        step={0.01}
-                        min={0}
-                        max={1}
-                        value={String(params.get("EKF2_RNG_NOISE") ?? 0.05)}
-                        onChange={(e) => setLocalValue("EKF2_RNG_NOISE", Number(e.target.value) || 0)}
-                        className="h-8 text-xs"
-                      />
+                      <Input type="number" step={0.01} min={0} max={1} value={String(params.get("EKF2_RNG_NOISE") ?? 0.05)} onChange={(e) => setLocalValue("EKF2_RNG_NOISE", Number(e.target.value) || 0)} className="h-8 text-xs" />
                     </div>
                     <div>
                       <label className="text-xs text-text-secondary mb-1 block">Min Range (m)</label>
-                      <Input
-                        type="number"
-                        step={0.1}
-                        min={0}
-                        max={5}
-                        value={String(params.get("EKF2_MIN_RNG") ?? 0.1)}
-                        onChange={(e) => setLocalValue("EKF2_MIN_RNG", Number(e.target.value) || 0)}
-                        className="h-8 text-xs"
-                      />
+                      <Input type="number" step={0.1} min={0} max={5} value={String(params.get("EKF2_MIN_RNG") ?? 0.1)} onChange={(e) => setLocalValue("EKF2_MIN_RNG", Number(e.target.value) || 0)} className="h-8 text-xs" />
                     </div>
                   </div>
-                  {/* Live distance readout (shared between firmwares) */}
                   {latestDistance && (
                     <div className="mt-2 p-3 bg-bg-tertiary/50 rounded space-y-2">
                       <div className="flex items-center justify-between">
@@ -210,47 +143,13 @@ export function SensorsPanel() {
                 </div>
               ) : (
                 <>
-                  <Select
-                    label={lbl("RNGFND1_TYPE — Sensor Type")}
-                    options={RNGFND_TYPE_OPTIONS}
-                    value={p("RNGFND1_TYPE")}
-                    onChange={(v) => set("RNGFND1_TYPE", v)}
-                  />
+                  <Select label={lbl("RNGFND1_TYPE — Sensor Type")} options={RNGFND_TYPE_OPTIONS} value={p("RNGFND1_TYPE")} onChange={(v) => set("RNGFND1_TYPE", v)} />
                   {p("RNGFND1_TYPE") !== "0" && (
                     <>
-                      <Input
-                        label={lbl("RNGFND1_PIN — Analog Pin")}
-                        type="number"
-                        step="1"
-                        min="-1"
-                        value={p("RNGFND1_PIN", "-1")}
-                        onChange={(e) => set("RNGFND1_PIN", e.target.value)}
-                      />
-                      <Input
-                        label={lbl("RNGFND1_MIN_CM — Min Distance")}
-                        type="number"
-                        step="1"
-                        min="0"
-                        unit="cm"
-                        value={p("RNGFND1_MIN_CM", "20")}
-                        onChange={(e) => set("RNGFND1_MIN_CM", e.target.value)}
-                      />
-                      <Input
-                        label={lbl("RNGFND1_MAX_CM — Max Distance")}
-                        type="number"
-                        step="1"
-                        min="0"
-                        unit="cm"
-                        value={p("RNGFND1_MAX_CM", "700")}
-                        onChange={(e) => set("RNGFND1_MAX_CM", e.target.value)}
-                      />
-                      <Select
-                        label={lbl("RNGFND1_ORIENT — Orientation")}
-                        options={RNGFND_ORIENT_OPTIONS}
-                        value={p("RNGFND1_ORIENT", "25")}
-                        onChange={(v) => set("RNGFND1_ORIENT", v)}
-                      />
-                      {/* Live distance readout */}
+                      <Input label={lbl("RNGFND1_PIN — Analog Pin")} type="number" step="1" min="-1" value={p("RNGFND1_PIN", "-1")} onChange={(e) => set("RNGFND1_PIN", e.target.value)} />
+                      <Input label={lbl("RNGFND1_MIN_CM — Min Distance")} type="number" step="1" min="0" unit="cm" value={p("RNGFND1_MIN_CM", "20")} onChange={(e) => set("RNGFND1_MIN_CM", e.target.value)} />
+                      <Input label={lbl("RNGFND1_MAX_CM — Max Distance")} type="number" step="1" min="0" unit="cm" value={p("RNGFND1_MAX_CM", "700")} onChange={(e) => set("RNGFND1_MAX_CM", e.target.value)} />
+                      <Select label={lbl("RNGFND1_ORIENT — Orientation")} options={RNGFND_ORIENT_OPTIONS} value={p("RNGFND1_ORIENT", "25")} onChange={(v) => set("RNGFND1_ORIENT", v)} />
                       {latestDistance && (
                         <div className="mt-2 p-3 bg-bg-tertiary/50 rounded space-y-2">
                           <div className="flex items-center justify-between">
@@ -260,12 +159,7 @@ export function SensorsPanel() {
                             </span>
                           </div>
                           <div className="h-2 bg-bg-tertiary rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-accent-primary transition-all duration-200"
-                              style={{
-                                width: `${Math.min(100, Math.max(0, ((latestDistance.currentDistance - latestDistance.minDistance) / (latestDistance.maxDistance - latestDistance.minDistance)) * 100))}%`,
-                              }}
-                            />
+                            <div className="h-full bg-accent-primary transition-all duration-200" style={{ width: `${Math.min(100, Math.max(0, ((latestDistance.currentDistance - latestDistance.minDistance) / (latestDistance.maxDistance - latestDistance.minDistance)) * 100))}%` }} />
                           </div>
                           <div className="flex justify-between text-[9px] text-text-tertiary font-mono">
                             <span>{(latestDistance.minDistance / 100).toFixed(1)}m</span>
@@ -283,38 +177,12 @@ export function SensorsPanel() {
           {/* Optical Flow */}
           <CollapsibleSection title="Optical Flow">
             <div className="p-4 space-y-3">
-              <Select
-                label={lbl("FLOW_TYPE — Sensor Type")}
-                options={FLOW_TYPE_OPTIONS}
-                value={p("FLOW_TYPE")}
-                onChange={(v) => set("FLOW_TYPE", v)}
-              />
+              <Select label={lbl("FLOW_TYPE — Sensor Type")} options={FLOW_TYPE_OPTIONS} value={p("FLOW_TYPE")} onChange={(v) => set("FLOW_TYPE", v)} />
               {p("FLOW_TYPE") !== "0" && (
                 <>
-                  <Input
-                    label={lbl("FLOW_FXSCALER — X Scaler")}
-                    type="number"
-                    step="1"
-                    value={p("FLOW_FXSCALER")}
-                    onChange={(e) => set("FLOW_FXSCALER", e.target.value)}
-                  />
-                  <Input
-                    label={lbl("FLOW_FYSCALER — Y Scaler")}
-                    type="number"
-                    step="1"
-                    value={p("FLOW_FYSCALER")}
-                    onChange={(e) => set("FLOW_FYSCALER", e.target.value)}
-                  />
-                  <Input
-                    label={lbl("FLOW_ORIENT_YAW — Yaw Orientation")}
-                    type="number"
-                    step="1"
-                    min="0"
-                    max="7"
-                    unit="cw45°"
-                    value={p("FLOW_ORIENT_YAW")}
-                    onChange={(e) => set("FLOW_ORIENT_YAW", e.target.value)}
-                  />
+                  <Input label={lbl("FLOW_FXSCALER — X Scaler")} type="number" step="1" value={p("FLOW_FXSCALER")} onChange={(e) => set("FLOW_FXSCALER", e.target.value)} />
+                  <Input label={lbl("FLOW_FYSCALER — Y Scaler")} type="number" step="1" value={p("FLOW_FYSCALER")} onChange={(e) => set("FLOW_FYSCALER", e.target.value)} />
+                  <Input label={lbl("FLOW_ORIENT_YAW — Yaw Orientation")} type="number" step="1" min="0" max="7" unit="cw45°" value={p("FLOW_ORIENT_YAW")} onChange={(e) => set("FLOW_ORIENT_YAW", e.target.value)} />
                 </>
               )}
             </div>
@@ -323,39 +191,12 @@ export function SensorsPanel() {
           {/* Airspeed */}
           <CollapsibleSection title="Airspeed">
             <div className="p-4 space-y-3">
-              <Select
-                label={lbl("ARSPD_TYPE — Sensor Type")}
-                options={ARSPD_TYPE_OPTIONS}
-                value={p("ARSPD_TYPE")}
-                onChange={(v) => set("ARSPD_TYPE", v)}
-              />
+              <Select label={lbl("ARSPD_TYPE — Sensor Type")} options={ARSPD_TYPE_OPTIONS} value={p("ARSPD_TYPE")} onChange={(v) => set("ARSPD_TYPE", v)} />
               {p("ARSPD_TYPE") !== "0" && (
                 <>
-                  <Select
-                    label={lbl("ARSPD_USE — Use Airspeed")}
-                    options={[
-                      { value: "0", label: "0 — Disabled" },
-                      { value: "1", label: "1 — Enabled" },
-                      { value: "2", label: "2 — Use only for EKF" },
-                    ]}
-                    value={p("ARSPD_USE", "1")}
-                    onChange={(v) => set("ARSPD_USE", v)}
-                  />
-                  <Input
-                    label={lbl("ARSPD_OFFSET — Pressure Offset")}
-                    type="number"
-                    step="0.1"
-                    unit="Pa"
-                    value={p("ARSPD_OFFSET")}
-                    onChange={(e) => set("ARSPD_OFFSET", e.target.value)}
-                  />
-                  <Input
-                    label={lbl("ARSPD_RATIO — Speed Ratio")}
-                    type="number"
-                    step="0.01"
-                    value={p("ARSPD_RATIO", "1.9936")}
-                    onChange={(e) => set("ARSPD_RATIO", e.target.value)}
-                  />
+                  <Select label={lbl("ARSPD_USE — Use Airspeed")} options={[{ value: "0", label: "0 — Disabled" }, { value: "1", label: "1 — Enabled" }, { value: "2", label: "2 — Use only for EKF" }]} value={p("ARSPD_USE", "1")} onChange={(v) => set("ARSPD_USE", v)} />
+                  <Input label={lbl("ARSPD_OFFSET — Pressure Offset")} type="number" step="0.1" unit="Pa" value={p("ARSPD_OFFSET")} onChange={(e) => set("ARSPD_OFFSET", e.target.value)} />
+                  <Input label={lbl("ARSPD_RATIO — Speed Ratio")} type="number" step="0.01" value={p("ARSPD_RATIO", "1.9936")} onChange={(e) => set("ARSPD_RATIO", e.target.value)} />
                 </>
               )}
               {latestVfr && (
@@ -372,63 +213,18 @@ export function SensorsPanel() {
           {/* Barometer */}
           <CollapsibleSection title="Barometer">
             <div className="p-4 space-y-3">
-              <Input
-                label={lbl("GND_ABS_PRESS — Absolute Pressure")}
-                type="number"
-                step="0.01"
-                unit="Pa"
-                value={p("GND_ABS_PRESS")}
-                onChange={(e) => set("GND_ABS_PRESS", e.target.value)}
-              />
-              <Input
-                label={lbl("GND_TEMP — Ground Temperature")}
-                type="number"
-                step="0.1"
-                unit="°C"
-                value={p("GND_TEMP")}
-                onChange={(e) => set("GND_TEMP", e.target.value)}
-              />
-              <Select
-                label={lbl("BARO_PRIMARY — Primary Barometer")}
-                options={[
-                  { value: "0", label: "0 — First Baro" },
-                  { value: "1", label: "1 — Second Baro" },
-                  { value: "2", label: "2 — Third Baro" },
-                ]}
-                value={p("BARO_PRIMARY")}
-                onChange={(v) => set("BARO_PRIMARY", v)}
-              />
+              <Input label={lbl("GND_ABS_PRESS — Absolute Pressure")} type="number" step="0.01" unit="Pa" value={p("GND_ABS_PRESS")} onChange={(e) => set("GND_ABS_PRESS", e.target.value)} />
+              <Input label={lbl("GND_TEMP — Ground Temperature")} type="number" step="0.1" unit="°C" value={p("GND_TEMP")} onChange={(e) => set("GND_TEMP", e.target.value)} />
+              <Select label={lbl("BARO_PRIMARY — Primary Barometer")} options={[{ value: "0", label: "0 — First Baro" }, { value: "1", label: "1 — Second Baro" }, { value: "2", label: "2 — Third Baro" }]} value={p("BARO_PRIMARY")} onChange={(v) => set("BARO_PRIMARY", v)} />
             </div>
           </CollapsibleSection>
 
           {/* Save */}
           <div className="flex items-center gap-3 pt-2 pb-4">
-            <Button
-              variant="primary"
-              size="lg"
-              icon={<Save size={14} />}
-              disabled={!hasDirty || !connected}
-              loading={saving}
-              onClick={handleSave}
-            >
-              Save to Flight Controller
-            </Button>
-            {hasRamWrites && (
-              <Button
-                variant="secondary"
-                size="lg"
-                icon={<HardDrive size={14} />}
-                onClick={handleFlash}
-              >
-                Write to Flash
-              </Button>
-            )}
-            {!connected && (
-              <span className="text-[10px] text-text-tertiary">Connect a drone to save parameters</span>
-            )}
-            {hasDirty && connected && (
-              <span className="text-[10px] text-status-warning">Unsaved changes</span>
-            )}
+            <Button variant="primary" size="lg" icon={<Save size={14} />} disabled={!hasDirty || !connected} loading={saving} onClick={handleSave}>Save to Flight Controller</Button>
+            {hasRamWrites && <Button variant="secondary" size="lg" icon={<HardDrive size={14} />} onClick={handleFlash}>Write to Flash</Button>}
+            {!connected && <span className="text-[10px] text-text-tertiary">Connect a drone to save parameters</span>}
+            {hasDirty && connected && <span className="text-[10px] text-status-warning">Unsaved changes</span>}
           </div>
         </div>
       </div>

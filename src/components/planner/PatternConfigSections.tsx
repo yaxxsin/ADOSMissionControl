@@ -1,0 +1,280 @@
+/**
+ * @module PatternConfigSections
+ * @description Per-pattern-type configuration UI sections for the PatternEditor.
+ * @license GPL-3.0-only
+ */
+"use client";
+
+import { useMemo, useCallback } from "react";
+import { Select } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Toggle } from "@/components/ui/toggle";
+import { usePatternStore } from "@/stores/pattern-store";
+import { useDrawingStore } from "@/stores/drawing-store";
+import { CAMERA_PROFILES, computeGSD, computeLineSpacing, computeTriggerDistance } from "@/lib/patterns/gsd-calculator";
+import { Grid3X3, Circle, Route, Search, Building, Camera } from "lucide-react";
+import {
+  ENTRY_LOCATION_OPTIONS, DIRECTION_OPTIONS, SCAN_DIRECTION_OPTIONS, CAMERA_OPTIONS,
+} from "./pattern-editor-constants";
+
+export function SurveyConfig() {
+  const surveyConfig = usePatternStore((s) => s.surveyConfig);
+  const updateSurveyConfig = usePatternStore((s) => s.updateSurveyConfig);
+  const drawnPolygons = useDrawingStore((s) => s.polygons);
+
+  const selectedCamera = useMemo(
+    () => CAMERA_PROFILES.find((c) => c.name === (surveyConfig as { _cameraName?: string })._cameraName),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [(surveyConfig as { _cameraName?: string })._cameraName]
+  );
+
+  const gsdInfo = useMemo(() => {
+    if (!selectedCamera) return null;
+    const alt = surveyConfig.altitude ?? 50;
+    const gsd = computeGSD(alt, selectedCamera.focalLength, selectedCamera.sensorWidth, selectedCamera.imageWidth);
+    return { gsd, camera: selectedCamera };
+  }, [selectedCamera, surveyConfig.altitude]);
+
+  const handleCameraChange = useCallback(
+    (value: string) => {
+      const camera = CAMERA_PROFILES.find((c) => c.name === value);
+      if (camera) {
+        const alt = surveyConfig.altitude ?? 50;
+        const lineSpacing = computeLineSpacing(alt, camera, 0.6);
+        const triggerDist = computeTriggerDistance(alt, camera, 0.7);
+        updateSurveyConfig({
+          lineSpacing: Math.round(lineSpacing * 10) / 10,
+          cameraTriggerDistance: Math.round(triggerDist * 10) / 10,
+          _cameraName: value,
+        } as Partial<typeof surveyConfig> & { _cameraName: string });
+      } else {
+        updateSurveyConfig({ _cameraName: "" } as Partial<typeof surveyConfig> & { _cameraName: string });
+      }
+    },
+    [surveyConfig.altitude, updateSurveyConfig]
+  );
+
+  return (
+    <>
+      <div className="flex items-center gap-1.5 text-[10px] font-mono text-text-tertiary">
+        <Grid3X3 size={12} />
+        <span>
+          {surveyConfig.polygon
+            ? `${surveyConfig.polygon.length} vertices`
+            : drawnPolygons.length > 0
+              ? `Using last drawn polygon (${drawnPolygons[drawnPolygons.length - 1].vertices.length} pts)`
+              : "Draw a polygon on map first"}
+        </span>
+      </div>
+      <Select label="Camera Profile" options={CAMERA_OPTIONS}
+        value={(surveyConfig as { _cameraName?: string })._cameraName ?? ""} onChange={handleCameraChange} />
+      {gsdInfo && (
+        <div className="flex items-center gap-1.5 px-2 py-1 bg-accent-primary/10 border border-accent-primary/20">
+          <Camera size={10} className="text-accent-primary shrink-0" />
+          <span className="text-[10px] font-mono text-accent-primary">GSD: {(gsdInfo.gsd * 100).toFixed(2)} cm/px</span>
+        </div>
+      )}
+      <Input label="Grid Angle" type="number" unit="deg" value={String(surveyConfig.gridAngle ?? 0)}
+        onChange={(e) => updateSurveyConfig({ gridAngle: parseFloat(e.target.value) || 0 })} />
+      <Input label="Line Spacing" type="number" unit="m" value={String(surveyConfig.lineSpacing ?? 25)}
+        onChange={(e) => updateSurveyConfig({ lineSpacing: parseFloat(e.target.value) || 25 })} />
+      <Input label="Turn-around Distance" type="number" unit="m" value={String(surveyConfig.turnAroundDistance ?? 10)}
+        onChange={(e) => updateSurveyConfig({ turnAroundDistance: parseFloat(e.target.value) || 10 })} />
+      <Select label="Entry Point" options={ENTRY_LOCATION_OPTIONS} value={surveyConfig.entryLocation ?? "topLeft"}
+        onChange={(v) => updateSurveyConfig({ entryLocation: v as "topLeft" | "topRight" | "bottomLeft" | "bottomRight" })} />
+      <Toggle label="Alternate Transects" checked={surveyConfig.flyAlternateTransects ?? false}
+        onChange={(v) => updateSurveyConfig({ flyAlternateTransects: v })} />
+      <Input label="Camera Trigger Dist" type="number" unit="m" placeholder="0 = off"
+        value={String(surveyConfig.cameraTriggerDistance ?? 0)}
+        onChange={(e) => updateSurveyConfig({ cameraTriggerDistance: parseFloat(e.target.value) || 0 })} />
+      <div className="grid grid-cols-2 gap-2">
+        <Input label="Altitude" type="number" unit="m" value={String(surveyConfig.altitude ?? 50)}
+          onChange={(e) => {
+            const alt = parseFloat(e.target.value) || 50;
+            updateSurveyConfig({ altitude: alt });
+            if (selectedCamera) {
+              const ls = computeLineSpacing(alt, selectedCamera, 0.6);
+              const td = computeTriggerDistance(alt, selectedCamera, 0.7);
+              updateSurveyConfig({ lineSpacing: Math.round(ls * 10) / 10, cameraTriggerDistance: Math.round(td * 10) / 10 });
+            }
+          }} />
+        <Input label="Speed" type="number" unit="m/s" value={String(surveyConfig.speed ?? 5)}
+          onChange={(e) => updateSurveyConfig({ speed: parseFloat(e.target.value) || 5 })} />
+      </div>
+    </>
+  );
+}
+
+export function OrbitConfig() {
+  const orbitConfig = usePatternStore((s) => s.orbitConfig);
+  const updateOrbitConfig = usePatternStore((s) => s.updateOrbitConfig);
+  const drawnCircles = useDrawingStore((s) => s.circles);
+  return (
+    <>
+      <div className="flex items-center gap-1.5 text-[10px] font-mono text-text-tertiary">
+        <Circle size={12} />
+        <span>
+          {orbitConfig.center
+            ? `Center: ${orbitConfig.center[0].toFixed(4)}, ${orbitConfig.center[1].toFixed(4)}`
+            : drawnCircles.length > 0 ? "Using last drawn circle" : "Draw a circle on map first"}
+        </span>
+      </div>
+      <Input label="Radius" type="number" unit="m" value={String(orbitConfig.radius ?? 50)}
+        onChange={(e) => updateOrbitConfig({ radius: parseFloat(e.target.value) || 50 })} />
+      <Select label="Direction" options={DIRECTION_OPTIONS} value={orbitConfig.direction ?? "cw"}
+        onChange={(v) => updateOrbitConfig({ direction: v as "cw" | "ccw" })} />
+      <Input label="Turns" type="number" value={String(orbitConfig.turns ?? 1)}
+        onChange={(e) => updateOrbitConfig({ turns: parseInt(e.target.value) || 1 })} />
+      <Input label="Start Angle" type="number" unit="deg" placeholder="0 = North" value={String(orbitConfig.startAngle ?? 0)}
+        onChange={(e) => updateOrbitConfig({ startAngle: parseFloat(e.target.value) || 0 })} />
+      <div className="grid grid-cols-2 gap-2">
+        <Input label="Altitude" type="number" unit="m" value={String(orbitConfig.altitude ?? 50)}
+          onChange={(e) => updateOrbitConfig({ altitude: parseFloat(e.target.value) || 50 })} />
+        <Input label="Speed" type="number" unit="m/s" value={String(orbitConfig.speed ?? 5)}
+          onChange={(e) => updateOrbitConfig({ speed: parseFloat(e.target.value) || 5 })} />
+      </div>
+    </>
+  );
+}
+
+export function CorridorConfig() {
+  const corridorConfig = usePatternStore((s) => s.corridorConfig);
+  const updateCorridorConfig = usePatternStore((s) => s.updateCorridorConfig);
+  return (
+    <>
+      <div className="flex items-center gap-1.5 text-[10px] font-mono text-text-tertiary">
+        <Route size={12} />
+        <span>
+          {corridorConfig.pathPoints
+            ? `${corridorConfig.pathPoints.length} path points`
+            : "Draw corridor center line on map (measure tool)"}
+        </span>
+      </div>
+      <Input label="Corridor Width" type="number" unit="m" value={String(corridorConfig.corridorWidth ?? 50)}
+        onChange={(e) => updateCorridorConfig({ corridorWidth: parseFloat(e.target.value) || 50 })} />
+      <Input label="Line Spacing" type="number" unit="m" value={String(corridorConfig.lineSpacing ?? 20)}
+        onChange={(e) => updateCorridorConfig({ lineSpacing: parseFloat(e.target.value) || 20 })} />
+      <div className="grid grid-cols-2 gap-2">
+        <Input label="Altitude" type="number" unit="m" value={String(corridorConfig.altitude ?? 50)}
+          onChange={(e) => updateCorridorConfig({ altitude: parseFloat(e.target.value) || 50 })} />
+        <Input label="Speed" type="number" unit="m/s" value={String(corridorConfig.speed ?? 5)}
+          onChange={(e) => updateCorridorConfig({ speed: parseFloat(e.target.value) || 5 })} />
+      </div>
+    </>
+  );
+}
+
+export function SarExpandingSquareConfig() {
+  const config = usePatternStore((s) => s.sarExpandingSquareConfig);
+  const update = usePatternStore((s) => s.updateSarExpandingSquareConfig);
+  return (
+    <>
+      <div className="flex items-center gap-1.5 text-[10px] font-mono text-text-tertiary">
+        <Search size={12} />
+        <span>{config.center ? `Datum: ${config.center[0].toFixed(4)}, ${config.center[1].toFixed(4)}` : "Click map to set datum point"}</span>
+      </div>
+      <Input label="Leg Spacing" type="number" unit="m" value={String(config.legSpacing ?? 50)}
+        onChange={(e) => update({ legSpacing: parseFloat(e.target.value) || 50 })} />
+      <Input label="Max Legs" type="number" value={String(config.maxLegs ?? 20)}
+        onChange={(e) => update({ maxLegs: parseInt(e.target.value) || 20 })} />
+      <Input label="Start Bearing" type="number" unit="deg" value={String(config.startBearing ?? 0)}
+        onChange={(e) => update({ startBearing: parseFloat(e.target.value) || 0 })} />
+      <div className="grid grid-cols-2 gap-2">
+        <Input label="Altitude" type="number" unit="m" value={String(config.altitude ?? 50)}
+          onChange={(e) => update({ altitude: parseFloat(e.target.value) || 50 })} />
+        <Input label="Speed" type="number" unit="m/s" value={String(config.speed ?? 5)}
+          onChange={(e) => update({ speed: parseFloat(e.target.value) || 5 })} />
+      </div>
+    </>
+  );
+}
+
+export function SarSectorSearchConfig() {
+  const config = usePatternStore((s) => s.sarSectorSearchConfig);
+  const update = usePatternStore((s) => s.updateSarSectorSearchConfig);
+  return (
+    <>
+      <div className="flex items-center gap-1.5 text-[10px] font-mono text-text-tertiary">
+        <Search size={12} />
+        <span>{config.center ? `Datum: ${config.center[0].toFixed(4)}, ${config.center[1].toFixed(4)}` : "Click map to set datum point"}</span>
+      </div>
+      <Input label="Search Radius" type="number" unit="m" value={String(config.radius ?? 200)}
+        onChange={(e) => update({ radius: parseFloat(e.target.value) || 200 })} />
+      <Input label="Sweeps" type="number" value={String(config.sweeps ?? 3)}
+        onChange={(e) => update({ sweeps: parseInt(e.target.value) || 3 })} />
+      <Input label="Start Bearing" type="number" unit="deg" value={String(config.startBearing ?? 0)}
+        onChange={(e) => update({ startBearing: parseFloat(e.target.value) || 0 })} />
+      <div className="grid grid-cols-2 gap-2">
+        <Input label="Altitude" type="number" unit="m" value={String(config.altitude ?? 50)}
+          onChange={(e) => update({ altitude: parseFloat(e.target.value) || 50 })} />
+        <Input label="Speed" type="number" unit="m/s" value={String(config.speed ?? 5)}
+          onChange={(e) => update({ speed: parseFloat(e.target.value) || 5 })} />
+      </div>
+    </>
+  );
+}
+
+export function SarParallelTrackConfig() {
+  const config = usePatternStore((s) => s.sarParallelTrackConfig);
+  const update = usePatternStore((s) => s.updateSarParallelTrackConfig);
+  return (
+    <>
+      <div className="flex items-center gap-1.5 text-[10px] font-mono text-text-tertiary">
+        <Search size={12} />
+        <span>{config.startPoint ? `Start: ${config.startPoint[0].toFixed(4)}, ${config.startPoint[1].toFixed(4)}` : "Click map to set start point"}</span>
+      </div>
+      <Input label="Track Length" type="number" unit="m" value={String(config.trackLength ?? 500)}
+        onChange={(e) => update({ trackLength: parseFloat(e.target.value) || 500 })} />
+      <Input label="Track Spacing" type="number" unit="m" value={String(config.trackSpacing ?? 50)}
+        onChange={(e) => update({ trackSpacing: parseFloat(e.target.value) || 50 })} />
+      <Input label="Track Count" type="number" value={String(config.trackCount ?? 10)}
+        onChange={(e) => update({ trackCount: parseInt(e.target.value) || 10 })} />
+      <Input label="Bearing" type="number" unit="deg" value={String(config.bearing ?? 0)}
+        onChange={(e) => update({ bearing: parseFloat(e.target.value) || 0 })} />
+      <div className="grid grid-cols-2 gap-2">
+        <Input label="Altitude" type="number" unit="m" value={String(config.altitude ?? 50)}
+          onChange={(e) => update({ altitude: parseFloat(e.target.value) || 50 })} />
+        <Input label="Speed" type="number" unit="m/s" value={String(config.speed ?? 5)}
+          onChange={(e) => update({ speed: parseFloat(e.target.value) || 5 })} />
+      </div>
+    </>
+  );
+}
+
+export function StructureScanConfig() {
+  const config = usePatternStore((s) => s.structureScanConfig);
+  const update = usePatternStore((s) => s.updateStructureScanConfig);
+  const drawnPolygons = useDrawingStore((s) => s.polygons);
+  return (
+    <>
+      <div className="flex items-center gap-1.5 text-[10px] font-mono text-text-tertiary">
+        <Building size={12} />
+        <span>
+          {config.structurePolygon
+            ? `${config.structurePolygon.length} vertices`
+            : drawnPolygons.length > 0
+              ? `Using last drawn polygon (${drawnPolygons[drawnPolygons.length - 1].vertices.length} pts)`
+              : "Draw structure boundary on map"}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Input label="Bottom Alt" type="number" unit="m" value={String(config.bottomAlt ?? 10)}
+          onChange={(e) => update({ bottomAlt: parseFloat(e.target.value) || 10 })} />
+        <Input label="Top Alt" type="number" unit="m" value={String(config.topAlt ?? 50)}
+          onChange={(e) => update({ topAlt: parseFloat(e.target.value) || 50 })} />
+      </div>
+      <Input label="Layer Spacing" type="number" unit="m" value={String(config.layerSpacing ?? 10)}
+        onChange={(e) => update({ layerSpacing: parseFloat(e.target.value) || 10 })} />
+      <Input label="Scan Distance" type="number" unit="m" value={String(config.scanDistance ?? 15)}
+        onChange={(e) => update({ scanDistance: parseFloat(e.target.value) || 15 })} />
+      <Input label="Gimbal Pitch" type="number" unit="deg" value={String(config.gimbalPitch ?? -30)}
+        onChange={(e) => update({ gimbalPitch: parseFloat(e.target.value) || -30 })} />
+      <Input label="Points Per Layer" type="number" value={String(config.pointsPerLayer ?? 16)}
+        onChange={(e) => update({ pointsPerLayer: parseInt(e.target.value) || 16 })} />
+      <Select label="Direction" options={SCAN_DIRECTION_OPTIONS} value={config.direction ?? "bottom-up"}
+        onChange={(v) => update({ direction: v as "bottom-up" | "top-down" })} />
+      <Input label="Speed" type="number" unit="m/s" value={String(config.speed ?? 3)}
+        onChange={(e) => update({ speed: parseFloat(e.target.value) || 3 })} />
+    </>
+  );
+}
