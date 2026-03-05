@@ -26,6 +26,9 @@ import {
   TYPE_KEYWORDS, MAG_CAL_FAIL_MESSAGES, LOG_KEYWORDS,
   CAL_TIMEOUTS, MAX_LOG_ENTRIES,
 } from "./calibration-types";
+import { RcChannelMapSection } from "./RcChannelMapSection";
+import { GpsConfigSection } from "./GpsConfigSection";
+import { ServoCalibrationSection } from "./ServoCalibrationSection";
 
 // ── RC Calibration Constants ─────────────────────────────
 
@@ -911,7 +914,11 @@ export function CalibrationPanel() {
                 const allDone = Array.from(prev.compassProgress.keys()).every((id) => cr.has(id));
                 if (allDone || prev.compassProgress.size === 0) {
                   cleanupSubs(calType);
-                  useDiagnosticsStore.getState().logCalibration(calType, "success");
+                  useDiagnosticsStore.getState().logCalibration(calType, "success", {
+                    offsets: { ofsX, ofsY, ofsZ },
+                    fitness,
+                    compassId,
+                  });
                   return {
                     ...prev,
                     compassResults: cr,
@@ -938,7 +945,11 @@ export function CalibrationPanel() {
                   fixes = failInfo?.fixes ?? [];
                 }
                 cleanupSubs(calType);
-                useDiagnosticsStore.getState().logCalibration(calType, "failed");
+                useDiagnosticsStore.getState().logCalibration(calType, "failed", {
+                  offsets: { ofsX, ofsY, ofsZ },
+                  fitness,
+                  compassId,
+                });
                 // Show results with warning — allow force-save instead of terminal error
                 return {
                   ...prev,
@@ -1425,6 +1436,15 @@ export function CalibrationPanel() {
 
           {/* Radio Calibration */}
           <RcCalibrationWizard connected={connected} />
+
+          {/* RC Channel Assignment */}
+          <RcChannelMapSection />
+
+          {/* GPS Configuration — Antenna Offset + Constellation */}
+          <GpsConfigSection />
+
+          {/* Servo Endpoint Calibration */}
+          <ServoCalibrationSection />
 
           {/* ESC Calibration */}
           <CalibrationWizard

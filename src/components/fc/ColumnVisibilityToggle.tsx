@@ -8,6 +8,7 @@ import { useSettingsStore, type ParamColumnId } from "@/stores/settings-store";
 const COLUMNS: { id: ParamColumnId; label: string; locked?: boolean }[] = [
   { id: "index", label: "#" },
   { id: "name", label: "Name", locked: true },
+  { id: "description", label: "Description" },
   { id: "value", label: "Value", locked: true },
   { id: "range", label: "Range" },
   { id: "units", label: "Units" },

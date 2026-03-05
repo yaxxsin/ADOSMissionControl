@@ -63,7 +63,14 @@ export function CollapsibleSection({
           <div onClick={(e) => e.stopPropagation()}>{trailing}</div>
         )}
       </div>
-      {open && <div>{children}</div>}
+      <div
+        className={cn(
+          "grid transition-all duration-200 ease-in-out",
+          open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+        )}
+      >
+        <div className="overflow-hidden">{children}</div>
+      </div>
     </div>
   );
 }

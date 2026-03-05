@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Check, X } from "lucide-react";
+import { AlertTriangle, Check, X, ShieldAlert } from "lucide-react";
 import type { ParamMetadata } from "@/lib/protocol/param-metadata";
 
-const CRITICAL_PREFIXES = ["FS_", "BATT_FS_", "FENCE_", "MOT_", "BRD_SAFETY", "ARMING_"];
+const CRITICAL_PREFIXES = ["FS_", "BATT_FS_", "BATT_", "ATC_RAT_", "FENCE_", "MOT_", "BRD_SAFETY", "BRD_", "ARMING_"];
 
 function isCriticalParam(name: string): boolean {
   return CRITICAL_PREFIXES.some((prefix) => name.startsWith(prefix));
@@ -30,9 +30,21 @@ export function WriteConfirmDialog({ open, onCancel, onConfirm, changes, metadat
     () => changes.some((c) => isCriticalParam(c.name)),
     [changes]
   );
+  const [safetyAcknowledged, setSafetyAcknowledged] = useState(false);
+
+  // Reset checkbox when dialog opens/closes
+  const handleCancel = () => {
+    setSafetyAcknowledged(false);
+    onCancel();
+  };
+
+  const handleConfirm = () => {
+    setSafetyAcknowledged(false);
+    onConfirm();
+  };
 
   return (
-    <Modal open={open} onClose={onCancel} title="Confirm Parameter Write" className="max-w-lg">
+    <Modal open={open} onClose={handleCancel} title="Confirm Parameter Write" className="max-w-lg">
       <div className="flex flex-col gap-4">
         {/* Critical safety banner */}
         {hasCritical && (
@@ -94,11 +106,33 @@ export function WriteConfirmDialog({ open, onCancel, onConfirm, changes, metadat
           </table>
         </div>
 
+        {/* Safety acknowledgment checkbox for critical params */}
+        {hasCritical && (
+          <label className="flex items-start gap-2.5 px-3 py-2.5 bg-status-error/5 border border-status-error/20 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={safetyAcknowledged}
+              onChange={(e) => setSafetyAcknowledged(e.target.checked)}
+              className="mt-0.5 accent-status-error"
+            />
+            <span className="flex items-center gap-1.5 text-xs text-status-error">
+              <ShieldAlert size={13} className="flex-shrink-0" />
+              I understand this change affects flight safety
+            </span>
+          </label>
+        )}
+
         <div className="flex justify-end gap-2">
-          <Button variant="ghost" size="sm" icon={<X size={12} />} onClick={onCancel}>
+          <Button variant="ghost" size="sm" icon={<X size={12} />} onClick={handleCancel}>
             Cancel
           </Button>
-          <Button variant="primary" size="sm" icon={<Check size={12} />} onClick={onConfirm}>
+          <Button
+            variant="primary"
+            size="sm"
+            icon={<Check size={12} />}
+            onClick={handleConfirm}
+            disabled={hasCritical && !safetyAcknowledged}
+          >
             Write {changes.length} Parameter{changes.length !== 1 ? "s" : ""}
           </Button>
         </div>

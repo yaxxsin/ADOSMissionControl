@@ -5,12 +5,14 @@ import { usePanelParams } from "@/hooks/use-panel-params";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useParamLabel } from "@/hooks/use-param-label";
+import { useParamMetadataMap } from "@/hooks/use-param-metadata";
 import { useToast } from "@/components/ui/toast";
 import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
 import { PanelHeader } from "./PanelHeader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Lightbulb, Save, HardDrive, Palette } from "lucide-react";
+import { ParamLabel } from "./ParamLabel";
 
 const LED_PARAMS = [
   "NTF_LED_TYPES", "NTF_LED_LEN", "NTF_LED_BRIGHT", "NTF_LED_OVERRIDE",
@@ -49,6 +51,8 @@ export function LedPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const { toast } = useToast();
   const { label: pl } = useParamLabel();
+  const metadata = useParamMetadataMap();
+  const lbl = (raw: string) => <ParamLabel label={pl(raw)} metadata={metadata} />;
   const [saving, setSaving] = useState(false);
 
   const {
@@ -107,7 +111,7 @@ export function LedPanel() {
 
           {/* LED Types */}
           <Card icon={<Lightbulb size={14} />} title="LED Types" description="Select enabled LED hardware (bitmask)">
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {LED_TYPE_BITS.map(({ bit, label }) => {
                 const checked = (ledTypes & (1 << bit)) !== 0;
                 return (
@@ -133,7 +137,7 @@ export function LedPanel() {
           {/* Strip Length & Brightness */}
           <Card icon={<Lightbulb size={14} />} title="Strip Settings" description="LED count and brightness level">
             <Input
-              label={pl("NTF_LED_LEN — Strip Length")}
+              label={lbl("NTF_LED_LEN — Strip Length")}
               type="number"
               step="1"
               min="1"

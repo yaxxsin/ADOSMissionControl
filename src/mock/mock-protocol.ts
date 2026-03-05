@@ -67,6 +67,15 @@ import type {
   ExtendedSysStateCallback,
   FencePointCallback,
   SystemTimeCallback,
+  RawImuCallback,
+  RcChannelsRawCallback,
+  RcChannelsOverrideCallback,
+  MissionItemCallback,
+  AltitudeCallback,
+  WindCovCallback,
+  AisVesselCallback,
+  GimbalManagerInfoCallback,
+  GimbalManagerStatusCallback,
 } from "@/lib/protocol/types";
 import { ArduCopterHandler } from "@/lib/protocol/firmware/ardupilot";
 import { PX4Handler } from "@/lib/protocol/firmware/px4";
@@ -175,6 +184,15 @@ export class MockProtocol implements DroneProtocol {
   private extendedSysStateCbs: ExtendedSysStateCallback[] = [];
   private fencePointCbs: FencePointCallback[] = [];
   private systemTimeCbs: SystemTimeCallback[] = [];
+  private rawImuCbs: RawImuCallback[] = [];
+  private rcChannelsRawCbs: RcChannelsRawCallback[] = [];
+  private rcChannelsOverrideCbs: RcChannelsOverrideCallback[] = [];
+  private missionItemCbs: MissionItemCallback[] = [];
+  private altitudeCbs: AltitudeCallback[] = [];
+  private windCovCbs: WindCovCallback[] = [];
+  private aisVesselCbs: AisVesselCallback[] = [];
+  private gimbalManagerInfoCbs: GimbalManagerInfoCallback[] = [];
+  private gimbalManagerStatusCbs: GimbalManagerStatusCallback[] = [];
   private accelCalTimers: ReturnType<typeof setTimeout>[] = [];
   private compassCalTimers: ReturnType<typeof setTimeout | typeof setInterval>[] = [];
 
@@ -889,6 +907,20 @@ export class MockProtocol implements DroneProtocol {
   onExtendedSysState(cb: ExtendedSysStateCallback): () => void { return sub(this.extendedSysStateCbs, cb); }
   onFencePoint(cb: FencePointCallback): () => void { return sub(this.fencePointCbs, cb); }
   onSystemTime(cb: SystemTimeCallback): () => void { return sub(this.systemTimeCbs, cb); }
+  onRawImu(cb: RawImuCallback): () => void { return sub(this.rawImuCbs, cb); }
+  onRcChannelsRaw(cb: RcChannelsRawCallback): () => void { return sub(this.rcChannelsRawCbs, cb); }
+  onRcChannelsOverride(cb: RcChannelsOverrideCallback): () => void { return sub(this.rcChannelsOverrideCbs, cb); }
+  onMissionItem(cb: MissionItemCallback): () => void { return sub(this.missionItemCbs, cb); }
+  onAltitude(cb: AltitudeCallback): () => void { return sub(this.altitudeCbs, cb); }
+  onWindCov(cb: WindCovCallback): () => void { return sub(this.windCovCbs, cb); }
+  onAisVessel(cb: AisVesselCallback): () => void { return sub(this.aisVesselCbs, cb); }
+  onGimbalManagerInfo(cb: GimbalManagerInfoCallback): () => void { return sub(this.gimbalManagerInfoCbs, cb); }
+  onGimbalManagerStatus(cb: GimbalManagerStatusCallback): () => void { return sub(this.gimbalManagerStatusCbs, cb); }
+  async enableFence(_enable: boolean): Promise<CommandResult> { return ok("Fence updated"); }
+  async doLandStart(): Promise<CommandResult> { return ok("Land start"); }
+  async controlVideo(): Promise<CommandResult> { return ok("Video control"); }
+  async setRelay(): Promise<CommandResult> { return ok("Relay set"); }
+  async startRxPair(): Promise<CommandResult> { return ok("RX pair started"); }
   async requestMessage(messageId: number): Promise<CommandResult> {
     if (messageId === 148) {
       setTimeout(() => {

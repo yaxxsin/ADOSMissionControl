@@ -8,6 +8,7 @@ interface TelemetryStoreState {
   position: RingBuffer<PositionData>;
   battery: RingBuffer<BatteryData>;
   gps: RingBuffer<GpsData>;
+  gps2: RingBuffer<GpsData>;
   vfr: RingBuffer<VfrData>;
   rc: RingBuffer<RcData>;
   sysStatus: RingBuffer<SysStatusData>;
@@ -34,6 +35,7 @@ interface TelemetryStoreState {
   pushPosition: (data: PositionData) => void;
   pushBattery: (data: BatteryData) => void;
   pushGps: (data: GpsData) => void;
+  pushGps2: (data: GpsData) => void;
   pushVfr: (data: VfrData) => void;
   pushRc: (data: RcData) => void;
   pushSysStatus: (data: SysStatusData) => void;
@@ -60,6 +62,7 @@ interface TelemetryStoreState {
     position: PositionData;
     battery: BatteryData;
     gps: GpsData;
+    gps2: GpsData;
     vfr: VfrData;
     rc: RcData;
     sysStatus: SysStatusData;
@@ -91,6 +94,7 @@ export const useTelemetryStore = create<TelemetryStoreState>((set, get) => ({
   position: new RingBuffer<PositionData>(300),   // 5Hz x 60s
   battery: new RingBuffer<BatteryData>(120),     // 2Hz x 60s
   gps: new RingBuffer<GpsData>(300),             // 5Hz x 60s
+  gps2: new RingBuffer<GpsData>(300),            // 5Hz x 60s — GPS2_RAW
   vfr: new RingBuffer<VfrData>(600),             // 10Hz x 60s
   rc: new RingBuffer<RcData>(600),               // 10Hz x 60s
   sysStatus: new RingBuffer<SysStatusData>(60),  // 1Hz x 60s
@@ -127,6 +131,10 @@ export const useTelemetryStore = create<TelemetryStoreState>((set, get) => ({
   },
   pushGps: (data) => {
     get().gps.push(data);
+    set({ _version: get()._version + 1 });
+  },
+  pushGps2: (data) => {
+    get().gps2.push(data);
     set({ _version: get()._version + 1 });
   },
   pushVfr: (data) => {
@@ -168,6 +176,7 @@ export const useTelemetryStore = create<TelemetryStoreState>((set, get) => ({
     if (batch.position) s.position.push(batch.position);
     if (batch.battery) s.battery.push(batch.battery);
     if (batch.gps) s.gps.push(batch.gps);
+    if (batch.gps2) s.gps2.push(batch.gps2);
     if (batch.vfr) s.vfr.push(batch.vfr);
     if (batch.rc) s.rc.push(batch.rc);
     if (batch.sysStatus) s.sysStatus.push(batch.sysStatus);
@@ -197,6 +206,7 @@ export const useTelemetryStore = create<TelemetryStoreState>((set, get) => ({
       position: new RingBuffer<PositionData>(300),
       battery: new RingBuffer<BatteryData>(120),
       gps: new RingBuffer<GpsData>(300),
+      gps2: new RingBuffer<GpsData>(300),
       vfr: new RingBuffer<VfrData>(600),
       rc: new RingBuffer<RcData>(600),
       sysStatus: new RingBuffer<SysStatusData>(60),

@@ -23,6 +23,14 @@ function buildSnapshot(): Record<string, unknown> {
     }
   }
 
+  // Error counts by category
+  const errorCounts: Record<string, number> = {};
+  for (const entry of state.connectionLog) {
+    if (entry.type === "error" && entry.errorCategory) {
+      errorCounts[entry.errorCategory] = (errorCounts[entry.errorCategory] ?? 0) + 1;
+    }
+  }
+
   return {
     exportedAt: new Date().toISOString(),
     eventTimeline: events.map((e) => ({
@@ -37,6 +45,7 @@ function buildSnapshot(): Record<string, unknown> {
       ...c,
       time: new Date(c.timestamp).toISOString(),
     })),
+    errorCounts,
     calibrationHistory: state.calibrationHistory.map((c) => ({
       ...c,
       time: new Date(c.timestamp).toISOString(),
@@ -46,6 +55,9 @@ function buildSnapshot(): Record<string, unknown> {
       msgName: r.msgName,
       hz: Math.round(r.hz * 10) / 10,
     })),
+    performanceMetrics: state.performanceMetrics,
+    commandQueueSnapshot: state.commandQueueSnapshot,
+    ringBufferInfo: state.ringBufferInfo,
   };
 }
 

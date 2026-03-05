@@ -11,6 +11,7 @@ import { WebSocketTransport } from "@/lib/protocol/transport/websocket";
 import { MAVLinkAdapter } from "@/lib/protocol/mavlink-adapter";
 import { serialPortManager } from "@/lib/serial-port-manager";
 import { randomId } from "@/lib/utils";
+import { useDiagnosticsStore } from "@/stores/diagnostics-store";
 
 export type ReconnectState = "idle" | "waiting" | "attempting" | "connected" | "failed";
 
@@ -119,6 +120,16 @@ export class ReconnectManager {
     entry.attempt++;
     entry.state = "attempting";
     this.notify(entry);
+
+    // Log reconnect attempt to diagnostics
+    useDiagnosticsStore.getState().logConnection(
+      "reconnect_attempt",
+      `Reconnect attempt ${entry.attempt}/${entry.maxAttempts} for ${entry.droneName} (${entry.meta.type})`,
+    );
+    useDiagnosticsStore.getState().logEvent(
+      "reconnect_attempt",
+      `Reconnect attempt ${entry.attempt}/${entry.maxAttempts} for ${entry.droneName}`,
+    );
 
     try {
       if (entry.meta.type === "serial") {

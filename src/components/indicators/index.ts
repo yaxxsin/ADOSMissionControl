@@ -7,3 +7,4 @@ export { GpsSkyView } from "./GpsSkyView";
 export { PreArmChecks } from "./PreArmChecks";
 export { RebootRequiredBanner } from "./RebootRequiredBanner";
 export { ArmedLockOverlay } from "./ArmedLockOverlay";
+export { FenceBreachIndicator } from "./FenceBreachIndicator";

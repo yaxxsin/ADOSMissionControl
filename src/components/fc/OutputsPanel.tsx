@@ -102,7 +102,7 @@ export function OutputsPanel() {
     params, loading, error, dirtyParams, hasRamWrites,
     loadProgress, hasLoaded,
     refresh, setLocalValue, saveAllToRam, commitToFlash,
-  } = usePanelParams({ paramNames: OUTPUT_PARAMS, optionalParams: OPTIONAL_OUTPUT_PARAMS, panelId: "outputs" });
+  } = usePanelParams({ paramNames: OUTPUT_PARAMS, optionalParams: OPTIONAL_OUTPUT_PARAMS, panelId: "outputs", autoLoad: true });
   useUnsavedGuard(dirtyParams.size > 0);
 
   // ── GPIO detection (SERVOx_FUNCTION = -1 means GPIO) ────

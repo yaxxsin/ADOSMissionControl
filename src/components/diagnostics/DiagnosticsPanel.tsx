@@ -5,19 +5,37 @@ import { cn } from "@/lib/utils";
 import { EventTimeline } from "./EventTimeline";
 import { MessageRatePanel } from "./MessageRatePanel";
 import { DiagnosticsExport } from "./DiagnosticsExport";
+import { ShareDiagnostics } from "./ShareDiagnostics";
+import { FrameInspector } from "./FrameInspector";
+import { CommandQueuePanel } from "./CommandQueuePanel";
+import { RingBufferPanel } from "./RingBufferPanel";
+import { PerformancePanel } from "./PerformancePanel";
 import { useDiagnosticsStore } from "@/stores/diagnostics-store";
 import {
   Clock,
   Activity,
   Stethoscope,
   Trash2,
+  Binary,
+  ListOrdered,
+  Database,
+  Gauge,
 } from "lucide-react";
 
-type DiagTab = "timeline" | "rates";
+type DiagTab = "timeline" | "rates" | "frames" | "queue" | "buffers" | "perf";
 
 export function DiagnosticsPanel() {
   const [activeTab, setActiveTab] = useState<DiagTab>("timeline");
   const clear = useDiagnosticsStore((s) => s.clear);
+
+  const tabs: { key: DiagTab; label: string; Icon: React.ComponentType<{ size?: number }> }[] = [
+    { key: "timeline", label: "Timeline", Icon: Clock },
+    { key: "rates", label: "Rates", Icon: Activity },
+    { key: "frames", label: "Frames", Icon: Binary },
+    { key: "queue", label: "Queue", Icon: ListOrdered },
+    { key: "buffers", label: "Buffers", Icon: Database },
+    { key: "perf", label: "Perf", Icon: Gauge },
+  ];
 
   return (
     <div className="h-full flex flex-col">
@@ -28,34 +46,29 @@ export function DiagnosticsPanel() {
 
         {/* Tab toggles */}
         <div className="flex items-center gap-0.5 bg-bg-tertiary p-0.5 rounded ml-2">
-          <button
-            onClick={() => setActiveTab("timeline")}
-            className={cn(
-              "flex items-center gap-1 px-2 py-1 text-[10px] cursor-pointer rounded transition-colors",
-              activeTab === "timeline"
-                ? "bg-bg-secondary text-text-primary"
-                : "text-text-tertiary hover:text-text-secondary",
-            )}
-          >
-            <Clock size={10} />
-            Timeline
-          </button>
-          <button
-            onClick={() => setActiveTab("rates")}
-            className={cn(
-              "flex items-center gap-1 px-2 py-1 text-[10px] cursor-pointer rounded transition-colors",
-              activeTab === "rates"
-                ? "bg-bg-secondary text-text-primary"
-                : "text-text-tertiary hover:text-text-secondary",
-            )}
-          >
-            <Activity size={10} />
-            Rates
-          </button>
+          {tabs.map((tab) => {
+            const TabIcon = tab.Icon;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={cn(
+                  "flex items-center gap-1 px-2 py-1 text-[10px] cursor-pointer rounded transition-colors",
+                  activeTab === tab.key
+                    ? "bg-bg-secondary text-text-primary"
+                    : "text-text-tertiary hover:text-text-secondary",
+                )}
+              >
+                <TabIcon size={10} />
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex-1" />
 
+        <ShareDiagnostics />
         <DiagnosticsExport />
 
         <button
@@ -71,6 +84,10 @@ export function DiagnosticsPanel() {
       <div className="flex-1 min-h-0 overflow-hidden">
         {activeTab === "timeline" && <EventTimeline />}
         {activeTab === "rates" && <MessageRatePanel />}
+        {activeTab === "frames" && <FrameInspector />}
+        {activeTab === "queue" && <CommandQueuePanel />}
+        {activeTab === "buffers" && <RingBufferPanel />}
+        {activeTab === "perf" && <PerformancePanel />}
       </div>
     </div>
   );

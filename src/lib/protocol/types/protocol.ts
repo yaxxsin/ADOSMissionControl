@@ -23,6 +23,9 @@ import type {
   LocalPositionCallback, DebugCallback, GimbalAttitudeCallback,
   ObstacleDistanceCallback, CameraImageCapturedCallback,
   ExtendedSysStateCallback, FencePointCallback, SystemTimeCallback,
+  RawImuCallback, RcChannelsRawCallback, RcChannelsOverrideCallback,
+  MissionItemCallback, AltitudeCallback, WindCovCallback,
+  AisVesselCallback, GimbalManagerInfoCallback, GimbalManagerStatusCallback,
 } from './callbacks';
 import type { MissionItem, LogEntry, LogDownloadProgressCallback } from './mission';
 import type { FirmwareHandler } from './firmware';
@@ -78,6 +81,15 @@ export interface DroneProtocol {
   // ── Guided Flight ─────────────────────────────────────────
   sendPositionTarget?(lat: number, lon: number, alt: number): void;
   sendAttitudeTarget?(roll: number, pitch: number, yaw: number, thrust: number): void;
+
+  // ── Fence Enable ─────────────────────────────────────────
+  enableFence?(enable: boolean): Promise<CommandResult>;
+
+  // ── Landing / Relay / Video / RX Pair ───────────────────
+  doLandStart?(): Promise<CommandResult>;
+  controlVideo?(params: { cameraId: number; transmission: number; channel: number; recording: number }): Promise<CommandResult>;
+  setRelay?(relayNum: number, on: boolean): Promise<CommandResult>;
+  startRxPair?(spektrum: number): Promise<CommandResult>;
 
   // ── Camera/Gimbal ─────────────────────────────────────────
   setCameraTriggerDistance?(distance: number): Promise<CommandResult>;
@@ -184,6 +196,15 @@ export interface DroneProtocol {
   onExtendedSysState?(callback: ExtendedSysStateCallback): () => void;
   onFencePoint?(callback: FencePointCallback): () => void;
   onSystemTime?(callback: SystemTimeCallback): () => void;
+  onRawImu?(callback: RawImuCallback): () => void;
+  onRcChannelsRaw?(callback: RcChannelsRawCallback): () => void;
+  onRcChannelsOverride?(callback: RcChannelsOverrideCallback): () => void;
+  onMissionItem?(callback: MissionItemCallback): () => void;
+  onAltitude?(callback: AltitudeCallback): () => void;
+  onWindCov?(callback: WindCovCallback): () => void;
+  onAisVessel?(callback: AisVesselCallback): () => void;
+  onGimbalManagerInfo?(callback: GimbalManagerInfoCallback): () => void;
+  onGimbalManagerStatus?(callback: GimbalManagerStatusCallback): () => void;
 
   // ── Serial Passthrough ──────────────────────────────────
   /** Send a string as SERIAL_CONTROL data to the FC shell. */

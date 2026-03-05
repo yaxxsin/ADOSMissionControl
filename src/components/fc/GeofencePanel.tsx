@@ -1,17 +1,20 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback } from "react";
 import { usePanelParams } from "@/hooks/use-panel-params";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { useArmedLock } from "@/hooks/use-armed-lock";
 import { useParamLabel } from "@/hooks/use-param-label";
+import { useParamMetadataMap } from "@/hooks/use-param-metadata";
 import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
 import { PanelHeader } from "./PanelHeader";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { Select } from "@/components/ui/select";
-import { Shield, HardDrive, Save, MapPin, ArrowUp, Circle } from "lucide-react";
+import { useGeofenceStore } from "@/stores/geofence-store";
+import { Shield, HardDrive, Save, MapPin, ArrowUp, Circle, Download, Upload, Plus, Trash2, ToggleLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ParamLabel } from "./ParamLabel";
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -48,6 +51,8 @@ export function GeofencePanel() {
   const { toast } = useToast();
   const { isLocked } = useArmedLock();
   const { label: pl } = useParamLabel();
+  const paramMeta = useParamMetadataMap();
+  const lbl = (raw: string) => <ParamLabel label={pl(raw)} metadata={paramMeta} />;
 
   const {
     params,
@@ -64,11 +69,25 @@ export function GeofencePanel() {
   } = usePanelParams({
     paramNames: FENCE_PARAMS,
     panelId: "geofence",
+    autoLoad: true,
   });
   useUnsavedGuard(dirtyParams.size > 0);
 
   const [saving, setSaving] = useState(false);
   const [committing, setCommitting] = useState(false);
+
+  // Geofence store for zones and protocol operations
+  const zones = useGeofenceStore((s) => s.zones);
+  const addZone = useGeofenceStore((s) => s.addZone);
+  const removeZone = useGeofenceStore((s) => s.removeZone);
+  const toggleZoneRole = useGeofenceStore((s) => s.toggleZoneRole);
+  const uploadFence = useGeofenceStore((s) => s.uploadFence);
+  const downloadFence = useGeofenceStore((s) => s.downloadFence);
+  const uploadState = useGeofenceStore((s) => s.uploadState);
+  const downloadState = useGeofenceStore((s) => s.downloadState);
+  const breachStatus = useGeofenceStore((s) => s.breachStatus);
+  const breachCount = useGeofenceStore((s) => s.breachCount);
+  const breachType = useGeofenceStore((s) => s.breachType);
 
   // ── Derived state ──────────────────────────────────────────
 
@@ -120,6 +139,26 @@ export function GeofencePanel() {
       toast("Failed to write to flash", "error");
     }
   }, [commitToFlash, toast]);
+
+  const handleUpload = useCallback(async () => {
+    await uploadFence();
+    toast("Fence points uploaded to FC", "success");
+  }, [uploadFence, toast]);
+
+  const handleDownload = useCallback(async () => {
+    await downloadFence();
+    toast("Fence points downloaded from FC", "success");
+  }, [downloadFence, toast]);
+
+  // ── Breach label ───────────────────────────────────────────
+
+  const breachLabel = breachType === 0
+    ? "None"
+    : breachType === 1
+      ? "Min Altitude"
+      : breachType === 2
+        ? "Max Altitude"
+        : "Boundary";
 
   // ── Render ─────────────────────────────────────────────────
 
@@ -198,7 +237,7 @@ export function GeofencePanel() {
           {hasCircleFence && (
             <Card icon={<Circle size={14} />} title="Circle Fence" description="Maximum horizontal distance from home">
               <ParamInput
-                label={pl("FENCE_RADIUS — Max Radius")}
+                label={lbl("FENCE_RADIUS — Max Radius")}
                 value={fenceRadius}
                 unit="m"
                 min={0}
@@ -207,7 +246,7 @@ export function GeofencePanel() {
                 onChange={(v) => setLocalValue("FENCE_RADIUS", v)}
               />
               <ParamInput
-                label={pl("FENCE_MARGIN — Warning Margin")}
+                label={lbl("FENCE_MARGIN — Warning Margin")}
                 value={fenceMargin}
                 unit="m"
                 min={0}
@@ -218,11 +257,11 @@ export function GeofencePanel() {
             </Card>
           )}
 
-          {/* Altitude Fence */}
+          {/* Altitude Fence with visual band */}
           {hasAltFence && (
             <Card icon={<ArrowUp size={14} />} title="Altitude Fence" description="Altitude ceiling and floor">
               <ParamInput
-                label={pl("FENCE_ALT_MAX — Max Altitude")}
+                label={lbl("FENCE_ALT_MAX — Max Altitude")}
                 value={fenceAltMax}
                 unit="m"
                 min={0}
@@ -231,7 +270,7 @@ export function GeofencePanel() {
                 onChange={(v) => setLocalValue("FENCE_ALT_MAX", v)}
               />
               <ParamInput
-                label={pl("FENCE_ALT_MIN — Min Altitude")}
+                label={lbl("FENCE_ALT_MIN — Min Altitude")}
                 value={fenceAltMin}
                 unit="m"
                 min={-100}
@@ -239,6 +278,9 @@ export function GeofencePanel() {
                 disabled={isLocked}
                 onChange={(v) => setLocalValue("FENCE_ALT_MIN", v)}
               />
+
+              {/* Altitude band visualization */}
+              <AltitudeBandViz altMin={fenceAltMin} altMax={fenceAltMax} />
             </Card>
           )}
 
@@ -248,22 +290,147 @@ export function GeofencePanel() {
               <div className="text-xs text-text-secondary">
                 Polygon vertices: <span className="font-mono text-text-primary">{fenceTotal}</span>
               </div>
-              <p className="text-[10px] text-text-tertiary">
-                Upload polygon fence points via MAVLink FENCE_POINT messages or mission planner
-              </p>
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={handleUpload}
+                  disabled={isLocked}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono border border-border-default transition-colors",
+                    isLocked ? "opacity-50 cursor-not-allowed" : "text-text-primary hover:bg-bg-tertiary cursor-pointer",
+                  )}
+                >
+                  <Upload size={10} />
+                  {uploadState === "uploading" ? "Uploading..." : "Upload Points"}
+                </button>
+                <button
+                  onClick={handleDownload}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono border border-border-default text-text-primary hover:bg-bg-tertiary transition-colors cursor-pointer"
+                >
+                  <Download size={10} />
+                  {downloadState === "downloading" ? "Downloading..." : "Download Points"}
+                </button>
+              </div>
+              {uploadState === "uploaded" && (
+                <p className="text-[10px] font-mono text-status-success mt-1">Fence points uploaded</p>
+              )}
+              {downloadState === "downloaded" && (
+                <p className="text-[10px] font-mono text-status-success mt-1">Fence points downloaded</p>
+              )}
             </Card>
           )}
+
+          {/* Inclusion/Exclusion Zones */}
+          <Card icon={<MapPin size={14} />} title="Zones" description="Inclusion (must stay inside) and exclusion (must stay outside) zones">
+            {zones.length === 0 && (
+              <p className="text-[10px] text-text-tertiary">No zones defined. Add zones using the buttons below.</p>
+            )}
+            {zones.map((zone) => (
+              <div key={zone.id} className="flex items-center justify-between py-1.5 border-b border-border-default last:border-0">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "w-2.5 h-2.5 rounded-full",
+                      zone.role === "inclusion" ? "bg-green-500" : "bg-red-500",
+                    )}
+                  />
+                  <span className="text-xs text-text-primary font-mono">
+                    {zone.role === "inclusion" ? "INCL" : "EXCL"} {zone.type}
+                  </span>
+                  <span className="text-[10px] text-text-tertiary">
+                    {zone.type === "polygon"
+                      ? `${zone.polygonPoints.length} pts`
+                      : `${Math.round(zone.circleRadius)}m`}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => toggleZoneRole(zone.id)}
+                    disabled={isLocked}
+                    className="p-1 text-text-tertiary hover:text-text-primary transition-colors"
+                    title="Toggle inclusion/exclusion"
+                  >
+                    <ToggleLeft size={12} />
+                  </button>
+                  <button
+                    onClick={() => removeZone(zone.id)}
+                    disabled={isLocked}
+                    className="p-1 text-text-tertiary hover:text-status-error transition-colors"
+                    title="Remove zone"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              </div>
+            ))}
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={() =>
+                  addZone({
+                    role: "inclusion",
+                    type: "polygon",
+                    polygonPoints: [],
+                    circleCenter: null,
+                    circleRadius: 100,
+                  })
+                }
+                disabled={isLocked}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 text-xs border transition-colors",
+                  "bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20",
+                  isLocked && "opacity-50 cursor-not-allowed",
+                )}
+              >
+                <Plus size={10} />
+                Inclusion
+              </button>
+              <button
+                onClick={() =>
+                  addZone({
+                    role: "exclusion",
+                    type: "polygon",
+                    polygonPoints: [],
+                    circleCenter: null,
+                    circleRadius: 100,
+                  })
+                }
+                disabled={isLocked}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 text-xs border transition-colors",
+                  "bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20",
+                  isLocked && "opacity-50 cursor-not-allowed",
+                )}
+              >
+                <Plus size={10} />
+                Exclusion
+              </button>
+            </div>
+          </Card>
 
           {/* Breach Action */}
           <Card icon={<Shield size={14} />} title="Breach Action" description="Action taken when fence is breached">
             <Select
-              label={pl("FENCE_ACTION")}
+              label={lbl("FENCE_ACTION")}
               options={FENCE_ACTION_OPTIONS}
               value={String(fenceAction)}
               onChange={(v) => setLocalValue("FENCE_ACTION", Number(v))}
               disabled={isLocked}
             />
           </Card>
+
+          {/* Breach Status */}
+          {breachStatus > 0 && (
+            <Card icon={<Shield size={14} />} title="Breach Active" description="Current fence breach information">
+              <div className="flex items-center gap-3">
+                <span className="w-2.5 h-2.5 rounded-full bg-status-error animate-pulse" />
+                <div>
+                  <p className="text-xs text-status-error font-medium">Breach: {breachLabel}</p>
+                  <p className="text-[10px] text-text-tertiary font-mono">
+                    Total breaches: {breachCount}
+                  </p>
+                </div>
+              </div>
+            </Card>
+          )}
 
           {/* Save / Flash */}
           <div className="flex items-center gap-3 pt-2 pb-4">
@@ -366,7 +533,7 @@ function ParamInput({
   disabled,
   onChange,
 }: {
-  label: string;
+  label: React.ReactNode;
   value: number;
   unit: string;
   min?: number;
@@ -390,6 +557,59 @@ function ParamInput({
           className="w-24 h-7 px-1.5 bg-bg-tertiary border border-border-default text-xs font-mono text-text-primary focus:outline-none focus:border-accent-primary disabled:opacity-50"
         />
         <span className="text-[10px] text-text-tertiary">{unit}</span>
+      </div>
+    </div>
+  );
+}
+
+/** Visual altitude band showing the valid flight altitude range */
+function AltitudeBandViz({ altMin, altMax }: { altMin: number; altMax: number }) {
+  // Clamp for display
+  const displayMax = Math.max(altMax, 10);
+  const displayMin = Math.max(altMin, 0);
+  const range = displayMax - displayMin;
+
+  // Scale: bar height represents 0 to altMax
+  const BAR_HEIGHT = 80;
+  const minPct = displayMax > 0 ? (displayMin / displayMax) * 100 : 0;
+  const bandPct = displayMax > 0 ? (range / displayMax) * 100 : 100;
+
+  return (
+    <div className="flex items-start gap-3 mt-2">
+      {/* Vertical bar */}
+      <div className="relative" style={{ width: 24, height: BAR_HEIGHT }}>
+        {/* Background (danger zone) */}
+        <div
+          className="absolute inset-0 bg-red-500/15 border border-red-500/20"
+          style={{ borderRadius: 2 }}
+        />
+        {/* Valid altitude band (green) */}
+        <div
+          className="absolute left-0 right-0 bg-green-500/25 border-l-2 border-green-500"
+          style={{
+            bottom: `${minPct}%`,
+            height: `${bandPct}%`,
+            borderRadius: 1,
+          }}
+        />
+        {/* Max altitude line */}
+        <div
+          className="absolute left-0 right-0 h-px bg-red-500"
+          style={{ bottom: `${100}%`, transform: "translateY(1px)" }}
+        />
+      </div>
+
+      {/* Labels */}
+      <div className="flex flex-col justify-between" style={{ height: BAR_HEIGHT }}>
+        <div className="text-[10px] font-mono text-red-400">
+          {altMax}m MAX
+        </div>
+        <div className="text-[10px] font-mono text-green-400">
+          Valid: {displayMin}m - {altMax}m
+        </div>
+        <div className="text-[10px] font-mono text-text-tertiary">
+          {altMin > 0 ? `${altMin}m MIN` : "0m GND"}
+        </div>
       </div>
     </div>
   );

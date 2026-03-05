@@ -5,6 +5,7 @@ import { usePanelParams } from "@/hooks/use-panel-params";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useParamLabel } from "@/hooks/use-param-label";
+import { useParamMetadataMap } from "@/hooks/use-param-metadata";
 import { useTelemetryStore } from "@/stores/telemetry-store";
 import { useToast } from "@/components/ui/toast";
 import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
@@ -13,10 +14,16 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Radio, Save, HardDrive, Terminal, Signal } from "lucide-react";
+import { ParamLabel } from "./ParamLabel";
 
 const TELRADIO_PARAMS = [
   "SERIAL1_PROTOCOL", "SERIAL1_BAUD",
   "SERIAL2_PROTOCOL", "SERIAL2_BAUD",
+  "SYSID_THISMAV", "SYSID_MYGCS",
+];
+
+const OPTIONAL_TELRADIO_PARAMS = [
+  "SERIAL1_OPTIONS", "SERIAL2_OPTIONS",
 ];
 
 const SERIAL_PROTOCOL_OPTIONS = [
@@ -67,6 +74,8 @@ export function TelRadioPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const { toast } = useToast();
   const { label: pl } = useParamLabel();
+  const paramMeta = useParamMetadataMap();
+  const lbl = (raw: string) => <ParamLabel label={pl(raw)} metadata={paramMeta} />;
   const [saving, setSaving] = useState(false);
   const [atCommand, setAtCommand] = useState("");
   const [atResponse, setAtResponse] = useState("");
@@ -78,7 +87,7 @@ export function TelRadioPanel() {
     params, loading, error, dirtyParams, hasRamWrites,
     loadProgress, hasLoaded,
     refresh, setLocalValue, saveAllToRam, commitToFlash,
-  } = usePanelParams({ paramNames: TELRADIO_PARAMS, panelId: "telradio" });
+  } = usePanelParams({ paramNames: TELRADIO_PARAMS, optionalParams: OPTIONAL_TELRADIO_PARAMS, panelId: "telradio", autoLoad: true });
   useUnsavedGuard(dirtyParams.size > 0);
 
   const connected = !!getSelectedProtocol();
@@ -134,7 +143,7 @@ export function TelRadioPanel() {
               <div className="space-y-3">
                 <RssiBar label="Local RSSI" value={latestRadio.rssi} pct={localRssiPct} />
                 <RssiBar label="Remote RSSI" value={latestRadio.remrssi} pct={remoteRssiPct} />
-                <div className="grid grid-cols-4 gap-3 mt-2">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-2">
                   <LiveStat label="TX Buffer" value={`${latestRadio.txbuf}`} unit="%" />
                   <LiveStat label="Noise" value={`${latestRadio.noise}`} unit="dBm" />
                   <LiveStat label="RX Errors" value={`${latestRadio.rxerrors}`} unit="" />
@@ -160,13 +169,13 @@ export function TelRadioPanel() {
                 <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">SERIAL1 (TELEM1)</span>
                 <div className="mt-2 space-y-2">
                   <Select
-                    label={pl("SERIAL1_PROTOCOL — Protocol")}
+                    label={lbl("SERIAL1_PROTOCOL — Protocol")}
                     options={SERIAL_PROTOCOL_OPTIONS}
                     value={p("SERIAL1_PROTOCOL", "2")}
                     onChange={(v) => set("SERIAL1_PROTOCOL", v)}
                   />
                   <Select
-                    label={pl("SERIAL1_BAUD — Baud Rate")}
+                    label={lbl("SERIAL1_BAUD — Baud Rate")}
                     options={SERIAL_BAUD_OPTIONS}
                     value={p("SERIAL1_BAUD", "57")}
                     onChange={(v) => set("SERIAL1_BAUD", v)}
@@ -177,13 +186,13 @@ export function TelRadioPanel() {
                 <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">SERIAL2 (TELEM2)</span>
                 <div className="mt-2 space-y-2">
                   <Select
-                    label={pl("SERIAL2_PROTOCOL — Protocol")}
+                    label={lbl("SERIAL2_PROTOCOL — Protocol")}
                     options={SERIAL_PROTOCOL_OPTIONS}
                     value={p("SERIAL2_PROTOCOL", "2")}
                     onChange={(v) => set("SERIAL2_PROTOCOL", v)}
                   />
                   <Select
-                    label={pl("SERIAL2_BAUD — Baud Rate")}
+                    label={lbl("SERIAL2_BAUD — Baud Rate")}
                     options={SERIAL_BAUD_OPTIONS}
                     value={p("SERIAL2_BAUD", "57")}
                     onChange={(v) => set("SERIAL2_BAUD", v)}
@@ -191,6 +200,33 @@ export function TelRadioPanel() {
                 </div>
               </div>
             </div>
+          </Card>
+
+          {/* System ID */}
+          <Card icon={<Radio size={14} />} title="System Identification" description="MAVLink system and GCS IDs for multi-vehicle setups">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Input
+                label={lbl("SYSID_THISMAV — Vehicle System ID")}
+                type="number"
+                step="1"
+                min="1"
+                max="255"
+                value={p("SYSID_THISMAV", "1")}
+                onChange={(e) => set("SYSID_THISMAV", e.target.value)}
+              />
+              <Input
+                label={lbl("SYSID_MYGCS — GCS System ID")}
+                type="number"
+                step="1"
+                min="1"
+                max="255"
+                value={p("SYSID_MYGCS", "255")}
+                onChange={(e) => set("SYSID_MYGCS", e.target.value)}
+              />
+            </div>
+            <p className="text-[10px] text-text-tertiary mt-1">
+              Each vehicle on the same link needs a unique SYSID_THISMAV. Default GCS ID is 255.
+            </p>
           </Card>
 
           {/* AT Commands */}

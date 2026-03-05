@@ -5,6 +5,7 @@ import { usePanelParams } from "@/hooks/use-panel-params";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useParamLabel } from "@/hooks/use-param-label";
+import { useParamMetadataMap } from "@/hooks/use-param-metadata";
 import { useTelemetryStore } from "@/stores/telemetry-store";
 import { useToast } from "@/components/ui/toast";
 import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
@@ -13,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Move3D, Save, HardDrive, Crosshair, RotateCcw, MapPin, Settings2 } from "lucide-react";
+import { ParamLabel } from "./ParamLabel";
 
 const GIMBAL_PARAMS: string[] = [];
 
@@ -21,6 +23,23 @@ const OPTIONAL_GIMBAL_PARAMS = [
   "MNT1_ROLL_MIN", "MNT1_ROLL_MAX",
   "MNT1_YAW_MIN", "MNT1_YAW_MAX",
   "MNT1_RC_RATE", "MNT1_DEFLT_MODE",
+  "MNT1_RC_IN_TILT", "MNT1_RC_IN_ROLL", "MNT1_RC_IN_PAN",
+];
+
+const RC_INPUT_CHANNEL_OPTIONS = [
+  { value: "0", label: "0 — Disabled" },
+  { value: "5", label: "Channel 5" },
+  { value: "6", label: "Channel 6" },
+  { value: "7", label: "Channel 7" },
+  { value: "8", label: "Channel 8" },
+  { value: "9", label: "Channel 9" },
+  { value: "10", label: "Channel 10" },
+  { value: "11", label: "Channel 11" },
+  { value: "12", label: "Channel 12" },
+  { value: "13", label: "Channel 13" },
+  { value: "14", label: "Channel 14" },
+  { value: "15", label: "Channel 15" },
+  { value: "16", label: "Channel 16" },
 ];
 
 const MNT_TYPE_OPTIONS = [
@@ -46,6 +65,8 @@ export function GimbalPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const { toast } = useToast();
   const { label: pl } = useParamLabel();
+  const metadata = useParamMetadataMap();
+  const lbl = (raw: string) => <ParamLabel label={pl(raw)} metadata={metadata} />;
   const [saving, setSaving] = useState(false);
   const [manualPitch, setManualPitch] = useState(0);
   const [manualYaw, setManualYaw] = useState(0);
@@ -138,14 +159,14 @@ export function GimbalPanel() {
           {/* Mount Configuration */}
           <Card icon={<Move3D size={14} />} title="Gimbal Configuration" description="Mount type and default behavior">
             <Select
-              label={pl("MNT1_TYPE — Mount Type")}
+              label={lbl("MNT1_TYPE — Mount Type")}
               options={MNT_TYPE_OPTIONS}
               value={p("MNT1_TYPE")}
               onChange={(v) => set("MNT1_TYPE", v)}
             />
             {mountEnabled && (
               <Select
-                label={pl("MNT1_DEFLT_MODE — Default Mode")}
+                label={lbl("MNT1_DEFLT_MODE — Default Mode")}
                 options={MNT_MODE_OPTIONS}
                 value={p("MNT1_DEFLT_MODE", "3")}
                 onChange={(v) => set("MNT1_DEFLT_MODE", v)}
@@ -159,7 +180,7 @@ export function GimbalPanel() {
               <div className="space-y-4">
                 <div>
                   <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Pitch</span>
-                  <div className="grid grid-cols-2 gap-3 mt-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
                     <Input
                       label="Min"
                       type="number"
@@ -181,7 +202,7 @@ export function GimbalPanel() {
 
                 <div>
                   <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Roll</span>
-                  <div className="grid grid-cols-2 gap-3 mt-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
                     <Input
                       label="Min"
                       type="number"
@@ -203,7 +224,7 @@ export function GimbalPanel() {
 
                 <div>
                   <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Yaw</span>
-                  <div className="grid grid-cols-2 gap-3 mt-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
                     <Input
                       label="Min"
                       type="number"
@@ -224,7 +245,7 @@ export function GimbalPanel() {
                 </div>
 
                 <Input
-                  label={pl("MNT1_RC_RATE — RC Rate")}
+                  label={lbl("MNT1_RC_RATE — RC Rate")}
                   type="number"
                   step="1"
                   min="0"
@@ -236,10 +257,40 @@ export function GimbalPanel() {
             </Card>
           )}
 
+          {/* RC Input Channels */}
+          {mountEnabled && (
+            <Card icon={<Move3D size={14} />} title="RC Input" description="Map RC channels to gimbal axis control">
+              <div className="space-y-3">
+                <Select
+                  label={lbl("MNT1_RC_IN_TILT — Tilt (Pitch) Input Channel")}
+                  options={RC_INPUT_CHANNEL_OPTIONS}
+                  value={p("MNT1_RC_IN_TILT", "0")}
+                  onChange={(v) => set("MNT1_RC_IN_TILT", v)}
+                />
+                <Select
+                  label={lbl("MNT1_RC_IN_ROLL — Roll Input Channel")}
+                  options={RC_INPUT_CHANNEL_OPTIONS}
+                  value={p("MNT1_RC_IN_ROLL", "0")}
+                  onChange={(v) => set("MNT1_RC_IN_ROLL", v)}
+                />
+                <Select
+                  label={lbl("MNT1_RC_IN_PAN — Pan (Yaw) Input Channel")}
+                  options={RC_INPUT_CHANNEL_OPTIONS}
+                  value={p("MNT1_RC_IN_PAN", "0")}
+                  onChange={(v) => set("MNT1_RC_IN_PAN", v)}
+                />
+                <p className="text-[10px] text-text-tertiary">
+                  Assign RC channels (5-16) to control gimbal axes. Set to 0 to disable RC input for an axis.
+                  Requires mount mode set to RC Targeting (mode 3).
+                </p>
+              </div>
+            </Card>
+          )}
+
           {/* Live Gimbal Status */}
           {mountEnabled && latestGimbal && (
             <Card icon={<Crosshair size={14} />} title="Live Status" description="Current gimbal orientation">
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 <LiveStat label="Pitch" value={latestGimbal.pitch.toFixed(1)} unit="°" />
                 <LiveStat label="Roll" value={latestGimbal.roll.toFixed(1)} unit="°" />
                 <LiveStat label="Yaw" value={latestGimbal.yaw.toFixed(1)} unit="°" />
@@ -310,7 +361,7 @@ export function GimbalPanel() {
           {/* Set ROI */}
           {mountEnabled && connected && (
             <Card icon={<MapPin size={14} />} title="Set ROI" description="Point gimbal at a GPS location">
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 <Input
                   label="Latitude"
                   type="number"

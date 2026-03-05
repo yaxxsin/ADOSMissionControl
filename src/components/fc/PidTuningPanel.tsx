@@ -21,6 +21,9 @@ import {
   PLANE_AXES, COPTER_AXES, ACRO_PARAMS, FILTER_PARAMS, COPTER_PRESETS,
 } from "./pid-constants";
 import { useParamLabel } from "@/hooks/use-param-label";
+import { useParamMetadataMap } from "@/hooks/use-param-metadata";
+import { usePanelScroll } from "@/hooks/use-panel-scroll";
+import { ParamTooltip } from "./ParamTooltip";
 import { PidAnalysisSection } from "./PidAnalysisSection";
 
 export function PidTuningPanel() {
@@ -32,6 +35,8 @@ export function PidTuningPanel() {
   // Detect vehicle type from connected drone
   const drone = getSelectedDrone();
   const { paramName: pn } = useParamLabel();
+  const paramMeta = useParamMetadataMap();
+  const scrollRef = usePanelScroll("pid-tuning");
   const detectedVehicle: VehicleType | null = useMemo(() => {
     const vc = drone?.vehicleInfo?.vehicleClass;
     if (vc === "copter") return "copter";
@@ -79,7 +84,7 @@ export function PidTuningPanel() {
     params, loading, error, dirtyParams, hasRamWrites,
     loadProgress, hasLoaded,
     refresh, setLocalValue, saveAllToRam, commitToFlash, revertAll,
-  } = usePanelParams({ paramNames, panelId: "pid" });
+  } = usePanelParams({ paramNames, panelId: "pid", autoLoad: true });
   useUnsavedGuard(dirtyParams.size > 0);
 
   const connected = !!getSelectedProtocol();
@@ -159,7 +164,7 @@ export function PidTuningPanel() {
 
   return (
     <ArmedLockOverlay>
-    <div className="flex-1 overflow-y-auto p-6">
+    <div ref={scrollRef} className="flex-1 overflow-y-auto p-6">
       <div className="max-w-3xl space-y-6">
         <PanelHeader
           title="PID Tuning"
@@ -230,7 +235,7 @@ export function PidTuningPanel() {
                 <div key={pidP.param} className="grid grid-cols-[160px_1fr_80px] items-center gap-3">
                   <div>
                     <span className="text-xs font-mono text-text-secondary">{pidP.label}</span>
-                    <span className="text-[9px] text-text-tertiary block">{pn(pidP.param)}</span>
+                    <ParamTooltip meta={paramMeta.get(pidP.param)}><span className="text-[9px] text-text-tertiary block cursor-default">{pn(pidP.param)}</span></ParamTooltip>
                   </div>
                   <div className="relative">
                     <input
@@ -310,7 +315,7 @@ export function PidTuningPanel() {
                   <div key={fp.param} className="grid grid-cols-[180px_1fr_80px] items-center gap-3">
                     <div>
                       <span className="text-xs font-mono text-text-secondary">{fp.label}</span>
-                      <span className="text-[9px] text-text-tertiary block">{pn(fp.param)}</span>
+                      <ParamTooltip meta={paramMeta.get(fp.param)}><span className="text-[9px] text-text-tertiary block cursor-default">{pn(fp.param)}</span></ParamTooltip>
                     </div>
                     <div className="relative">
                       <input
@@ -462,7 +467,7 @@ export function PidTuningPanel() {
                       const delta = current - before;
                       return (
                         <tr key={name} className="border-b border-border-default/50">
-                          <td className="py-0.5 pr-3 text-text-secondary">{pn(name)}</td>
+                          <td className="py-0.5 pr-3 text-text-secondary"><ParamTooltip meta={paramMeta.get(name)}><span className="cursor-default">{pn(name)}</span></ParamTooltip></td>
                           <td className="py-0.5 px-2 text-right text-text-tertiary">{before.toFixed(4)}</td>
                           <td className="py-0.5 px-2 text-right text-text-primary">{current.toFixed(4)}</td>
                           <td className={cn(

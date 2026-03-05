@@ -7,6 +7,8 @@ export interface MessageLogEntry {
   msgName: string;
   direction: "in" | "out";
   size: number;
+  /** Raw frame bytes for hex inspector (last 50 only) */
+  rawHex?: string;
 }
 
 export type EventType =
@@ -20,7 +22,15 @@ export type EventType =
   | "param_write"
   | "flash_commit"
   | "mission_upload"
-  | "mission_download";
+  | "mission_download"
+  | "reconnect_attempt";
+
+export type ErrorCategory =
+  | "timeout"
+  | "crc_failure"
+  | "transport_error"
+  | "parse_error"
+  | "unknown";
 
 export interface EventTimelineEntry {
   timestamp: number;
@@ -29,15 +39,27 @@ export interface EventTimelineEntry {
 }
 
 export interface ConnectionLogEntry {
-  type: "connect" | "disconnect" | "error";
+  type: "connect" | "disconnect" | "error" | "reconnect_attempt";
   timestamp: number;
   details: string;
+  /** Duration in ms (set on disconnect, computed from matching connect) */
+  durationMs?: number;
+  /** Error classification for error entries */
+  errorCategory?: ErrorCategory;
 }
 
 export interface CalibrationHistoryEntry {
   type: string;
   result: "success" | "failed" | "cancelled";
   timestamp: number;
+  /** Compass offset data from MAG_CAL_REPORT */
+  offsets?: { ofsX: number; ofsY: number; ofsZ: number };
+  /** Calibration fitness value from MAG_CAL_REPORT */
+  fitness?: number;
+  /** Compass ID from MAG_CAL_REPORT */
+  compassId?: number;
+  /** Pre-calibration offsets for before/after comparison */
+  preCalOffsets?: { ofsX: number; ofsY: number; ofsZ: number };
 }
 
 export interface MessageRateEntry {
@@ -47,6 +69,31 @@ export interface MessageRateEntry {
   hz: number;
 }
 
+/** Command queue snapshot for display */
+export interface CommandQueueSnapshot {
+  pendingCount: number;
+  entries: { command: number; commandName: string; timestamp: number }[];
+  totalSent: number;
+  totalSuccess: number;
+  totalFailed: number;
+}
+
+/** Ring buffer utilization info */
+export interface RingBufferInfo {
+  name: string;
+  capacity: number;
+  length: number;
+  fillPct: number;
+}
+
+/** Performance metrics from browser performance API */
+export interface PerformanceMetrics {
+  parseRateHz: number;
+  avgCallbackLatencyMs: number;
+  frameProcessingTimeMs: number;
+  lastUpdated: number;
+}
+
 interface DiagnosticsStoreState {
   messageLog: RingBuffer<MessageLogEntry>;
   eventTimeline: RingBuffer<EventTimelineEntry>;
@@ -54,15 +101,45 @@ interface DiagnosticsStoreState {
   calibrationHistory: CalibrationHistoryEntry[];
   messageRates: Map<number, MessageRateEntry>;
 
-  logMessage: (msgId: number, msgName: string, direction: "in" | "out", size: number) => void;
+  /** Timestamp of most recent connect event, used to compute duration on disconnect */
+  _lastConnectTimestamp: number | null;
+
+  /** Command queue status snapshot */
+  commandQueueSnapshot: CommandQueueSnapshot;
+
+  /** Ring buffer utilization snapshots */
+  ringBufferInfo: RingBufferInfo[];
+
+  /** Performance metrics */
+  performanceMetrics: PerformanceMetrics;
+
+  /** Tracking arrays for perf calculation */
+  _parseTimestamps: number[];
+  _callbackLatencies: number[];
+  _frameProcessingTimes: number[];
+
+  logMessage: (msgId: number, msgName: string, direction: "in" | "out", size: number, rawHex?: string) => void;
   logEvent: (type: EventType, description: string) => void;
-  logConnection: (type: "connect" | "disconnect" | "error", details: string) => void;
-  logCalibration: (type: string, result: "success" | "failed" | "cancelled") => void;
+  logConnection: (type: "connect" | "disconnect" | "error" | "reconnect_attempt", details: string, errorCategory?: ErrorCategory) => void;
+  logCalibration: (type: string, result: "success" | "failed" | "cancelled", extra?: {
+    offsets?: { ofsX: number; ofsY: number; ofsZ: number };
+    fitness?: number;
+    compassId?: number;
+    preCalOffsets?: { ofsX: number; ofsY: number; ofsZ: number };
+  }) => void;
   updateRates: () => void;
+  updateCommandQueueSnapshot: (snapshot: CommandQueueSnapshot) => void;
+  updateRingBufferInfo: (info: RingBufferInfo[]) => void;
+  recordParseEvent: () => void;
+  recordCallbackLatency: (latencyMs: number) => void;
+  recordFrameProcessingTime: (timeMs: number) => void;
+  updatePerformanceMetrics: () => void;
   clear: () => void;
 }
 
 const RATE_WINDOW_MS = 5000;
+const PERF_WINDOW_MS = 5000;
+const MAX_PERF_SAMPLES = 500;
 
 export const useDiagnosticsStore = create<DiagnosticsStoreState>((set, get) => ({
   messageLog: new RingBuffer<MessageLogEntry>(2000),
@@ -70,8 +147,15 @@ export const useDiagnosticsStore = create<DiagnosticsStoreState>((set, get) => (
   connectionLog: [],
   calibrationHistory: [],
   messageRates: new Map(),
+  _lastConnectTimestamp: null,
+  commandQueueSnapshot: { pendingCount: 0, entries: [], totalSent: 0, totalSuccess: 0, totalFailed: 0 },
+  ringBufferInfo: [],
+  performanceMetrics: { parseRateHz: 0, avgCallbackLatencyMs: 0, frameProcessingTimeMs: 0, lastUpdated: 0 },
+  _parseTimestamps: [],
+  _callbackLatencies: [],
+  _frameProcessingTimes: [],
 
-  logMessage: (msgId, msgName, direction, size) => {
+  logMessage: (msgId, msgName, direction, size, rawHex) => {
     const now = Date.now();
     get().messageLog.push({
       timestamp: now,
@@ -79,6 +163,7 @@ export const useDiagnosticsStore = create<DiagnosticsStoreState>((set, get) => (
       msgName,
       direction,
       size,
+      rawHex,
     });
 
     // Track timestamps per message type for rate calculation
@@ -102,15 +187,47 @@ export const useDiagnosticsStore = create<DiagnosticsStoreState>((set, get) => (
     set({});
   },
 
-  logConnection: (type, details) => {
+  logConnection: (type, details, errorCategory) => {
+    const now = Date.now();
     const log = get().connectionLog;
-    log.push({ type, timestamp: Date.now(), details });
+
+    if (type === "connect") {
+      // Store connect timestamp for duration tracking
+      log.push({ type, timestamp: now, details });
+      set({ connectionLog: [...log], _lastConnectTimestamp: now });
+      return;
+    }
+
+    if (type === "disconnect") {
+      const connectTs = get()._lastConnectTimestamp;
+      const durationMs = connectTs ? now - connectTs : undefined;
+      log.push({ type, timestamp: now, details, durationMs });
+      set({ connectionLog: [...log], _lastConnectTimestamp: null });
+      return;
+    }
+
+    if (type === "error") {
+      log.push({ type, timestamp: now, details, errorCategory: errorCategory ?? "unknown" });
+      set({ connectionLog: [...log] });
+      return;
+    }
+
+    // reconnect_attempt
+    log.push({ type, timestamp: now, details });
     set({ connectionLog: [...log] });
   },
 
-  logCalibration: (type, result) => {
+  logCalibration: (type, result, extra) => {
     const history = get().calibrationHistory;
-    history.push({ type, result, timestamp: Date.now() });
+    history.push({
+      type,
+      result,
+      timestamp: Date.now(),
+      offsets: extra?.offsets,
+      fitness: extra?.fitness,
+      compassId: extra?.compassId,
+      preCalOffsets: extra?.preCalOffsets,
+    });
     set({ calibrationHistory: [...history] });
   },
 
@@ -126,6 +243,62 @@ export const useDiagnosticsStore = create<DiagnosticsStoreState>((set, get) => (
     set({ messageRates: new Map(rates) });
   },
 
+  updateCommandQueueSnapshot: (snapshot) => {
+    set({ commandQueueSnapshot: snapshot });
+  },
+
+  updateRingBufferInfo: (info) => {
+    set({ ringBufferInfo: info });
+  },
+
+  recordParseEvent: () => {
+    const ts = get()._parseTimestamps;
+    ts.push(performance.now());
+    if (ts.length > MAX_PERF_SAMPLES) ts.splice(0, ts.length - MAX_PERF_SAMPLES);
+  },
+
+  recordCallbackLatency: (latencyMs) => {
+    const arr = get()._callbackLatencies;
+    arr.push(latencyMs);
+    if (arr.length > MAX_PERF_SAMPLES) arr.splice(0, arr.length - MAX_PERF_SAMPLES);
+  },
+
+  recordFrameProcessingTime: (timeMs) => {
+    const arr = get()._frameProcessingTimes;
+    arr.push(timeMs);
+    if (arr.length > MAX_PERF_SAMPLES) arr.splice(0, arr.length - MAX_PERF_SAMPLES);
+  },
+
+  updatePerformanceMetrics: () => {
+    const now = performance.now();
+    const cutoff = now - PERF_WINDOW_MS;
+
+    const ts = get()._parseTimestamps;
+    const recentParses = ts.filter((t) => t > cutoff);
+    const parseRateHz = recentParses.length / (PERF_WINDOW_MS / 1000);
+
+    const latencies = get()._callbackLatencies;
+    const recentLatencies = latencies.slice(-100);
+    const avgCallbackLatencyMs = recentLatencies.length > 0
+      ? recentLatencies.reduce((a, b) => a + b, 0) / recentLatencies.length
+      : 0;
+
+    const frameTimes = get()._frameProcessingTimes;
+    const recentFrameTimes = frameTimes.slice(-100);
+    const frameProcessingTimeMs = recentFrameTimes.length > 0
+      ? recentFrameTimes.reduce((a, b) => a + b, 0) / recentFrameTimes.length
+      : 0;
+
+    set({
+      performanceMetrics: {
+        parseRateHz,
+        avgCallbackLatencyMs,
+        frameProcessingTimeMs,
+        lastUpdated: Date.now(),
+      },
+    });
+  },
+
   clear: () =>
     set({
       messageLog: new RingBuffer<MessageLogEntry>(2000),
@@ -133,5 +306,12 @@ export const useDiagnosticsStore = create<DiagnosticsStoreState>((set, get) => (
       connectionLog: [],
       calibrationHistory: [],
       messageRates: new Map(),
+      _lastConnectTimestamp: null,
+      commandQueueSnapshot: { pendingCount: 0, entries: [], totalSent: 0, totalSuccess: 0, totalFailed: 0 },
+      ringBufferInfo: [],
+      performanceMetrics: { parseRateHz: 0, avgCallbackLatencyMs: 0, frameProcessingTimeMs: 0, lastUpdated: 0 },
+      _parseTimestamps: [],
+      _callbackLatencies: [],
+      _frameProcessingTimes: [],
     }),
 }));

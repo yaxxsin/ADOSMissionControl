@@ -403,7 +403,7 @@ export function FlightModesPanel() {
 
         <Card title="Mode Switch Channel">
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <Select
                 label="RC channel for flight mode switch"
                 value={globalConfig.modeChannel}

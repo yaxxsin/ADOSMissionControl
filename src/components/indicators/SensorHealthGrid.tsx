@@ -1,10 +1,11 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import { useSensorHealthStore } from "@/stores/sensor-health-store";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/ui/tooltip";
 import {
-  Check, X, AlertTriangle, Minus,
+  Check, X, AlertTriangle, Minus, ChevronDown,
 } from "lucide-react";
 
 const STATUS_CONFIG = {
@@ -17,6 +18,7 @@ const STATUS_CONFIG = {
 /**
  * 32-sensor status grid decoded from MAV_SYS_STATUS_SENSOR bitmask.
  * Shows only present sensors by default, expandable to show all.
+ * Clicking a sensor row expands detailed telemetry info.
  */
 export function SensorHealthGrid({
   showAll = false,
@@ -30,6 +32,17 @@ export function SensorHealthGrid({
   const sensors = useSensorHealthStore((s) => s.sensors);
   const healthyCount = useSensorHealthStore((s) => s.getHealthySensorCount());
   const totalPresent = useSensorHealthStore((s) => s.getTotalPresentCount());
+  const lastUpdate = useSensorHealthStore((s) => s.lastUpdate);
+  const [expandedBits, setExpandedBits] = useState<Set<number>>(new Set());
+
+  const toggleExpand = useCallback((bit: number) => {
+    setExpandedBits((prev) => {
+      const next = new Set(prev);
+      if (next.has(bit)) next.delete(bit);
+      else next.add(bit);
+      return next;
+    });
+  }, []);
 
   const displayed = showAll ? sensors : sensors.filter((s) => s.present);
 
@@ -66,16 +79,58 @@ export function SensorHealthGrid({
       {displayed.map((sensor) => {
         const cfg = STATUS_CONFIG[sensor.status];
         const Icon = cfg.Icon;
+        const isExpanded = expandedBits.has(sensor.bit);
         return (
-          <Tooltip key={sensor.bit} content={`${sensor.label}: ${sensor.status}${sensor.enabled ? "" : " (disabled)"}`}>
-            <div className={cn(
-              "flex items-center gap-1 px-1.5 py-1 rounded text-[10px]",
-              cfg.bg,
-            )}>
+          <div key={sensor.bit} className={cn(isExpanded && "col-span-4")}>
+            <button
+              onClick={() => toggleExpand(sensor.bit)}
+              className={cn(
+                "flex items-center gap-1 px-1.5 py-1 rounded text-[10px] w-full text-left cursor-pointer",
+                cfg.bg,
+                "hover:brightness-125 transition-all",
+              )}
+            >
               <Icon size={10} className={cfg.color} />
-              <span className={cn("truncate", cfg.color)}>{sensor.label}</span>
-            </div>
-          </Tooltip>
+              <span className={cn("truncate flex-1", cfg.color)}>{sensor.label}</span>
+              <ChevronDown
+                size={8}
+                className={cn(
+                  "text-text-tertiary transition-transform duration-200",
+                  isExpanded && "rotate-180",
+                )}
+              />
+            </button>
+            {isExpanded && (
+              <div className="px-2 py-1.5 mt-0.5 rounded bg-bg-tertiary/30 border border-border-default/30 text-[9px] font-mono text-text-secondary space-y-0.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="flex justify-between">
+                  <span className="text-text-tertiary">Status</span>
+                  <span className={cfg.color}>{sensor.status}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-tertiary">Present</span>
+                  <span>{sensor.present ? "Yes" : "No"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-tertiary">Enabled</span>
+                  <span>{sensor.enabled ? "Yes" : "No"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-tertiary">Healthy</span>
+                  <span>{sensor.healthy ? "Yes" : "No"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-tertiary">Bit</span>
+                  <span>{sensor.bit} (0x{(1 << sensor.bit).toString(16).toUpperCase()})</span>
+                </div>
+                {lastUpdate > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-text-tertiary">Last Update</span>
+                    <span>{new Date(lastUpdate).toLocaleTimeString()}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         );
       })}
     </div>

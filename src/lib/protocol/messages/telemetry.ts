@@ -481,3 +481,189 @@ export function decodeLocalPositionNed(dv: DataView): LocalPositionNedMsg {
     vz: dv.getFloat32(24, true),
   };
 }
+
+// ── RAW_IMU (ID 27) ──────────────────────────────────────────
+
+export interface RawImuMsg {
+  timeUsec: number;
+  xacc: number;
+  yacc: number;
+  zacc: number;
+  xgyro: number;
+  ygyro: number;
+  zgyro: number;
+  xmag: number;
+  ymag: number;
+  zmag: number;
+}
+
+/**
+ * Decode RAW_IMU (msg ID 27).
+ *
+ * Wire order (uint64 → int16):
+ * | Offset | Type   | Field      |
+ * |--------|--------|------------|
+ * | 0      | uint64 | timeUsec   |
+ * | 8      | int16  | xacc       |
+ * | 10     | int16  | yacc       |
+ * | 12     | int16  | zacc       |
+ * | 14     | int16  | xgyro      |
+ * | 16     | int16  | ygyro      |
+ * | 18     | int16  | zgyro      |
+ * | 20     | int16  | xmag       |
+ * | 22     | int16  | ymag       |
+ * | 24     | int16  | zmag       |
+ */
+export function decodeRawImu(dv: DataView): RawImuMsg {
+  const low = dv.getUint32(0, true);
+  const high = dv.getUint32(4, true);
+  return {
+    timeUsec: high * 0x100000000 + low,
+    xacc: dv.getInt16(8, true),
+    yacc: dv.getInt16(10, true),
+    zacc: dv.getInt16(12, true),
+    xgyro: dv.getInt16(14, true),
+    ygyro: dv.getInt16(16, true),
+    zgyro: dv.getInt16(18, true),
+    xmag: dv.getInt16(20, true),
+    ymag: dv.getInt16(22, true),
+    zmag: dv.getInt16(24, true),
+  };
+}
+
+// ── RC_CHANNELS_RAW (ID 35) ──────────────────────────────────
+
+export interface RcChannelsRawMsg {
+  timeBootMs: number;
+  chan1Raw: number;
+  chan2Raw: number;
+  chan3Raw: number;
+  chan4Raw: number;
+  chan5Raw: number;
+  chan6Raw: number;
+  chan7Raw: number;
+  chan8Raw: number;
+  port: number;
+  rssi: number;
+}
+
+/**
+ * Decode RC_CHANNELS_RAW (msg ID 35).
+ *
+ * Wire order (uint32 → uint16 → uint8):
+ * | Offset | Type   | Field      |
+ * |--------|--------|------------|
+ * | 0      | uint32 | timeBootMs |
+ * | 4      | uint16 | chan1_raw  |
+ * | 6      | uint16 | chan2_raw  |
+ * | 8      | uint16 | chan3_raw  |
+ * | 10     | uint16 | chan4_raw  |
+ * | 12     | uint16 | chan5_raw  |
+ * | 14     | uint16 | chan6_raw  |
+ * | 16     | uint16 | chan7_raw  |
+ * | 18     | uint16 | chan8_raw  |
+ * | 20     | uint8  | port       |
+ * | 21     | uint8  | rssi       |
+ */
+export function decodeRcChannelsRaw(dv: DataView): RcChannelsRawMsg {
+  return {
+    timeBootMs: dv.getUint32(0, true),
+    chan1Raw: dv.getUint16(4, true),
+    chan2Raw: dv.getUint16(6, true),
+    chan3Raw: dv.getUint16(8, true),
+    chan4Raw: dv.getUint16(10, true),
+    chan5Raw: dv.getUint16(12, true),
+    chan6Raw: dv.getUint16(14, true),
+    chan7Raw: dv.getUint16(16, true),
+    chan8Raw: dv.getUint16(18, true),
+    port: dv.getUint8(20),
+    rssi: dv.getUint8(21),
+  };
+}
+
+// ── RC_CHANNELS_OVERRIDE (ID 70) — decoder ───────────────────
+
+export interface RcChannelsOverrideMsg {
+  chan1Raw: number;
+  chan2Raw: number;
+  chan3Raw: number;
+  chan4Raw: number;
+  chan5Raw: number;
+  chan6Raw: number;
+  chan7Raw: number;
+  chan8Raw: number;
+  targetSystem: number;
+  targetComponent: number;
+}
+
+/**
+ * Decode RC_CHANNELS_OVERRIDE (msg ID 70).
+ *
+ * Wire order (uint16 → uint8):
+ * | Offset | Type   | Field           |
+ * |--------|--------|-----------------|
+ * | 0      | uint16 | chan1_raw       |
+ * | 2      | uint16 | chan2_raw       |
+ * | 4      | uint16 | chan3_raw       |
+ * | 6      | uint16 | chan4_raw       |
+ * | 8      | uint16 | chan5_raw       |
+ * | 10     | uint16 | chan6_raw       |
+ * | 12     | uint16 | chan7_raw       |
+ * | 14     | uint16 | chan8_raw       |
+ * | 16     | uint8  | targetSystem    |
+ * | 17     | uint8  | targetComponent |
+ */
+export function decodeRcChannelsOverride(dv: DataView): RcChannelsOverrideMsg {
+  return {
+    chan1Raw: dv.getUint16(0, true),
+    chan2Raw: dv.getUint16(2, true),
+    chan3Raw: dv.getUint16(4, true),
+    chan4Raw: dv.getUint16(6, true),
+    chan5Raw: dv.getUint16(8, true),
+    chan6Raw: dv.getUint16(10, true),
+    chan7Raw: dv.getUint16(12, true),
+    chan8Raw: dv.getUint16(14, true),
+    targetSystem: dv.getUint8(16),
+    targetComponent: dv.getUint8(17),
+  };
+}
+
+// ── ALTITUDE (ID 141) ────────────────────────────────────────
+
+export interface AltitudeMsg {
+  timeUsec: number;
+  altitudeMonotonic: number;
+  altitudeAmsl: number;
+  altitudeLocal: number;
+  altitudeRelative: number;
+  altitudeTerrain: number;
+  bottomClearance: number;
+}
+
+/**
+ * Decode ALTITUDE (msg ID 141).
+ *
+ * Wire order (uint64 → float32):
+ * | Offset | Type    | Field             |
+ * |--------|---------|-------------------|
+ * | 0      | uint64  | timeUsec          |
+ * | 8      | float32 | altitudeMonotonic |
+ * | 12     | float32 | altitudeAmsl      |
+ * | 16     | float32 | altitudeLocal     |
+ * | 20     | float32 | altitudeRelative  |
+ * | 24     | float32 | altitudeTerrain   |
+ * | 28     | float32 | bottomClearance   |
+ */
+export function decodeAltitude(dv: DataView): AltitudeMsg {
+  const low = dv.getUint32(0, true);
+  const high = dv.getUint32(4, true);
+  return {
+    timeUsec: high * 0x100000000 + low,
+    altitudeMonotonic: dv.getFloat32(8, true),
+    altitudeAmsl: dv.getFloat32(12, true),
+    altitudeLocal: dv.getFloat32(16, true),
+    altitudeRelative: dv.getFloat32(20, true),
+    altitudeTerrain: dv.getFloat32(24, true),
+    bottomClearance: dv.getFloat32(28, true),
+  };
+}

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTelemetryStore } from "@/stores/telemetry-store";
 import { useDroneStore } from "@/stores/drone-store";
 import { mpsToKph, normalizeHeading } from "@/lib/telemetry-utils";
 import { MODE_DESCRIPTIONS } from "@/components/fc/flight-mode-constants";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/ui/toast";
 import type { UnifiedFlightMode } from "@/lib/protocol/types";
 
 function gpsFixLabel(fixType: number): string {
@@ -93,7 +94,21 @@ export function TelemetryReadout() {
 
 function ModeLabel({ mode }: { mode: string }) {
   const [show, setShow] = useState(false);
+  const [highlight, setHighlight] = useState(false);
+  const prevModeRef = useRef(mode);
+  const { toast } = useToast();
   const desc = MODE_DESCRIPTIONS[mode as UnifiedFlightMode];
+
+  useEffect(() => {
+    if (prevModeRef.current !== mode && prevModeRef.current !== "") {
+      setHighlight(true);
+      toast(`Mode changed: ${prevModeRef.current} -> ${mode}`, "info");
+      const timer = setTimeout(() => setHighlight(false), 1500);
+      prevModeRef.current = mode;
+      return () => clearTimeout(timer);
+    }
+    prevModeRef.current = mode;
+  }, [mode, toast]);
 
   return (
     <div
@@ -101,7 +116,18 @@ function ModeLabel({ mode }: { mode: string }) {
       onMouseEnter={() => setShow(true)}
       onMouseLeave={() => setShow(false)}
     >
-      <span className="text-text-secondary font-semibold uppercase cursor-default">{mode}</span>
+      <span
+        className={cn(
+          "font-semibold uppercase cursor-default transition-colors duration-300",
+          highlight ? "text-status-success" : "text-text-secondary",
+        )}
+        style={highlight ? {
+          animation: "mode-pulse 1.5s ease-out",
+          textShadow: "0 0 8px rgba(34, 197, 94, 0.6)",
+        } : undefined}
+      >
+        {mode}
+      </span>
       {show && desc && (
         <div className="absolute right-0 bottom-full mb-1 z-50 bg-bg-tertiary border border-border-default px-2 py-1.5 text-[10px] text-text-secondary whitespace-nowrap">
           {desc}

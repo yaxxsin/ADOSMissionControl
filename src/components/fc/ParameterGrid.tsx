@@ -158,6 +158,7 @@ export function ParameterGrid({ parameters, modified, onModify, filter, showModi
             <th className="w-6 px-1" />
             {vis.index && <th className="px-3 py-2 text-left font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">#</th>}
             {vis.name && <th className="px-3 py-2 text-left font-semibold text-text-secondary uppercase tracking-wider">Name</th>}
+            {vis.description && <th className="px-3 py-2 text-left font-semibold text-text-secondary uppercase tracking-wider">Description</th>}
             {vis.value && <th className="px-3 py-2 text-left font-semibold text-text-secondary uppercase tracking-wider">Value</th>}
             {vis.range && <th className="px-3 py-2 text-left font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Range</th>}
             {vis.units && <th className="px-3 py-2 text-left font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Units</th>}
@@ -187,7 +188,9 @@ export function ParameterGrid({ parameters, modified, onModify, filter, showModi
                   "border-b border-border-default h-8 transition-colors",
                   isModified
                     ? "bg-status-warning/5"
-                    : isPendingRam && "bg-orange-500/8"
+                    : isPendingRam
+                      ? "bg-orange-500/8"
+                      : differsFromDefault && "border-l-2 border-l-accent-primary bg-accent-primary/5"
                 )}
               >
                 {/* Favorite star */}
@@ -204,7 +207,7 @@ export function ParameterGrid({ parameters, modified, onModify, filter, showModi
                 </td>
                 {vis.index && <td className="px-3 text-text-tertiary font-mono">{param.index}</td>}
                 {vis.name && (
-                  <td className="px-3 font-mono text-text-primary">
+                  <td className={cn("px-3 font-mono", differsFromDefault && !isModified ? "text-accent-primary" : "text-text-primary")}>
                     <div className="flex items-center gap-1">
                       <ParamTooltip meta={meta}>
                         <span className="cursor-default">{param.name}</span>
@@ -213,6 +216,11 @@ export function ParameterGrid({ parameters, modified, onModify, filter, showModi
                         <Lock size={10} className="text-text-tertiary flex-shrink-0" />
                       )}
                     </div>
+                  </td>
+                )}
+                {vis.description && (
+                  <td className="px-3 text-text-secondary max-w-[200px] truncate" title={meta?.description}>
+                    {meta?.humanName || meta?.description || "—"}
                   </td>
                 )}
                 {vis.value && (

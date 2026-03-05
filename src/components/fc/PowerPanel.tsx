@@ -9,12 +9,15 @@ import { useDroneManager } from "@/stores/drone-manager";
 import { useTelemetryStore } from "@/stores/telemetry-store";
 import { usePanelParams } from "@/hooks/use-panel-params";
 import { useParamLabel } from "@/hooks/use-param-label";
+import { useParamMetadataMap } from "@/hooks/use-param-metadata";
+import { usePanelScroll } from "@/hooks/use-panel-scroll";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { PanelHeader } from "./PanelHeader";
 import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
 import { Battery, Zap, ShieldAlert, Save, HardDrive, Thermometer, Clock, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StarredParam } from "./ParamStar";
+import { ParamLabel } from "./ParamLabel";
 
 const BATT_MONITOR_OPTIONS = [
   { value: "0", label: "0 — Disabled" },
@@ -65,6 +68,9 @@ export function PowerPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const { toast } = useToast();
   const { label: pl } = useParamLabel();
+  const metadata = useParamMetadataMap();
+  const lbl = (raw: string) => <ParamLabel label={pl(raw)} metadata={metadata} />;
+  const scrollRef = usePanelScroll("power");
   const batteryBuffer = useTelemetryStore((s) => s.battery);
   const [saving, setSaving] = useState(false);
 
@@ -72,7 +78,7 @@ export function PowerPanel() {
     params, loading, error, dirtyParams, hasRamWrites,
     loadProgress, hasLoaded,
     refresh, setLocalValue, saveAllToRam, commitToFlash,
-  } = usePanelParams({ paramNames: POWER_PARAMS, optionalParams: OPTIONAL_POWER_PARAMS, panelId: "power" });
+  } = usePanelParams({ paramNames: POWER_PARAMS, optionalParams: OPTIONAL_POWER_PARAMS, panelId: "power", autoLoad: true });
   useUnsavedGuard(dirtyParams.size > 0);
 
   const connected = !!getSelectedProtocol();
@@ -154,7 +160,7 @@ export function PowerPanel() {
 
   return (
     <ArmedLockOverlay>
-    <div className="flex-1 overflow-y-auto p-6">
+    <div ref={scrollRef} className="flex-1 overflow-y-auto p-6">
       <div className="max-w-2xl space-y-6">
         <PanelHeader
           title="Power / Battery"
@@ -180,7 +186,7 @@ export function PowerPanel() {
             )}
           </div>
 
-          <div className="grid grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
             <LiveStat label="Voltage" value={voltage.toFixed(2)} unit="V" />
             <LiveStat label="Current" value={current.toFixed(1)} unit="A" />
             <LiveStat label="Remaining" value={`${Math.round(remaining)}`} unit="%" />
@@ -263,7 +269,7 @@ export function PowerPanel() {
           </div>
           <StarredParam param="BATT_MONITOR">
             <Select
-              label={pl("BATT_MONITOR — Battery Monitor Type")}
+              label={lbl("BATT_MONITOR — Battery Monitor Type")}
               options={BATT_MONITOR_OPTIONS}
               value={p("BATT_MONITOR")}
               onChange={(v) => set("BATT_MONITOR", v)}
@@ -271,7 +277,7 @@ export function PowerPanel() {
           </StarredParam>
           <StarredParam param="BATT_CAPACITY">
             <Input
-              label={pl("BATT_CAPACITY — Battery Capacity")}
+              label={lbl("BATT_CAPACITY — Battery Capacity")}
               type="number"
               step="100"
               min="0"
@@ -290,7 +296,7 @@ export function PowerPanel() {
           </div>
           <StarredParam param="BATT_AMP_PERVLT">
             <Input
-              label={pl("BATT_AMP_PERVLT — Amps Per Volt")}
+              label={lbl("BATT_AMP_PERVLT — Amps Per Volt")}
               type="number"
               step="0.1"
               unit="A/V"
@@ -300,7 +306,7 @@ export function PowerPanel() {
           </StarredParam>
           <StarredParam param="BATT_AMP_OFFSET">
             <Input
-              label={pl("BATT_AMP_OFFSET — Current Offset")}
+              label={lbl("BATT_AMP_OFFSET — Current Offset")}
               type="number"
               step="0.01"
               unit="A"
@@ -316,9 +322,9 @@ export function PowerPanel() {
             <ShieldAlert size={14} className="text-accent-primary" />
             <h2 className="text-sm font-medium text-text-primary">Battery 1 Failsafe</h2>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Input
-              label={pl("BATT_FS_LOW_VOLT — Low Voltage")}
+              label={lbl("BATT_FS_LOW_VOLT — Low Voltage")}
               type="number"
               step="0.1"
               min="0"
@@ -327,13 +333,13 @@ export function PowerPanel() {
               onChange={(e) => set("BATT_FS_LOW_VOLT", e.target.value)}
             />
             <Select
-              label={pl("BATT_FS_LOW_ACT — Low Action")}
+              label={lbl("BATT_FS_LOW_ACT — Low Action")}
               options={BATT_FS_ACTION_OPTIONS}
               value={p("BATT_FS_LOW_ACT")}
               onChange={(v) => set("BATT_FS_LOW_ACT", v)}
             />
             <Input
-              label={pl("BATT_FS_CRT_VOLT — Critical Voltage")}
+              label={lbl("BATT_FS_CRT_VOLT — Critical Voltage")}
               type="number"
               step="0.1"
               min="0"
@@ -342,13 +348,13 @@ export function PowerPanel() {
               onChange={(e) => set("BATT_FS_CRT_VOLT", e.target.value)}
             />
             <Select
-              label={pl("BATT_FS_CRT_ACT — Critical Action")}
+              label={lbl("BATT_FS_CRT_ACT — Critical Action")}
               options={BATT_FS_ACTION_OPTIONS}
               value={p("BATT_FS_CRT_ACT")}
               onChange={(v) => set("BATT_FS_CRT_ACT", v)}
             />
             <Input
-              label={pl("BATT_FS_LOW_MAH — Low mAh Remaining")}
+              label={lbl("BATT_FS_LOW_MAH — Low mAh Remaining")}
               type="number"
               step="50"
               min="0"
@@ -357,7 +363,7 @@ export function PowerPanel() {
               onChange={(e) => set("BATT_FS_LOW_MAH", e.target.value)}
             />
             <Input
-              label={pl("BATT_FS_CRT_MAH — Critical mAh Remaining")}
+              label={lbl("BATT_FS_CRT_MAH — Critical mAh Remaining")}
               type="number"
               step="50"
               min="0"
@@ -377,13 +383,13 @@ export function PowerPanel() {
                 <h2 className="text-sm font-medium text-text-primary">Battery 2 Settings</h2>
               </div>
               <Select
-                label={pl("BATT2_MONITOR — Battery 2 Monitor Type")}
+                label={lbl("BATT2_MONITOR — Battery 2 Monitor Type")}
                 options={BATT_MONITOR_OPTIONS}
                 value={p("BATT2_MONITOR")}
                 onChange={(v) => set("BATT2_MONITOR", v)}
               />
               <Input
-                label={pl("BATT2_CAPACITY — Battery 2 Capacity")}
+                label={lbl("BATT2_CAPACITY — Battery 2 Capacity")}
                 type="number"
                 step="100"
                 min="0"
@@ -392,7 +398,7 @@ export function PowerPanel() {
                 onChange={(e) => set("BATT2_CAPACITY", e.target.value)}
               />
               <Input
-                label={pl("BATT2_AMP_PERVLT — Battery 2 Amps Per Volt")}
+                label={lbl("BATT2_AMP_PERVLT — Battery 2 Amps Per Volt")}
                 type="number"
                 step="0.1"
                 unit="A/V"
@@ -400,7 +406,7 @@ export function PowerPanel() {
                 onChange={(e) => set("BATT2_AMP_PERVLT", e.target.value)}
               />
               <Input
-                label={pl("BATT2_AMP_OFFSET — Battery 2 Current Offset")}
+                label={lbl("BATT2_AMP_OFFSET — Battery 2 Current Offset")}
                 type="number"
                 step="0.01"
                 unit="A"
@@ -415,9 +421,9 @@ export function PowerPanel() {
                 <ShieldAlert size={14} className="text-accent-primary" />
                 <h2 className="text-sm font-medium text-text-primary">Battery 2 Failsafe</h2>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <Input
-                  label={pl("BATT2_FS_LOW_VOLT — Low Voltage")}
+                  label={lbl("BATT2_FS_LOW_VOLT — Low Voltage")}
                   type="number"
                   step="0.1"
                   min="0"
@@ -426,13 +432,13 @@ export function PowerPanel() {
                   onChange={(e) => set("BATT2_FS_LOW_VOLT", e.target.value)}
                 />
                 <Select
-                  label={pl("BATT2_FS_LOW_ACT — Low Action")}
+                  label={lbl("BATT2_FS_LOW_ACT — Low Action")}
                   options={BATT_FS_ACTION_OPTIONS}
                   value={p("BATT2_FS_LOW_ACT")}
                   onChange={(v) => set("BATT2_FS_LOW_ACT", v)}
                 />
                 <Input
-                  label={pl("BATT2_FS_CRT_VOLT — Critical Voltage")}
+                  label={lbl("BATT2_FS_CRT_VOLT — Critical Voltage")}
                   type="number"
                   step="0.1"
                   min="0"
@@ -441,13 +447,13 @@ export function PowerPanel() {
                   onChange={(e) => set("BATT2_FS_CRT_VOLT", e.target.value)}
                 />
                 <Select
-                  label={pl("BATT2_FS_CRT_ACT — Critical Action")}
+                  label={lbl("BATT2_FS_CRT_ACT — Critical Action")}
                   options={BATT_FS_ACTION_OPTIONS}
                   value={p("BATT2_FS_CRT_ACT")}
                   onChange={(v) => set("BATT2_FS_CRT_ACT", v)}
                 />
                 <Input
-                  label={pl("BATT2_FS_LOW_MAH — Low mAh Remaining")}
+                  label={lbl("BATT2_FS_LOW_MAH — Low mAh Remaining")}
                   type="number"
                   step="50"
                   min="0"
@@ -456,7 +462,7 @@ export function PowerPanel() {
                   onChange={(e) => set("BATT2_FS_LOW_MAH", e.target.value)}
                 />
                 <Input
-                  label={pl("BATT2_FS_CRT_MAH — Critical mAh Remaining")}
+                  label={lbl("BATT2_FS_CRT_MAH — Critical mAh Remaining")}
                   type="number"
                   step="50"
                   min="0"

@@ -25,8 +25,34 @@ const CHANNEL_OPTIONS = Array.from({ length: RC_CHANNEL_COUNT }, (_, i) => ({
   label: `Channel ${i + 1}`,
 }));
 
+const RC_PROTOCOLS_OPTIONS = [
+  { value: "1", label: "1 — PPM" },
+  { value: "2", label: "2 — IBUS" },
+  { value: "4", label: "4 — SBUS" },
+  { value: "8", label: "8 — SBUS_NI" },
+  { value: "16", label: "16 — DSM" },
+  { value: "32", label: "32 — SUMD" },
+  { value: "64", label: "64 — SRXL" },
+  { value: "128", label: "128 — SRXL2" },
+  { value: "256", label: "256 — CRSF" },
+  { value: "512", label: "512 — ST24" },
+  { value: "1024", label: "1024 — FPort" },
+  { value: "2048", label: "2048 — FPort2" },
+  { value: "4096", label: "4096 — GHST" },
+];
+
+const RSSI_TYPE_OPTIONS = [
+  { value: "0", label: "0 — Disabled" },
+  { value: "1", label: "1 — Analog Pin" },
+  { value: "2", label: "2 — RC Channel PWM" },
+  { value: "3", label: "3 — Receiver Protocol" },
+  { value: "4", label: "4 — Telemetry Radio RSSI" },
+  { value: "5", label: "5 — CRSF/ELRS" },
+];
+
 const RECEIVER_PARAMS: string[] = [
   "RCMAP_ROLL", "RCMAP_PITCH", "RCMAP_THROTTLE", "RCMAP_YAW",
+  "RC_PROTOCOLS", "RSSI_TYPE",
   ...Array.from({ length: RC_CHANNEL_COUNT }, (_, i) => {
     const n = i + 1;
     return [`RC${n}_MIN`, `RC${n}_MAX`, `RC${n}_TRIM`, `RC${n}_REVERSED`, `RC${n}_DZ`];
@@ -181,7 +207,7 @@ export function ReceiverPanel() {
         {/* ── Channel Mapping ──────────────────────────────── */}
 
         <Card title="Channel Mapping">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Select
               label="Roll"
               value={getMapping("ROLL")}
@@ -205,6 +231,28 @@ export function ReceiverPanel() {
               value={getMapping("YAW")}
               onChange={(v) => setLocalValue("RCMAP_YAW", Number(v))}
               options={CHANNEL_OPTIONS}
+            />
+          </div>
+        </Card>
+
+        {/* ── RC Protocol & RSSI ──────────────────────────── */}
+
+        <Card title="RC Protocol & RSSI">
+          <div className="space-y-3">
+            <Select
+              label="RC_PROTOCOLS — Allowed RC Protocols (bitmask)"
+              options={RC_PROTOCOLS_OPTIONS}
+              value={String(params.get("RC_PROTOCOLS") ?? "1")}
+              onChange={(v) => setLocalValue("RC_PROTOCOLS", Number(v))}
+            />
+            <p className="text-[10px] text-text-tertiary">
+              Bitmask of allowed RC input protocols. Set to match your receiver type.
+            </p>
+            <Select
+              label="RSSI_TYPE — RSSI Source"
+              options={RSSI_TYPE_OPTIONS}
+              value={String(params.get("RSSI_TYPE") ?? "0")}
+              onChange={(v) => setLocalValue("RSSI_TYPE", Number(v))}
             />
           </div>
         </Card>

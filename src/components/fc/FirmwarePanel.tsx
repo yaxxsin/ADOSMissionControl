@@ -674,7 +674,7 @@ export function FirmwarePanel() {
                 <Zap size={14} />
                 Firmware Version
               </h2>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <Select
                   label="Vehicle Type"
                   value={selectedVehicleType}

@@ -15,12 +15,13 @@ export type MapTileSource = "osm" | "satellite" | "terrain" | "dark";
 export type UnitSystem = "metric" | "imperial";
 export type { Jurisdiction };
 
-export type ParamColumnId = "index" | "name" | "value" | "range" | "units" | "type";
+export type ParamColumnId = "index" | "name" | "description" | "value" | "range" | "units" | "type";
 export type ParamColumnVisibility = Record<ParamColumnId, boolean>;
 
 export const DEFAULT_PARAM_COLUMNS: ParamColumnVisibility = {
   index: true,
   name: true,
+  description: false,
   value: true,
   range: true,
   units: true,
@@ -89,6 +90,12 @@ interface SettingsStoreState {
   changelogNotificationsEnabled: boolean;
   /** Auto-start telemetry recording when a drone connects. */
   autoRecordOnConnect: boolean;
+  /** Per-panel scroll positions (panelId -> scrollTop). */
+  panelScrollPositions: Record<string, number>;
+  /** Whether no-fly zone overlays are visible on maps. */
+  showNoFlyZones: boolean;
+  /** Whether offline tile caching is enabled. */
+  offlineTileCaching: boolean;
 
   setMapTileSource: (source: MapTileSource) => void;
   setUnits: (units: UnitSystem) => void;
@@ -118,6 +125,9 @@ interface SettingsStoreState {
   clearSeenChangelog: () => void;
   setChangelogNotificationsEnabled: (enabled: boolean) => void;
   setAutoRecordOnConnect: (enabled: boolean) => void;
+  setPanelScrollPosition: (panelId: string, scrollTop: number) => void;
+  setShowNoFlyZones: (show: boolean) => void;
+  setOfflineTileCaching: (enabled: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsStoreState>()(
@@ -156,6 +166,9 @@ export const useSettingsStore = create<SettingsStoreState>()(
       seenChangelogIds: [],
       changelogNotificationsEnabled: true,
       autoRecordOnConnect: false,
+      panelScrollPositions: {},
+      showNoFlyZones: false,
+      offlineTileCaching: true,
 
       setMapTileSource: (mapTileSource) => set({ mapTileSource }),
       setUnits: (units) => set({ units }),
@@ -195,11 +208,17 @@ export const useSettingsStore = create<SettingsStoreState>()(
       setChangelogNotificationsEnabled: (changelogNotificationsEnabled) =>
         set({ changelogNotificationsEnabled }),
       setAutoRecordOnConnect: (autoRecordOnConnect) => set({ autoRecordOnConnect }),
+      setPanelScrollPosition: (panelId, scrollTop) =>
+        set((s) => ({
+          panelScrollPositions: { ...s.panelScrollPositions, [panelId]: scrollTop },
+        })),
+      setShowNoFlyZones: (showNoFlyZones) => set({ showNoFlyZones }),
+      setOfflineTileCaching: (offlineTileCaching) => set({ offlineTileCaching }),
     }),
     {
       name: "altcmd:settings",
       storage: createJSONStorage(indexedDBStorage.storage),
-      version: 14,
+      version: 16,
       migrate: (persisted, version) => {
         const state = persisted as Record<string, unknown>;
         if (version < 2) {
@@ -261,6 +280,19 @@ export const useSettingsStore = create<SettingsStoreState>()(
         if (version < 14) {
           // v14: Auto-start recording on drone connect
           state.autoRecordOnConnect = false;
+        }
+        if (version < 15) {
+          // v15: Panel scroll positions + description column in param grid
+          state.panelScrollPositions = {};
+          const cols = state.paramColumns as ParamColumnVisibility | undefined;
+          if (cols && !("description" in cols)) {
+            (cols as Record<string, boolean>).description = false;
+          }
+        }
+        if (version < 16) {
+          // v16: No-fly zone overlays + offline tile caching
+          state.showNoFlyZones = false;
+          state.offlineTileCaching = true;
         }
         return state as unknown as SettingsStoreState;
       },

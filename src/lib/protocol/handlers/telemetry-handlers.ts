@@ -10,12 +10,16 @@ import type {
   VfrCallback, RcCallback, SysStatusCallback, RadioCallback,
   PowerStatusCallback, ScaledImuCallback, ScaledPressureCallback,
   EstimatorStatusCallback, LocalPositionCallback,
+  RawImuCallback, RcChannelsRawCallback, RcChannelsOverrideCallback,
+  AltitudeCallback,
 } from '../types'
 import {
   decodeAttitude, decodeGlobalPositionInt, decodeBatteryStatus,
   decodeGpsRawInt, decodeVfrHud, decodeRcChannels, decodeSysStatus,
   decodeRadioStatus, decodePowerStatus, decodeScaledImu, decodeScaledPressure,
   decodeEstimatorStatus, decodeLocalPositionNed,
+  decodeRawImu, decodeRcChannelsRaw, decodeRcChannelsOverride,
+  decodeAltitude,
 } from '../mavlink-messages'
 
 const RAD_TO_DEG = 180 / Math.PI
@@ -219,6 +223,69 @@ export function handleEstimatorStatus(payload: DataView, callbacks: EstimatorSta
       posHorizAccuracy: data.posHorizAccuracy,
       posVertAccuracy: data.posVertAccuracy,
       flags: data.flags,
+    })
+  }
+}
+
+export function handleRawImu(payload: DataView, callbacks: RawImuCallback[]): void {
+  const data = decodeRawImu(payload)
+  for (const cb of callbacks) {
+    cb({
+      timestamp: Date.now(),
+      xacc: data.xacc,
+      yacc: data.yacc,
+      zacc: data.zacc,
+      xgyro: data.xgyro,
+      ygyro: data.ygyro,
+      zgyro: data.zgyro,
+      xmag: data.xmag,
+      ymag: data.ymag,
+      zmag: data.zmag,
+    })
+  }
+}
+
+export function handleRcChannelsRaw(payload: DataView, callbacks: RcChannelsRawCallback[]): void {
+  const data = decodeRcChannelsRaw(payload)
+  for (const cb of callbacks) {
+    cb({
+      timestamp: Date.now(),
+      channels: [
+        data.chan1Raw, data.chan2Raw, data.chan3Raw, data.chan4Raw,
+        data.chan5Raw, data.chan6Raw, data.chan7Raw, data.chan8Raw,
+      ],
+      port: data.port,
+      rssi: data.rssi,
+    })
+  }
+}
+
+export function handleRcChannelsOverride(payload: DataView, callbacks: RcChannelsOverrideCallback[]): void {
+  const data = decodeRcChannelsOverride(payload)
+  for (const cb of callbacks) {
+    cb({
+      timestamp: Date.now(),
+      channels: [
+        data.chan1Raw, data.chan2Raw, data.chan3Raw, data.chan4Raw,
+        data.chan5Raw, data.chan6Raw, data.chan7Raw, data.chan8Raw,
+      ],
+      targetSystem: data.targetSystem,
+      targetComponent: data.targetComponent,
+    })
+  }
+}
+
+export function handleAltitude(payload: DataView, callbacks: AltitudeCallback[]): void {
+  const data = decodeAltitude(payload)
+  for (const cb of callbacks) {
+    cb({
+      timestamp: Date.now(),
+      altitudeMonotonic: data.altitudeMonotonic,
+      altitudeAmsl: data.altitudeAmsl,
+      altitudeLocal: data.altitudeLocal,
+      altitudeRelative: data.altitudeRelative,
+      altitudeTerrain: data.altitudeTerrain,
+      bottomClearance: data.bottomClearance,
     })
   }
 }

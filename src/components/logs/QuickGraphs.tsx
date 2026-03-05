@@ -2,16 +2,17 @@
 
 /**
  * @module QuickGraphs
- * @description Quick telemetry graphs — altitude over time and battery
- * voltage/current. Uses inline SVG charts (same pattern as DebugPanel).
+ * @description Quick telemetry graphs — altitude, battery, climb rate,
+ * vibration levels (X/Y/Z with thresholds), and RC inputs (ch1-4).
+ * Uses inline SVG charts (same pattern as DebugPanel).
  * Reads from telemetry-store ring buffers.
  * @license GPL-3.0-only
  */
 
 import { useMemo } from "react";
 import { useTelemetryStore } from "@/stores/telemetry-store";
-import { Mountain, Battery, TrendingUp } from "lucide-react";
-import type { PositionData, BatteryData } from "@/lib/types";
+import { Mountain, Battery, TrendingUp, Activity, Radio } from "lucide-react";
+import type { PositionData, BatteryData, VibrationData, RcData } from "@/lib/types";
 
 // ── Shared chart component ─────────────────────────────────────
 
@@ -291,6 +292,251 @@ function ClimbRateChart() {
   );
 }
 
+// ── Multi-series chart (for vibration & RC) ─────────────────────
+
+interface MultiSeries {
+  data: ChartPoint[];
+  color: string;
+  label: string;
+}
+
+interface ThresholdLine {
+  value: number;
+  color: string;
+  label: string;
+}
+
+function MultiSeriesChart({
+  series,
+  unit,
+  width = 500,
+  height = 120,
+  thresholds,
+  fixedYMin,
+  fixedYMax,
+  centerLine,
+}: {
+  series: MultiSeries[];
+  unit: string;
+  width?: number;
+  height?: number;
+  thresholds?: ThresholdLine[];
+  fixedYMin?: number;
+  fixedYMax?: number;
+  centerLine?: number;
+}) {
+  // Find global time range across all series
+  const allPoints = series.flatMap((s) => s.data);
+  if (allPoints.length < 2) {
+    return (
+      <div
+        className="flex items-center justify-center bg-bg-tertiary/30 rounded"
+        style={{ width, height }}
+      >
+        <span className="text-[10px] text-text-tertiary">
+          Waiting for data...
+        </span>
+      </div>
+    );
+  }
+
+  const pad = 4;
+  const chartW = width;
+  const chartH = height;
+
+  const tMin = Math.min(...allPoints.map((d) => d.t));
+  const tMax = Math.max(...allPoints.map((d) => d.t));
+  const tRange = tMax - tMin || 1;
+
+  // Global Y range (include thresholds in range calculation)
+  const allValues = allPoints.map((d) => d.v);
+  if (thresholds) {
+    for (const th of thresholds) allValues.push(th.value);
+  }
+  if (centerLine !== undefined) allValues.push(centerLine);
+  const minV = fixedYMin ?? Math.min(...allValues);
+  const maxV = fixedYMax ?? Math.max(...allValues);
+  const range = maxV - minV || 1;
+
+  function toX(t: number) {
+    return ((t - tMin) / tRange) * (chartW - pad * 2) + pad;
+  }
+  function toY(v: number) {
+    return chartH - pad - ((v - minV) / range) * (chartH - pad * 2);
+  }
+
+  const duration = (tMax - tMin) / 1000;
+
+  return (
+    <div>
+      <svg
+        width={chartW}
+        height={chartH}
+        className="bg-bg-tertiary/30 rounded"
+      >
+        {/* Center line */}
+        {centerLine !== undefined && (
+          <line
+            x1={pad}
+            y1={toY(centerLine)}
+            x2={chartW - pad}
+            y2={toY(centerLine)}
+            stroke="var(--border-default)"
+            strokeWidth="0.5"
+            strokeDasharray="4,4"
+          />
+        )}
+        {/* Threshold lines */}
+        {thresholds?.map((th) => (
+          <g key={th.label}>
+            <line
+              x1={pad}
+              y1={toY(th.value)}
+              x2={chartW - pad}
+              y2={toY(th.value)}
+              stroke={th.color}
+              strokeWidth="0.5"
+              strokeDasharray="6,3"
+              opacity={0.6}
+            />
+            <text
+              x={chartW - pad - 2}
+              y={toY(th.value) - 2}
+              fill={th.color}
+              fontSize="7"
+              fontFamily="monospace"
+              textAnchor="end"
+              opacity={0.7}
+            >
+              {th.label}
+            </text>
+          </g>
+        ))}
+        {/* Data series */}
+        {series.map((s) => {
+          if (s.data.length < 2) return null;
+          const pts = s.data
+            .map((d) => `${toX(d.t)},${toY(d.v)}`)
+            .join(" ");
+          return (
+            <polyline
+              key={s.label}
+              points={pts}
+              fill="none"
+              stroke={s.color}
+              strokeWidth="1.5"
+            />
+          );
+        })}
+        {/* Y axis labels */}
+        <text x={3} y={12} fill="var(--text-tertiary)" fontSize="8" fontFamily="monospace">
+          {maxV.toFixed(0)}{unit}
+        </text>
+        <text x={3} y={chartH - 3} fill="var(--text-tertiary)" fontSize="8" fontFamily="monospace">
+          {minV.toFixed(0)}{unit}
+        </text>
+      </svg>
+      <div className="flex items-center justify-between mt-1 text-[9px] font-mono text-text-tertiary">
+        <div className="flex items-center gap-3">
+          {series.map((s) => {
+            const latest = s.data[s.data.length - 1];
+            return (
+              <span key={s.label} style={{ color: s.color }}>
+                {s.label}: {latest?.v.toFixed(1) ?? "--"}{unit}
+              </span>
+            );
+          })}
+        </div>
+        <span>
+          {allPoints.length} pts / {duration.toFixed(1)}s
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ── Vibration chart (X/Y/Z with threshold lines) ───────────────
+
+function VibrationChart() {
+  const vibrationRing = useTelemetryStore((s) => s.vibration);
+  const version = useTelemetryStore((s) => s._version);
+
+  const { xData, yData, zData } = useMemo(() => {
+    void version;
+    const arr = vibrationRing.toArray() as VibrationData[];
+    return {
+      xData: arr.map((v) => ({ t: v.timestamp, v: v.vibrationX })),
+      yData: arr.map((v) => ({ t: v.timestamp, v: v.vibrationY })),
+      zData: arr.map((v) => ({ t: v.timestamp, v: v.vibrationZ })),
+    };
+  }, [vibrationRing, version]);
+
+  return (
+    <div className="border border-border-default bg-bg-secondary p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <Activity size={12} className="text-status-error" />
+        <span className="text-xs font-semibold text-text-primary">
+          Vibration
+        </span>
+      </div>
+      <MultiSeriesChart
+        series={[
+          { data: xData, color: "#ef4444", label: "X" },
+          { data: yData, color: "#22c55e", label: "Y" },
+          { data: zData, color: "#3b82f6", label: "Z" },
+        ]}
+        unit=" m/s\u00B2"
+        thresholds={[
+          { value: 30, color: "#f59e0b", label: "30 warn" },
+          { value: 60, color: "#ef4444", label: "60 crit" },
+        ]}
+        fixedYMin={0}
+      />
+    </div>
+  );
+}
+
+// ── RC inputs chart (channels 1-4) ─────────────────────────────
+
+function RcInputChart() {
+  const rcRing = useTelemetryStore((s) => s.rc);
+  const version = useTelemetryStore((s) => s._version);
+
+  const { ch1, ch2, ch3, ch4 } = useMemo(() => {
+    void version;
+    const arr = rcRing.toArray() as RcData[];
+    return {
+      ch1: arr.map((r) => ({ t: r.timestamp, v: r.channels[0] ?? 1500 })),
+      ch2: arr.map((r) => ({ t: r.timestamp, v: r.channels[1] ?? 1500 })),
+      ch3: arr.map((r) => ({ t: r.timestamp, v: r.channels[2] ?? 1500 })),
+      ch4: arr.map((r) => ({ t: r.timestamp, v: r.channels[3] ?? 1500 })),
+    };
+  }, [rcRing, version]);
+
+  return (
+    <div className="border border-border-default bg-bg-secondary p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <Radio size={12} className="text-accent-primary" />
+        <span className="text-xs font-semibold text-text-primary">
+          RC Inputs
+        </span>
+      </div>
+      <MultiSeriesChart
+        series={[
+          { data: ch1, color: "#ef4444", label: "Roll" },
+          { data: ch2, color: "#22c55e", label: "Pitch" },
+          { data: ch3, color: "#f59e0b", label: "Thr" },
+          { data: ch4, color: "#8b5cf6", label: "Yaw" },
+        ]}
+        unit=" PWM"
+        fixedYMin={1000}
+        fixedYMax={2000}
+        centerLine={1500}
+      />
+    </div>
+  );
+}
+
 // ── Composite export ────────────────────────────────────────────
 
 export function QuickGraphs() {
@@ -299,6 +545,8 @@ export function QuickGraphs() {
       <AltitudeChart />
       <BatteryChart />
       <ClimbRateChart />
+      <VibrationChart />
+      <RcInputChart />
     </div>
   );
 }

@@ -108,6 +108,11 @@ export const MOCK_PARAMS: MockParam[] = [
   { name: "RCMAP_THROTTLE", value: 3, type: 9 },
   { name: "RCMAP_YAW", value: 4, type: 9 },
 
+  // ── GPS Antenna Offsets ───────────────────────────────────
+  { name: "GPS_POS1_X", value: 0, type: 9 },
+  { name: "GPS_POS1_Y", value: 0, type: 9 },
+  { name: "GPS_POS1_Z", value: 0, type: 9 },
+
   // ── RC Per-Channel Deadzone ────────────────────────────────
   { name: "RC1_DZ", value: 30, type: 9 },
   { name: "RC2_DZ", value: 30, type: 9 },
@@ -365,8 +370,10 @@ export const MOCK_PARAMS: MockParam[] = [
   { name: "FENCE_TYPE", value: 7, type: 9 },   // ALT_MAX + CIRCLE + POLYGON
   { name: "FENCE_ACTION", value: 1, type: 9 },  // RTL
   { name: "FENCE_ALT_MAX", value: 120, type: 9 },
+  { name: "FENCE_ALT_MIN", value: 0, type: 9 },
   { name: "FENCE_RADIUS", value: 300, type: 9 },
   { name: "FENCE_MARGIN", value: 2, type: 9 },
+  { name: "FENCE_TOTAL", value: 5, type: 9 },
 
   // ── Logging ──────────────────────────────────────────
   { name: "LOG_BITMASK", value: 176126, type: 9 },
@@ -508,6 +515,21 @@ export const MOCK_PARAMS: MockParam[] = [
   { name: "INS_HNTCH_ATT", value: 40, type: 9 },
   { name: "INS_HNTCH_REF", value: 0.1, type: 9 },
   { name: "INS_HNTCH_MODE", value: 0, type: 9 },
+
+  // ── Failsafe Options ──────────────────────────────
+  { name: "FS_THR_VALUE", value: 975, type: 9 },
+
+  // ── RC Protocol / RSSI ──────────────────────────────
+  { name: "RSSI_TYPE", value: 0, type: 9 },
+
+  // ── Gimbal RC Input ──────────────────────────────────
+  { name: "MNT1_RC_IN_TILT", value: 6, type: 9 },
+  { name: "MNT1_RC_IN_ROLL", value: 0, type: 9 },
+  { name: "MNT1_RC_IN_PAN", value: 7, type: 9 },
+
+  // ── Telemetry Radio Extras ───────────────────────────
+  { name: "SERIAL1_OPTIONS", value: 0, type: 9 },
+  { name: "SERIAL2_OPTIONS", value: 0, type: 9 },
 
   // ── PID Filter ─────────────────────────────────────
   { name: "ATC_RAT_RLL_FLTT", value: 20, type: 9 },

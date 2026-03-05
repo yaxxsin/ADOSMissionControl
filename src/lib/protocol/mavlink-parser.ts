@@ -99,6 +99,14 @@ export const CRC_EXTRA: ReadonlyMap<number, number> = new Map([
   [70, 124],    // RC_CHANNELS_OVERRIDE
   [112, 174],   // CAMERA_TRIGGER
   [230, 163],   // ESTIMATOR_STATUS
+  [27, 144],    // RAW_IMU
+  [35, 244],    // RC_CHANNELS_RAW
+  [39, 254],    // MISSION_ITEM
+  [141, 47],    // ALTITUDE
+  [231, 105],   // WIND_COV
+  [246, 245],   // AIS_VESSEL
+  [285, 166],   // GIMBAL_MANAGER_INFORMATION
+  [286, 48],    // GIMBAL_MANAGER_STATUS
 ]);
 
 /**
@@ -175,6 +183,14 @@ const PAYLOAD_LENGTHS: ReadonlyMap<number, number> = new Map([
   [70, 18],     // RC_CHANNELS_OVERRIDE
   [112, 24],    // CAMERA_TRIGGER
   [230, 42],    // ESTIMATOR_STATUS
+  [27, 26],     // RAW_IMU
+  [35, 22],     // RC_CHANNELS_RAW
+  [39, 37],     // MISSION_ITEM
+  [141, 32],    // ALTITUDE
+  [231, 40],    // WIND_COV
+  [246, 58],    // AIS_VESSEL
+  [285, 33],    // GIMBAL_MANAGER_INFORMATION
+  [286, 13],    // GIMBAL_MANAGER_STATUS
 ]);
 
 // ── CRC-16/MCRF4XX ─────────────────────────────────────────

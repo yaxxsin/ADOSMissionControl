@@ -27,7 +27,7 @@ export interface SelectOptionGroup {
 }
 
 export interface SelectProps {
-  label?: string;
+  label?: React.ReactNode;
   options: SelectOption[] | SelectOptionGroup[];
   value: string;
   onChange: (value: string) => void;
@@ -84,7 +84,7 @@ export function Select({
   const optionEls = useRef<Map<number, HTMLDivElement>>(new Map());
 
   const uid = useId();
-  const selectId = label
+  const selectId = typeof label === "string"
     ? `select-${label.toLowerCase().replace(/\s+/g, "-")}-${uid}`
     : `select-${uid}`;
 

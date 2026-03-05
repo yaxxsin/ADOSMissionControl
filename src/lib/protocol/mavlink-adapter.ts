@@ -29,6 +29,9 @@ import type {
   LocalPositionCallback, DebugCallback, GimbalAttitudeCallback,
   ObstacleDistanceCallback, CameraImageCapturedCallback,
   ExtendedSysStateCallback, FencePointCallback, SystemTimeCallback,
+  RawImuCallback, RcChannelsRawCallback, RcChannelsOverrideCallback,
+  MissionItemCallback, AltitudeCallback, WindCovCallback,
+  AisVesselCallback, GimbalManagerInfoCallback, GimbalManagerStatusCallback,
 } from './types'
 import { MAVLinkParser, type MAVLinkFrame } from './mavlink-parser'
 import {
@@ -52,12 +55,14 @@ import {
   handleGpsRaw, handleVfrHud, handleRcChannels,
   handleSysStatus, handleRadioStatus, handlePowerStatus,
   handleScaledImu, handleScaledPressure, handleEstimatorStatus, handleLocalPosition,
+  handleRawImu, handleRcChannelsRaw, handleRcChannelsOverride, handleAltitude,
 } from './handlers/telemetry-handlers'
 import {
   handleEkfStatus, handleVibration, handleServoOutput,
   handleWind, handleTerrainReport, handleHomePosition,
   handleDistanceSensor, handleFenceStatus, handleNavControllerOutput,
   handleFencePoint, handleMissionCurrent, handleMissionItemReached,
+  handleWindCov, handleMissionItemLegacy,
 } from './handlers/nav-safety-handlers'
 import {
   handleMagCalProgress, handleMagCalReport, handleIncomingCommandLong,
@@ -70,9 +75,11 @@ import {
 import {
   handleNamedValueFloat, handleNamedValueInt, handleDebugValue,
   handleCameraTrigger, handleCameraImageCaptured, handleGimbalAttitude, handleObstacleDistance,
+  handleAisVessel, handleGimbalManagerInfo, handleGimbalManagerStatus,
 } from './handlers/debug-handlers'
 import { CommandQueue } from './command-queue'
 import { createFirmwareHandler } from './firmware/ardupilot'
+import { useDiagnosticsStore } from '@/stores/diagnostics-store'
 
 export class MAVLinkAdapter implements DroneProtocol {
   readonly protocolName = 'mavlink'
@@ -137,6 +144,15 @@ export class MAVLinkAdapter implements DroneProtocol {
   private extendedSysStateCallbacks: ExtendedSysStateCallback[] = []
   private fencePointCallbacks: FencePointCallback[] = []
   private systemTimeCallbacks: SystemTimeCallback[] = []
+  private rawImuCallbacks: RawImuCallback[] = []
+  private rcChannelsRawCallbacks: RcChannelsRawCallback[] = []
+  private rcChannelsOverrideCallbacks: RcChannelsOverrideCallback[] = []
+  private missionItemCallbacks: MissionItemCallback[] = []
+  private altitudeCallbacks: AltitudeCallback[] = []
+  private windCovCallbacks: WindCovCallback[] = []
+  private aisVesselCallbacks: AisVesselCallback[] = []
+  private gimbalManagerInfoCallbacks: GimbalManagerInfoCallback[] = []
+  private gimbalManagerStatusCallbacks: GimbalManagerStatusCallback[] = []
 
   // Parameter cache (5min TTL) — avoids re-fetching when switching panels.
   // Safe because setParameter() invalidates via paramCache.delete(name).
@@ -380,8 +396,47 @@ export class MAVLinkAdapter implements DroneProtocol {
 
   // ── Frame Routing ──────────────────────────────────────
 
+  // Diagnostic message name lookup (subset of known IDs)
+  private static readonly MSG_NAMES: Record<number, string> = {
+    0: 'HEARTBEAT', 1: 'SYS_STATUS', 2: 'SYSTEM_TIME', 22: 'PARAM_VALUE',
+    24: 'GPS_RAW_INT', 26: 'SCALED_IMU', 27: 'RAW_IMU', 29: 'SCALED_PRESSURE',
+    30: 'ATTITUDE', 32: 'LOCAL_POSITION_NED', 33: 'GLOBAL_POSITION_INT',
+    35: 'RC_CHANNELS_RAW', 36: 'SERVO_OUTPUT_RAW', 39: 'MISSION_ITEM',
+    42: 'MISSION_CURRENT', 44: 'MISSION_COUNT', 46: 'MISSION_ITEM_REACHED',
+    47: 'MISSION_ACK', 51: 'MISSION_REQUEST', 62: 'NAV_CONTROLLER_OUTPUT',
+    65: 'RC_CHANNELS', 70: 'RC_CHANNELS_OVERRIDE', 73: 'MISSION_ITEM_INT',
+    74: 'VFR_HUD', 76: 'COMMAND_LONG', 77: 'COMMAND_ACK', 109: 'RADIO_STATUS',
+    118: 'LOG_ENTRY', 120: 'LOG_DATA', 125: 'POWER_STATUS', 126: 'SERIAL_CONTROL',
+    132: 'DISTANCE_SENSOR', 136: 'TERRAIN_REPORT', 141: 'ALTITUDE',
+    147: 'BATTERY_STATUS', 148: 'AUTOPILOT_VERSION', 160: 'FENCE_POINT',
+    162: 'FENCE_STATUS', 168: 'WIND', 191: 'MAG_CAL_PROGRESS',
+    192: 'MAG_CAL_REPORT', 230: 'ESTIMATOR_STATUS', 231: 'WIND_COV',
+    241: 'VIBRATION', 242: 'HOME_POSITION', 245: 'EXTENDED_SYS_STATE',
+    246: 'AIS_VESSEL', 251: 'NAMED_VALUE_FLOAT', 252: 'NAMED_VALUE_INT',
+    253: 'STATUSTEXT', 254: 'DEBUG', 263: 'CAMERA_IMAGE_CAPTURED',
+    284: 'GIMBAL_DEVICE_ATTITUDE_STATUS', 285: 'GIMBAL_MANAGER_INFORMATION',
+    286: 'GIMBAL_MANAGER_STATUS', 330: 'OBSTACLE_DISTANCE',
+    112: 'CAMERA_TRIGGER', 335: 'EKF_STATUS_REPORT',
+  }
+
   private handleFrame(frame: MAVLinkFrame): void {
+    const startTime = performance.now()
     const p = frame.payload
+
+    // Log to diagnostics store (performance tracking)
+    const diag = useDiagnosticsStore.getState()
+    diag.recordParseEvent()
+
+    // Build hex string for frame inspector (only keep for last few frames — perf-safe)
+    const msgName = MAVLinkAdapter.MSG_NAMES[frame.msgId] ?? `MSG_${frame.msgId}`
+    const payloadBytes = new Uint8Array(p.buffer, p.byteOffset, p.byteLength)
+    const rawHex = Array.from(payloadBytes.slice(0, 32))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join(' ')
+      + (payloadBytes.length > 32 ? ' ...' : '')
+
+    diag.logMessage(frame.msgId, msgName, 'in', p.byteLength, rawHex)
+
     switch (frame.msgId) {
       // Core / stateful handlers (remain in adapter)
       case 0:   this.handleHeartbeat(frame); break
@@ -399,18 +454,23 @@ export class MAVLinkAdapter implements DroneProtocol {
       case 1:   handleSysStatus(p, this.sysStatusCallbacks); break
       case 24:  handleGpsRaw(p, this.gpsCallbacks); break
       case 26:  handleScaledImu(p, this.scaledImuCallbacks); break
+      case 27:  handleRawImu(p, this.rawImuCallbacks); break
       case 29:  handleScaledPressure(p, this.scaledPressureCallbacks); break
       case 30:  handleAttitude(p, this.attitudeCallbacks); break
       case 32:  handleLocalPosition(p, this.localPositionCallbacks); break
       case 33:  handleGlobalPosition(p, this.positionCallbacks); break
+      case 35:  handleRcChannelsRaw(p, this.rcChannelsRawCallbacks); break
       case 65:  handleRcChannels(p, this.rcCallbacks); break
+      case 70:  handleRcChannelsOverride(p, this.rcChannelsOverrideCallbacks); break
       case 74:  handleVfrHud(p, this.vfrCallbacks); break
       case 109: handleRadioStatus(p, this.radioCallbacks); break
       case 125: handlePowerStatus(p, this.powerStatusCallbacks); break
+      case 141: handleAltitude(p, this.altitudeCallbacks); break
       case 147: handleBattery(p, this.batteryCallbacks); break
 
       // Nav-safety handlers
       case 36:  handleServoOutput(p, this.servoOutputCallbacks); break
+      case 39:  handleMissionItemLegacy(p, this.missionItemCallbacks); break
       case 42:  handleMissionCurrent(p, this.missionProgressCallbacks); break
       case 46:  handleMissionItemReached(p, this.missionProgressCallbacks); break
       case 62:  handleNavControllerOutput(p, this.navControllerCallbacks); break
@@ -419,6 +479,7 @@ export class MAVLinkAdapter implements DroneProtocol {
       case 160: handleFencePoint(p, this.fencePointCallbacks); break
       case 162: handleFenceStatus(p, this.fenceStatusCallbacks); break
       case 168: handleWind(p, this.windCallbacks); break
+      case 231: handleWindCov(p, this.windCovCallbacks); break
       case 241: handleVibration(p, this.vibrationCallbacks); break
       case 242: handleHomePosition(p, this.homePositionCallbacks); break
       case 335: handleEkfStatus(p, this.ekfCallbacks); break
@@ -442,10 +503,17 @@ export class MAVLinkAdapter implements DroneProtocol {
       case 251: handleNamedValueFloat(p, this.debugCallbacks); break
       case 252: handleNamedValueInt(p, this.debugCallbacks); break
       case 254: handleDebugValue(p, this.debugCallbacks); break
+      case 246: handleAisVessel(p, this.aisVesselCallbacks); break
       case 263: handleCameraImageCaptured(p, this.cameraImageCallbacks); break
       case 284: handleGimbalAttitude(p, this.gimbalAttitudeCallbacks); break
+      case 285: handleGimbalManagerInfo(p, this.gimbalManagerInfoCallbacks); break
+      case 286: handleGimbalManagerStatus(p, this.gimbalManagerStatusCallbacks); break
       case 330: handleObstacleDistance(p, this.obstacleDistanceCallbacks); break
     }
+
+    // Record frame processing time for performance metrics
+    const elapsed = performance.now() - startTime
+    diag.recordFrameProcessingTime(elapsed)
   }
 
   // ── Message Handlers ───────────────────────────────────
@@ -1181,6 +1249,31 @@ export class MAVLinkAdapter implements DroneProtocol {
     return this.sendCommandLong(401, [0, 0, 0, 0, 0, 0, 0])
   }
 
+  // ── DO_FENCE_ENABLE (217) ──────────────────────────────
+  async enableFence(enable: boolean): Promise<CommandResult> {
+    return this.sendCommandLong(217, [enable ? 1 : 0, 0, 0, 0, 0, 0, 0])
+  }
+
+  // ── DO_LAND_START (189) ────────────────────────────────
+  async doLandStart(): Promise<CommandResult> {
+    return this.sendCommandLong(189, [0, 0, 0, 0, 0, 0, 0])
+  }
+
+  // ── DO_CONTROL_VIDEO (200) ─────────────────────────────
+  async controlVideo(params: { cameraId: number; transmission: number; channel: number; recording: number }): Promise<CommandResult> {
+    return this.sendCommandLong(200, [params.cameraId, params.transmission, params.channel, params.recording, 0, 0, 0])
+  }
+
+  // ── DO_SET_RELAY (186) ─────────────────────────────────
+  async setRelay(relayNum: number, on: boolean): Promise<CommandResult> {
+    return this.sendCommandLong(186, [relayNum, on ? 1 : 0, 0, 0, 0, 0, 0])
+  }
+
+  // ── START_RX_PAIR (243) ────────────────────────────────
+  async startRxPair(spektrum: number): Promise<CommandResult> {
+    return this.sendCommandLong(243, [spektrum, 0, 0, 0, 0, 0, 0])
+  }
+
   // ── Log Download ───────────────────────────────────────
 
   async getLogList(): Promise<LogEntry[]> {
@@ -1561,6 +1654,42 @@ export class MAVLinkAdapter implements DroneProtocol {
     this.systemTimeCallbacks.push(cb)
     return () => { this.systemTimeCallbacks = this.systemTimeCallbacks.filter(c => c !== cb) }
   }
+  onRawImu(cb: RawImuCallback): () => void {
+    this.rawImuCallbacks.push(cb)
+    return () => { this.rawImuCallbacks = this.rawImuCallbacks.filter(c => c !== cb) }
+  }
+  onRcChannelsRaw(cb: RcChannelsRawCallback): () => void {
+    this.rcChannelsRawCallbacks.push(cb)
+    return () => { this.rcChannelsRawCallbacks = this.rcChannelsRawCallbacks.filter(c => c !== cb) }
+  }
+  onRcChannelsOverride(cb: RcChannelsOverrideCallback): () => void {
+    this.rcChannelsOverrideCallbacks.push(cb)
+    return () => { this.rcChannelsOverrideCallbacks = this.rcChannelsOverrideCallbacks.filter(c => c !== cb) }
+  }
+  onMissionItem(cb: MissionItemCallback): () => void {
+    this.missionItemCallbacks.push(cb)
+    return () => { this.missionItemCallbacks = this.missionItemCallbacks.filter(c => c !== cb) }
+  }
+  onAltitude(cb: AltitudeCallback): () => void {
+    this.altitudeCallbacks.push(cb)
+    return () => { this.altitudeCallbacks = this.altitudeCallbacks.filter(c => c !== cb) }
+  }
+  onWindCov(cb: WindCovCallback): () => void {
+    this.windCovCallbacks.push(cb)
+    return () => { this.windCovCallbacks = this.windCovCallbacks.filter(c => c !== cb) }
+  }
+  onAisVessel(cb: AisVesselCallback): () => void {
+    this.aisVesselCallbacks.push(cb)
+    return () => { this.aisVesselCallbacks = this.aisVesselCallbacks.filter(c => c !== cb) }
+  }
+  onGimbalManagerInfo(cb: GimbalManagerInfoCallback): () => void {
+    this.gimbalManagerInfoCallbacks.push(cb)
+    return () => { this.gimbalManagerInfoCallbacks = this.gimbalManagerInfoCallbacks.filter(c => c !== cb) }
+  }
+  onGimbalManagerStatus(cb: GimbalManagerStatusCallback): () => void {
+    this.gimbalManagerStatusCallbacks.push(cb)
+    return () => { this.gimbalManagerStatusCallbacks = this.gimbalManagerStatusCallbacks.filter(c => c !== cb) }
+  }
 
   // ── Message Rate Control (T1-4) ────────────────────────
 
@@ -1748,6 +1877,14 @@ export class MAVLinkAdapter implements DroneProtocol {
   }
 
   getFirmwareHandler(): FirmwareHandler | null { return this.firmwareHandler }
+
+  /** Expose command queue for diagnostics display */
+  getCommandQueueSnapshot(): { pendingCount: number; entries: { command: number; retryCount: number; timestamp: number }[] } {
+    return {
+      pendingCount: this.commandQueue.pendingCount,
+      entries: this.commandQueue.getSnapshot(),
+    }
+  }
 
   // ── Helpers ────────────────────────────────────────────
 

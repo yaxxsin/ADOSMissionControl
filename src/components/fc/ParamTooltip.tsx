@@ -36,6 +36,15 @@ export function ParamTooltip({ meta, children }: { meta: ParamMetadata | undefin
               Range: {meta.range.min} &ndash; {meta.range.max}{meta.units ? ` ${meta.units}` : ""}
             </div>
           )}
+          {meta.units && !meta.range && (
+            <div className="text-text-tertiary mt-1">Units: {meta.units}</div>
+          )}
+          {meta.defaultValue !== undefined && (
+            <div className="text-text-tertiary mt-1">Default: {meta.defaultValue}</div>
+          )}
+          {meta.increment && (
+            <div className="text-text-tertiary mt-0.5">Step: {meta.increment}</div>
+          )}
           {meta.rebootRequired && (
             <div className="text-status-warning mt-1">Reboot required after change</div>
           )}

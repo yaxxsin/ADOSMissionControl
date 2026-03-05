@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { usePanelParams } from "@/hooks/use-panel-params";
 import { useParamLabel } from "@/hooks/use-param-label";
+import { useParamMetadataMap } from "@/hooks/use-param-metadata";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useToast } from "@/components/ui/toast";
@@ -12,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Camera, Save, HardDrive, Aperture, Ruler, Calculator, Timer } from "lucide-react";
+import { ParamLabel } from "./ParamLabel";
 
 const CAMERA_PARAMS: string[] = [];
 
@@ -33,6 +35,8 @@ export function CameraPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const { toast } = useToast();
   const { label: pl } = useParamLabel();
+  const metadata = useParamMetadataMap();
+  const lbl = (raw: string) => <ParamLabel label={pl(raw)} metadata={metadata} />;
   const [saving, setSaving] = useState(false);
   const [imageCount, setImageCount] = useState(0);
   const [intervalSec, setIntervalSec] = useState(5);
@@ -145,7 +149,7 @@ export function CameraPanel() {
           {/* Camera Type */}
           <Card icon={<Camera size={14} />} title="Camera Configuration" description="Camera type and trigger method">
             <Select
-              label={pl("CAM1_TYPE — Camera Type")}
+              label={lbl("CAM1_TYPE — Camera Type")}
               options={CAM_TYPE_OPTIONS}
               value={p("CAM1_TYPE")}
               onChange={(v) => set("CAM1_TYPE", v)}
@@ -156,7 +160,7 @@ export function CameraPanel() {
           {camEnabled && isServoType && (
             <Card icon={<Aperture size={14} />} title="Servo Trigger" description="PWM values for servo-based shutter">
               <Input
-                label={pl("CAM1_SERVO_OFF — Servo Off PWM")}
+                label={lbl("CAM1_SERVO_OFF — Servo Off PWM")}
                 type="number"
                 step="10"
                 min="500"
@@ -166,7 +170,7 @@ export function CameraPanel() {
                 onChange={(e) => set("CAM1_SERVO_OFF", e.target.value)}
               />
               <Input
-                label={pl("CAM1_SERVO_ON — Servo On PWM")}
+                label={lbl("CAM1_SERVO_ON — Servo On PWM")}
                 type="number"
                 step="10"
                 min="500"
@@ -176,7 +180,7 @@ export function CameraPanel() {
                 onChange={(e) => set("CAM1_SERVO_ON", e.target.value)}
               />
               <Input
-                label={pl("CAM1_DURATION — Pulse Duration")}
+                label={lbl("CAM1_DURATION — Pulse Duration")}
                 type="number"
                 step="1"
                 min="1"
@@ -191,7 +195,7 @@ export function CameraPanel() {
           {camEnabled && (
             <Card icon={<Ruler size={14} />} title="Distance Trigger" description="Automatic capture at distance intervals">
               <Input
-                label={pl("CAM1_TRIGG_DIST — Trigger Distance")}
+                label={lbl("CAM1_TRIGG_DIST — Trigger Distance")}
                 type="number"
                 step="0.5"
                 min="0"
@@ -206,7 +210,7 @@ export function CameraPanel() {
           {/* Survey Helper */}
           {camEnabled && (
             <Card icon={<Calculator size={14} />} title="Survey Helper" description="Calculate trigger distance from survey parameters">
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 <div>
                   <label className="text-[10px] text-text-tertiary block mb-1">Altitude</label>
                   <input

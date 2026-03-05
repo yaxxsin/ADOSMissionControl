@@ -19,6 +19,7 @@ import {
   Save,
   Upload,
   Download,
+  RefreshCw,
 } from "lucide-react";
 
 // ── Event type config ────────────────────────────────────────
@@ -42,12 +43,13 @@ const EVENT_CONFIG: Record<EventType, EventTypeConfig> = {
   flash_commit: { label: "Flash", color: "text-orange-400", bgColor: "bg-orange-400/15", Icon: Save },
   mission_upload: { label: "Mission Up", color: "text-cyan-400", bgColor: "bg-cyan-400/15", Icon: Upload },
   mission_download: { label: "Mission Down", color: "text-cyan-400", bgColor: "bg-cyan-400/15", Icon: Download },
+  reconnect_attempt: { label: "Reconnect", color: "text-yellow-400", bgColor: "bg-yellow-400/15", Icon: RefreshCw },
 };
 
 const ALL_EVENT_TYPES: EventType[] = [
   "connect", "disconnect", "arm", "disarm", "mode_change",
   "error", "calibration", "param_write", "flash_commit",
-  "mission_upload", "mission_download",
+  "mission_upload", "mission_download", "reconnect_attempt",
 ];
 
 // ── Relative time ────────────────────────────────────────────

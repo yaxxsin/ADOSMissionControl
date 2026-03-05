@@ -77,8 +77,11 @@ export function PidAnalysisSection({
         </span>
       </button>
 
-      {expanded && (
-        <div className="px-4 pb-4 space-y-4">
+      <div className={cn(
+        "grid transition-all duration-200 ease-in-out",
+        expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+      )}>
+        <div className="overflow-hidden px-4 pb-4 space-y-4">
           {/* Live analysis strip */}
           <PidLiveAnalysis connected={connected} />
 
@@ -242,7 +245,7 @@ export function PidAnalysisSection({
             </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

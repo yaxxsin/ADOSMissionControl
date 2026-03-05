@@ -210,4 +210,17 @@ export class CommandQueue {
   get pendingCount(): number {
     return this.pending.size;
   }
+
+  /** Snapshot of pending commands for diagnostics display */
+  getSnapshot(): { command: number; retryCount: number; timestamp: number }[] {
+    const result: { command: number; retryCount: number; timestamp: number }[] = [];
+    for (const [, entry] of this.pending) {
+      result.push({
+        command: entry.command,
+        retryCount: entry.retryCount,
+        timestamp: Date.now(),
+      });
+    }
+    return result;
+  }
 }

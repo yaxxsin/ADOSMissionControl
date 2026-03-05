@@ -1,8 +1,9 @@
 /**
  * @module GeofenceOverlay
  * @description Leaflet overlay for geofence visualization — circle fence,
- * polygon fence, and altitude bands. Reads FENCE_* params from the drone's
- * parameter set and renders corresponding map elements.
+ * polygon fence, inclusion/exclusion zones, and altitude bands.
+ * Reads FENCE_* params from the drone's parameter set and renders
+ * corresponding map elements.
  * @license GPL-3.0-only
  */
 
@@ -11,6 +12,7 @@
 import { useMemo } from "react";
 import { Circle, Polygon, Tooltip } from "react-leaflet";
 import { useTelemetryStore } from "@/stores/telemetry-store";
+import { useGeofenceStore, type FenceZone } from "@/stores/geofence-store";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -51,6 +53,12 @@ const ACTION_LABELS: Record<number, string> = {
   5: "SmartRTL/Land",
 };
 
+/** Colors for inclusion (green) and exclusion (red) zones */
+const ZONE_COLORS = {
+  inclusion: { stroke: "#22c55e", fill: "#22c55e" },
+  exclusion: { stroke: "#ef4444", fill: "#ef4444" },
+} as const;
+
 /** Accept fence config as optional props — the GeofencePanel or parent should provide these. */
 function useFenceConfig(overrides?: Partial<FenceConfig>): FenceConfig | null {
   return useMemo(() => {
@@ -68,11 +76,63 @@ function useFenceConfig(overrides?: Partial<FenceConfig>): FenceConfig | null {
   }, [overrides]);
 }
 
+// ── Zone Overlay ─────────────────────────────────────────────
+
+function ZoneOverlay({ zone }: { zone: FenceZone }) {
+  const colors = ZONE_COLORS[zone.role];
+
+  if (zone.type === "polygon" && zone.polygonPoints.length >= 3) {
+    return (
+      <Polygon
+        positions={zone.polygonPoints}
+        pathOptions={{
+          color: colors.stroke,
+          weight: 2,
+          dashArray: zone.role === "exclusion" ? "4 4" : "8 4",
+          fillColor: colors.fill,
+          fillOpacity: zone.role === "exclusion" ? 0.12 : 0.06,
+        }}
+      >
+        <Tooltip direction="center" sticky>
+          <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 10 }}>
+            {zone.role === "inclusion" ? "Inclusion" : "Exclusion"} Zone ({zone.polygonPoints.length} pts)
+          </span>
+        </Tooltip>
+      </Polygon>
+    );
+  }
+
+  if (zone.type === "circle" && zone.circleCenter && zone.circleRadius > 0) {
+    return (
+      <Circle
+        center={zone.circleCenter}
+        radius={zone.circleRadius}
+        pathOptions={{
+          color: colors.stroke,
+          weight: 2,
+          dashArray: zone.role === "exclusion" ? "4 4" : "8 4",
+          fillColor: colors.fill,
+          fillOpacity: zone.role === "exclusion" ? 0.12 : 0.06,
+        }}
+      >
+        <Tooltip direction="top" sticky>
+          <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 10 }}>
+            {zone.role === "inclusion" ? "Inclusion" : "Exclusion"} Zone {zone.circleRadius}m
+          </span>
+        </Tooltip>
+      </Circle>
+    );
+  }
+
+  return null;
+}
+
 // ── Component ────────────────────────────────────────────────
 
 export function GeofenceOverlay({ polygonPoints, breached = false, fenceConfig }: GeofenceOverlayProps) {
   const config = useFenceConfig(fenceConfig);
   const pos = useTelemetryStore((s) => s.position.latest());
+  const zones = useGeofenceStore((s) => s.zones);
 
   // Use home position as fence center (first trail point or current position)
   const homePos: [number, number] | null = useMemo(() => {
@@ -149,6 +209,11 @@ export function GeofenceOverlay({ polygonPoints, breached = false, fenceConfig }
           </Tooltip>
         </Polygon>
       )}
+
+      {/* Inclusion/exclusion zones */}
+      {zones.map((zone) => (
+        <ZoneOverlay key={zone.id} zone={zone} />
+      ))}
 
       {/* Breach indicator — pulsing red circle at drone position */}
       {breached && pos && (

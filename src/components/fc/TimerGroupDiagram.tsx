@@ -6,6 +6,7 @@ import { getOutputProtocol, UNKNOWN_BOARD, getBoardProfileList, getBoardProfileB
 import { getServoFunctionLabel } from "@/lib/servo-functions";
 import { ChevronDown, ChevronRight, Cpu } from "lucide-react";
 import { Select } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 interface TimerGroupDiagramProps {
   board: BoardProfile;
@@ -138,8 +139,11 @@ export function TimerGroupDiagram({
       </button>
 
       {/* Diagram */}
-      {expanded && (
-        <div className="px-3 pb-3">
+      <div className={cn(
+        "grid transition-all duration-200 ease-in-out",
+        expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+      )}>
+        <div className="overflow-hidden px-3 pb-3">
           <div className="flex flex-wrap gap-2">
             {board.timerGroups.map((group, gi) => {
               const hasConflict = conflictGroups.has(gi);
@@ -234,7 +238,7 @@ export function TimerGroupDiagram({
             </span>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

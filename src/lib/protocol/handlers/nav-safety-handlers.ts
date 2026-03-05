@@ -10,12 +10,14 @@ import type {
   WindCallback, TerrainCallback, HomePositionCallback,
   DistanceSensorCallback, FenceStatusCallback, NavControllerCallback,
   FencePointCallback, MissionProgressCallback,
+  WindCovCallback, MissionItemCallback,
 } from '../types'
 import {
   decodeEkfStatusReport, decodeVibration, decodeServoOutputRaw,
   decodeWind, decodeTerrainReport, decodeHomePosition,
   decodeDistanceSensor, decodeFenceStatus, decodeNavControllerOutput,
   decodeFencePoint, decodeMissionCurrent, decodeMissionItemReached,
+  decodeWindCov, decodeMissionItem,
 } from '../mavlink-messages'
 
 export function handleEkfStatus(payload: DataView, callbacks: EkfCallback[]): void {
@@ -163,5 +165,42 @@ export function handleMissionItemReached(payload: DataView, callbacks: MissionPr
   const data = decodeMissionItemReached(payload)
   for (const cb of callbacks) {
     cb({ currentSeq: data.seq, reachedSeq: data.seq })
+  }
+}
+
+export function handleWindCov(payload: DataView, callbacks: WindCovCallback[]): void {
+  const data = decodeWindCov(payload)
+  for (const cb of callbacks) {
+    cb({
+      timestamp: Date.now(),
+      windX: data.windX,
+      windY: data.windY,
+      windZ: data.windZ,
+      varHoriz: data.varHoriz,
+      varVert: data.varVert,
+      windAlt: data.windAlt,
+      horizAccuracy: data.horizAccuracy,
+      vertAccuracy: data.vertAccuracy,
+    })
+  }
+}
+
+export function handleMissionItemLegacy(payload: DataView, callbacks: MissionItemCallback[]): void {
+  const data = decodeMissionItem(payload)
+  for (const cb of callbacks) {
+    cb({
+      seq: data.seq,
+      frame: data.frame,
+      command: data.command,
+      current: data.current,
+      autocontinue: data.autocontinue,
+      param1: data.param1,
+      param2: data.param2,
+      param3: data.param3,
+      param4: data.param4,
+      x: data.x,
+      y: data.y,
+      z: data.z,
+    })
   }
 }

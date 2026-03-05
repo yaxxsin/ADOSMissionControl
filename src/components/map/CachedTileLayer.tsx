@@ -1,0 +1,102 @@
+/**
+ * @module CachedTileLayer
+ * @description Leaflet TileLayer wrapper that caches tiles in IndexedDB.
+ * On tile load, stores the blob. On request, checks cache first.
+ * Falls back to network fetch when not cached.
+ * @license GPL-3.0-only
+ */
+
+"use client";
+
+import { useEffect, useRef } from "react";
+import { useMap } from "react-leaflet";
+import L from "leaflet";
+import { getCachedTile, cacheTile } from "@/lib/tile-cache";
+
+interface CachedTileLayerProps {
+  url: string;
+  attribution?: string;
+  maxZoom?: number;
+}
+
+function fetchAndCache(tile: HTMLImageElement, tileUrl: string, done: (err?: Error | null, el?: HTMLElement) => void): void {
+  fetch(tileUrl)
+    .then((res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.blob();
+    })
+    .then((blob) => {
+      cacheTile(tileUrl, blob).catch(() => {});
+      const objectUrl = URL.createObjectURL(blob);
+      tile.onload = () => {
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+        done(null, tile);
+      };
+      tile.src = objectUrl;
+    })
+    .catch(() => {
+      tile.src = tileUrl;
+      tile.onload = () => done(null, tile);
+      tile.onerror = () => done(new Error("Tile load error"), tile);
+    });
+}
+
+/** Subclass TileLayer to intercept tile loading with IndexedDB cache. */
+class CachingTileLayer extends L.TileLayer {
+  createTile(coords: L.Coords, done: L.DoneCallback): HTMLElement {
+    const tile = document.createElement("img") as HTMLImageElement;
+    tile.alt = "";
+    tile.setAttribute("role", "presentation");
+
+    const tileUrl = this.getTileUrl(coords);
+
+    getCachedTile(tileUrl)
+      .then((cachedBlob) => {
+        if (cachedBlob) {
+          const objectUrl = URL.createObjectURL(cachedBlob);
+          tile.onload = () => {
+            setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+            done(undefined, tile);
+          };
+          tile.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            fetchAndCache(tile, tileUrl, done as (err?: Error | null, el?: HTMLElement) => void);
+          };
+          tile.src = objectUrl;
+        } else {
+          fetchAndCache(tile, tileUrl, done as (err?: Error | null, el?: HTMLElement) => void);
+        }
+      })
+      .catch(() => {
+        tile.src = tileUrl;
+        tile.onload = () => done(undefined, tile);
+        tile.onerror = () => done(new Error("Tile load error") as unknown as undefined, tile);
+      });
+
+    return tile;
+  }
+}
+
+export function CachedTileLayer({ url, attribution, maxZoom = 20 }: CachedTileLayerProps) {
+  const map = useMap();
+  const layerRef = useRef<L.TileLayer | null>(null);
+
+  useEffect(() => {
+    const layer = new CachingTileLayer(url, {
+      attribution: attribution ?? "",
+      maxZoom,
+    });
+
+    layer.addTo(map);
+    layerRef.current = layer;
+
+    return () => {
+      if (layerRef.current) {
+        map.removeLayer(layerRef.current);
+        layerRef.current = null;
+      }
+    };
+  }, [map, url, attribution, maxZoom]);
+
+  return null;
+}

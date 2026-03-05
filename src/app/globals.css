@@ -105,6 +105,21 @@ body {
   50% { transform: scale(1); opacity: 0.2; }
 }
 
+/* Mode change pulse animation */
+@keyframes mode-pulse {
+  0% { opacity: 1; }
+  25% { opacity: 0.4; }
+  50% { opacity: 1; }
+  75% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
+/* Reboot banner fade-out */
+@keyframes fade-out-down {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(8px); }
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,

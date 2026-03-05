@@ -1,21 +1,26 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useTelemetryStore } from "@/stores/telemetry-store";
 import { useTrailStore } from "@/stores/trail-store";
 import { useDroneStore } from "@/stores/drone-store";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useMissionStore } from "@/stores/mission-store";
-import { Pause, Play } from "lucide-react";
+import { useFleetStore } from "@/stores/fleet-store";
+import { useDroneMetadataStore } from "@/stores/drone-metadata-store";
+import { Pause, Play, Ruler } from "lucide-react";
 import { useDefaultCenter } from "@/hooks/use-default-center";
 import {
   MapContainer,
   Circle,
   Marker,
+  Popup,
   useMap,
 } from "react-leaflet";
 import L from "leaflet";
 import dynamic from "next/dynamic";
+import { DrawingManager } from "@/lib/drawing/drawing-manager";
+
 const GcsMarker = dynamic(
   () => import("@/components/map/GcsMarker").then((m) => ({ default: m.GcsMarker })),
   { ssr: false }
@@ -44,15 +49,30 @@ const LocateControl = dynamic(
   () => import("@/components/map/LocateControl").then((m) => ({ default: m.LocateControl })),
   { ssr: false }
 );
+const MissionExecutionOverlay = dynamic(
+  () => import("@/components/flight/MissionExecutionOverlay").then((m) => ({ default: m.MissionExecutionOverlay })),
+  { ssr: false }
+);
+
+// ── Drone marker colors per status ──────────────────────────
+
+const STATUS_COLORS: Record<string, string> = {
+  online: "#22c55e",
+  in_mission: "#3a82ff",
+  idle: "#a0a0a0",
+  returning: "#f59e0b",
+  maintenance: "#ef4444",
+  offline: "#666666",
+};
 
 /** SVG arrow icon for the drone marker, rotated by heading. */
-function createDroneIcon(heading: number): L.DivIcon {
+function createDroneIcon(heading: number, color = "#00ff41", size = 24): L.DivIcon {
   return L.divIcon({
     className: "",
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-    html: `<svg width="24" height="24" viewBox="0 0 24 24" style="transform:rotate(${heading}deg)">
-      <polygon points="12,2 20,20 12,16 4,20" fill="#00ff41" fill-opacity="0.9" stroke="#00ff41" stroke-width="1"/>
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    html: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="transform:rotate(${heading}deg)">
+      <polygon points="12,2 20,20 12,16 4,20" fill="${color}" fill-opacity="0.9" stroke="${color}" stroke-width="1"/>
     </svg>`,
   });
 }
@@ -86,9 +106,43 @@ function MapFollower({ position, follow }: { position: [number, number] | null; 
   return null;
 }
 
+/** Manages the DrawingManager instance for measurement tool. */
+function MeasureToolManager({ active, onComplete }: { active: boolean; onComplete: () => void }) {
+  const map = useMap();
+  const managerRef = useRef<DrawingManager | null>(null);
+
+  useEffect(() => {
+    if (!managerRef.current) {
+      managerRef.current = new DrawingManager(map, {
+        onCancel: onComplete,
+      });
+    }
+
+    if (active) {
+      managerRef.current.startMeasure();
+    } else {
+      managerRef.current.clearAll();
+    }
+
+    return () => {
+      // Don't destroy on re-render, only on unmount
+    };
+  }, [map, active, onComplete]);
+
+  useEffect(() => {
+    return () => {
+      managerRef.current?.destroy();
+      managerRef.current = null;
+    };
+  }, [map]);
+
+  return null;
+}
+
 export function OverviewMap() {
   const [follow, setFollow] = useState(true);
   const [showPlannedPath, setShowPlannedPath] = useState(false);
+  const [measureActive, setMeasureActive] = useState(false);
   const mapReadyRef = useRef(false);
 
   // Mission pause/resume state
@@ -96,6 +150,7 @@ export function OverviewMap() {
   const previousMode = useDroneStore((s) => s.previousMode);
   const setFlightMode = useDroneStore((s) => s.setFlightMode);
   const getProtocol = useDroneManager((s) => s.getSelectedProtocol);
+  const selectedDroneId = useDroneManager((s) => s.selectedDroneId);
   const missionState = useMissionStore((s) => s.activeMission?.state);
   const isAutoMode = flightMode === "AUTO";
   const isPausedFromAuto = flightMode === "LOITER" && previousMode === "AUTO";
@@ -105,11 +160,15 @@ export function OverviewMap() {
   const pos = useTelemetryStore((s) => s.position.latest());
   const trail = useTrailStore((s) => s.trail);
 
+  // Fleet drones for multi-drone markers
+  const fleetDrones = useFleetStore((s) => s.drones);
+  const profiles = useDroneMetadataStore((s) => s.profiles);
+
   const dronePos: [number, number] | null =
     pos && pos.lat !== 0 && pos.lon !== 0 ? [pos.lat, pos.lon] : null;
 
   const heading = pos?.heading ?? 0;
-  const droneIcon = useMemo(() => createDroneIcon(heading), [heading]);
+  const droneIcon = useMemo(() => createDroneIcon(heading, "#00ff41", 24), [heading]);
 
   // Home position = first trail point
   const homePos: [number, number] | null =
@@ -117,6 +176,16 @@ export function OverviewMap() {
 
   const defaultCenter = useDefaultCenter();
   const hasGps = dronePos !== null;
+
+  const handleMeasureComplete = useCallback(() => {
+    setMeasureActive(false);
+  }, []);
+
+  // Other fleet drones (exclude the selected one to avoid double-render)
+  const otherDrones = useMemo(
+    () => fleetDrones.filter((d) => d.id !== selectedDroneId && d.position && d.position.lat !== 0),
+    [fleetDrones, selectedDroneId]
+  );
 
   return (
     <div className="relative w-full h-full border border-border-default overflow-hidden bg-[#0a0a0a] isolate">
@@ -157,7 +226,7 @@ export function OverviewMap() {
         {/* Planned vs actual path comparison */}
         {showPlannedPath && <PlannedVsActualOverlay />}
 
-        {/* Home marker — dashed blue circle */}
+        {/* Home marker -- dashed blue circle */}
         {homePos && (
           <Circle
             center={homePos}
@@ -172,16 +241,55 @@ export function OverviewMap() {
           />
         )}
 
-        {/* Drone marker */}
+        {/* Selected drone marker (primary, larger) */}
         {dronePos && (
           <Marker position={dronePos} icon={droneIcon} />
         )}
+
+        {/* Other fleet drone markers (smaller, status-colored) */}
+        {otherDrones.map((drone) => {
+          if (!drone.position) return null;
+          const dColor = STATUS_COLORS[drone.status] ?? "#a0a0a0";
+          const dHeading = drone.position.heading ?? 0;
+          const icon = createDroneIcon(dHeading, dColor, 18);
+          const displayName = profiles[drone.id]?.displayName ?? drone.name;
+          return (
+            <Marker
+              key={drone.id}
+              position={[drone.position.lat, drone.position.lon]}
+              icon={icon}
+            >
+              <Popup>
+                <div
+                  className="text-xs font-mono"
+                  style={{
+                    color: "#fafafa",
+                    background: "#0a0a0a",
+                    padding: "4px 8px",
+                    margin: "-8px -12px",
+                  }}
+                >
+                  <strong>{displayName}</strong>
+                  <br />
+                  {drone.status}
+                  {drone.battery?.remaining !== undefined && ` | ${Math.round(drone.battery.remaining)}%`}
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
+
+        {/* Measurement tool */}
+        <MeasureToolManager active={measureActive} onComplete={handleMeasureComplete} />
 
         <GcsMarker />
         <LocateControl style={{ marginBottom: 40 }} />
       </MapContainer>
 
-      {/* Mission pause/resume overlay — top right */}
+      {/* Mission execution telemetry -- ETA + XTE */}
+      <MissionExecutionOverlay />
+
+      {/* Mission pause/resume overlay -- top right */}
       {showMissionControls && (
         <button
           onClick={() => {
@@ -205,8 +313,22 @@ export function OverviewMap() {
         </button>
       )}
 
-      {/* Follow toggle + plan overlay — bottom right */}
+      {/* Follow toggle + plan overlay + measure -- bottom right */}
       <div className="absolute bottom-2 right-2 z-[1000] flex items-center gap-1">
+        <button
+          onClick={() => {
+            setMeasureActive((v) => !v);
+          }}
+          className={`text-[9px] font-mono px-2 py-1 border transition-colors flex items-center gap-1 ${
+            measureActive
+              ? "border-[#3A82FF] text-[#3A82FF] bg-[#3A82FF]/10"
+              : "border-border-default text-text-tertiary bg-bg-secondary/80"
+          }`}
+          title="Measure distance and bearing (click points, double-click to finish)"
+        >
+          <Ruler size={10} />
+          MEASURE
+        </button>
         <button
           onClick={() => setShowPlannedPath((v) => !v)}
           className={`text-[9px] font-mono px-2 py-1 border transition-colors ${
@@ -229,7 +351,7 @@ export function OverviewMap() {
         </button>
       </div>
 
-      {/* Coordinates — bottom left */}
+      {/* Coordinates -- bottom left */}
       {dronePos && (
         <div className="absolute bottom-2 left-2 z-[1000] text-[9px] font-mono text-text-tertiary bg-bg-secondary/80 px-2 py-1 border border-border-default">
           {dronePos[0].toFixed(6)}, {dronePos[1].toFixed(6)}

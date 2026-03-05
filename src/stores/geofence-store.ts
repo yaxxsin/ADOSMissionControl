@@ -1,7 +1,8 @@
 /**
  * @module geofence-store
  * @description Zustand store for geofence state. Manages fence type, altitude,
- * breach action, polygon/circle geometry, and protocol upload/download.
+ * breach action, polygon/circle geometry, inclusion/exclusion zones,
+ * and protocol upload/download.
  * @license GPL-3.0-only
  */
 
@@ -11,15 +12,42 @@ import { useDroneManager } from "./drone-manager";
 export type FenceType = "circle" | "polygon";
 export type BreachAction = "RTL" | "LAND" | "REPORT";
 
+/** Fence zone role: inclusion = must stay inside, exclusion = must stay outside */
+export type FenceZoneRole = "inclusion" | "exclusion";
+
+export interface FenceZone {
+  id: string;
+  role: FenceZoneRole;
+  type: FenceType;
+  /** Polygon points [lat, lon] for polygon zones */
+  polygonPoints: [number, number][];
+  /** Center for circle zones */
+  circleCenter: [number, number] | null;
+  /** Radius for circle zones (meters) */
+  circleRadius: number;
+}
+
+/** ArduPilot FENCE_TYPE bitmask */
+export const FENCE_TYPE_BITS = {
+  ALT_MAX: 1 << 0,
+  CIRCLE: 1 << 1,
+  POLYGON: 1 << 2,
+} as const;
+
 interface GeofenceStoreState {
   enabled: boolean;
   fenceType: FenceType;
   maxAltitude: number;
+  minAltitude: number;
   breachAction: BreachAction;
   circleCenter: [number, number] | null;
   circleRadius: number;
   polygonPoints: [number, number][];
   uploadState: "idle" | "uploading" | "uploaded" | "error";
+  downloadState: "idle" | "downloading" | "downloaded" | "error";
+
+  /** Inclusion/exclusion zones for multi-zone fence support */
+  zones: FenceZone[];
 
   // Live breach state from FENCE_STATUS (msg 162)
   breachStatus: number;  // 0=no breach, 1=breach active
@@ -30,23 +58,49 @@ interface GeofenceStoreState {
   setEnabled: (enabled: boolean) => void;
   setFenceType: (type: FenceType) => void;
   setMaxAltitude: (alt: number) => void;
+  setMinAltitude: (alt: number) => void;
   setBreachAction: (action: BreachAction) => void;
   setCircle: (center: [number, number], radius: number) => void;
   setPolygonPoints: (points: [number, number][]) => void;
+
+  /** Sync polygon points from a Leaflet draw event (new polygon drawn on map) */
+  syncFromMapDraw: (latLngs: Array<{ lat: number; lng: number }>) => void;
+  /** Sync circle from a Leaflet draw event (new circle drawn on map) */
+  syncCircleFromMapDraw: (center: { lat: number; lng: number }, radius: number) => void;
+
+  /** Add a new inclusion/exclusion zone */
+  addZone: (zone: Omit<FenceZone, "id">) => void;
+  /** Remove a zone by ID */
+  removeZone: (id: string) => void;
+  /** Update a zone's polygon points (from map drag) */
+  updateZonePolygon: (id: string, points: [number, number][]) => void;
+  /** Update a zone's circle (from map drag) */
+  updateZoneCircle: (id: string, center: [number, number], radius: number) => void;
+  /** Toggle zone role between inclusion/exclusion */
+  toggleZoneRole: (id: string) => void;
+
   uploadFence: () => Promise<void>;
   downloadFence: () => Promise<void>;
   clearFence: () => void;
+}
+
+let zoneIdCounter = 0;
+function nextZoneId(): string {
+  return `zone-${++zoneIdCounter}`;
 }
 
 export const useGeofenceStore = create<GeofenceStoreState>()((set, get) => ({
   enabled: false,
   fenceType: "circle",
   maxAltitude: 120,
+  minAltitude: 0,
   breachAction: "RTL",
   circleCenter: null,
   circleRadius: 200,
   polygonPoints: [],
   uploadState: "idle",
+  downloadState: "idle",
+  zones: [],
 
   breachStatus: 0,
   breachCount: 0,
@@ -57,12 +111,64 @@ export const useGeofenceStore = create<GeofenceStoreState>()((set, get) => ({
   setEnabled: (enabled) => set({ enabled }),
   setFenceType: (fenceType) => set({ fenceType }),
   setMaxAltitude: (maxAltitude) => set({ maxAltitude }),
+  setMinAltitude: (minAltitude) => set({ minAltitude }),
   setBreachAction: (breachAction) => set({ breachAction }),
 
   setCircle: (center, radius) =>
     set({ circleCenter: center, circleRadius: radius }),
 
   setPolygonPoints: (polygonPoints) => set({ polygonPoints }),
+
+  syncFromMapDraw: (latLngs) => {
+    const points: [number, number][] = latLngs.map((ll) => [ll.lat, ll.lng]);
+    set({
+      fenceType: "polygon",
+      polygonPoints: points,
+      enabled: true,
+    });
+  },
+
+  syncCircleFromMapDraw: (center, radius) => {
+    set({
+      fenceType: "circle",
+      circleCenter: [center.lat, center.lng],
+      circleRadius: radius,
+      enabled: true,
+    });
+  },
+
+  addZone: (zone) => {
+    const id = nextZoneId();
+    set((s) => ({ zones: [...s.zones, { ...zone, id }] }));
+  },
+
+  removeZone: (id) => {
+    set((s) => ({ zones: s.zones.filter((z) => z.id !== id) }));
+  },
+
+  updateZonePolygon: (id, points) => {
+    set((s) => ({
+      zones: s.zones.map((z) => (z.id === id ? { ...z, polygonPoints: points } : z)),
+    }));
+  },
+
+  updateZoneCircle: (id, center, radius) => {
+    set((s) => ({
+      zones: s.zones.map((z) =>
+        z.id === id ? { ...z, circleCenter: center, circleRadius: radius } : z,
+      ),
+    }));
+  },
+
+  toggleZoneRole: (id) => {
+    set((s) => ({
+      zones: s.zones.map((z) =>
+        z.id === id
+          ? { ...z, role: z.role === "inclusion" ? "exclusion" : "inclusion" }
+          : z,
+      ),
+    }));
+  },
 
   uploadFence: async () => {
     const protocol = useDroneManager.getState().getSelectedProtocol();
@@ -102,6 +208,7 @@ export const useGeofenceStore = create<GeofenceStoreState>()((set, get) => ({
     const protocol = useDroneManager.getState().getSelectedProtocol();
     if (!protocol?.downloadFence) return;
 
+    set({ downloadState: "downloading" });
     try {
       const points = await protocol.downloadFence();
       if (points.length >= 3) {
@@ -109,10 +216,13 @@ export const useGeofenceStore = create<GeofenceStoreState>()((set, get) => ({
           fenceType: "polygon",
           polygonPoints: points.map((p) => [p.lat, p.lon] as [number, number]),
           enabled: true,
+          downloadState: "downloaded",
         });
+      } else {
+        set({ downloadState: "downloaded" });
       }
     } catch {
-      // silent
+      set({ downloadState: "error" });
     }
   },
 
@@ -122,7 +232,9 @@ export const useGeofenceStore = create<GeofenceStoreState>()((set, get) => ({
       circleCenter: null,
       circleRadius: 200,
       polygonPoints: [],
+      zones: [],
       uploadState: "idle",
+      downloadState: "idle",
       breachStatus: 0,
       breachCount: 0,
       breachType: 0,

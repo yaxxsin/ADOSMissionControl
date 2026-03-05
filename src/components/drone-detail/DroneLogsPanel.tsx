@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   LineChart,
   Line,
@@ -21,7 +21,8 @@ import {
   Battery,
   Signal,
   ChevronDown,
-  ChevronRight,
+  ChevronUp,
+  Search,
 } from "lucide-react";
 import { Select } from "@/components/ui/select";
 
@@ -37,6 +38,9 @@ interface LogMessage {
 interface DroneLogsPanelProps {
   droneId: string;
 }
+
+type SortField = "timestamp" | "severity" | "text";
+type SortDir = "asc" | "desc";
 
 // ── Severity mapping ─────────────────────────────────────────
 
@@ -75,6 +79,44 @@ const SEVERITY_BG: Record<number, string> = {
 
 const MAX_LOG_MESSAGES = 1000;
 
+// ── Message type categories for filtering ────────────────────
+
+const MESSAGE_CATEGORIES = [
+  { value: "all", label: "All Messages" },
+  { value: "error", label: "Errors (0-3)" },
+  { value: "warning", label: "Warnings (4)" },
+  { value: "info", label: "Info (5-7)" },
+  { value: "arm", label: "Arm/Disarm" },
+  { value: "mode", label: "Mode Changes" },
+  { value: "gps", label: "GPS" },
+  { value: "battery", label: "Battery" },
+  { value: "failsafe", label: "Failsafe" },
+  { value: "ekf", label: "EKF" },
+  { value: "calibration", label: "Calibration" },
+] as const;
+
+type CategoryFilter = (typeof MESSAGE_CATEGORIES)[number]["value"];
+
+/** Checks if a message matches the selected category filter. */
+function matchesCategory(msg: LogMessage, category: CategoryFilter): boolean {
+  if (category === "all") return true;
+  if (category === "error") return msg.severity <= 3;
+  if (category === "warning") return msg.severity === 4;
+  if (category === "info") return msg.severity >= 5;
+
+  const lower = msg.text.toLowerCase();
+  switch (category) {
+    case "arm": return lower.includes("arm") || lower.includes("disarm");
+    case "mode": return lower.includes("mode") || lower.includes("flight mode");
+    case "gps": return lower.includes("gps") || lower.includes("sat");
+    case "battery": return lower.includes("batt") || lower.includes("voltage") || lower.includes("power");
+    case "failsafe": return lower.includes("failsafe") || lower.includes("fs_") || lower.includes("fail");
+    case "ekf": return lower.includes("ekf") || lower.includes("ahrs") || lower.includes("imu");
+    case "calibration": return lower.includes("cal") || lower.includes("compass") || lower.includes("accel");
+    default: return true;
+  }
+}
+
 // ── Graph channel config ─────────────────────────────────────
 
 const GRAPH_CHANNELS = [
@@ -86,6 +128,36 @@ const GRAPH_CHANNELS = [
 
 type ChannelKey = (typeof GRAPH_CHANNELS)[number]["key"];
 
+// ── Highlight helper ─────────────────────────────────────────
+
+function HighlightedText({ text, query }: { text: string; query: string }) {
+  if (!query) return <>{text}</>;
+  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
+  const parts = text.split(regex);
+  return (
+    <>
+      {parts.map((part, i) =>
+        regex.test(part) ? (
+          <mark key={i} className="bg-accent-primary/30 text-text-primary rounded-sm px-0.5">
+            {part}
+          </mark>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
+  );
+}
+
+// ── Sort icon component ──────────────────────────────────────
+
+function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: SortField; sortDir: SortDir }) {
+  if (field !== sortField) return <ChevronDown size={10} className="text-text-tertiary/30" />;
+  return sortDir === "asc"
+    ? <ChevronUp size={10} className="text-accent-primary" />
+    : <ChevronDown size={10} className="text-accent-primary" />;
+}
+
 // ── Component ────────────────────────────────────────────────
 
 export function DroneLogsPanel({ droneId }: DroneLogsPanelProps) {
@@ -95,6 +167,13 @@ export function DroneLogsPanel({ droneId }: DroneLogsPanelProps) {
   const [messages, setMessages] = useState<LogMessage[]>([]);
   const [minSeverity, setMinSeverity] = useState(7);
   const [autoscroll, setAutoscroll] = useState(true);
+
+  // Filtering and sorting
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [sortField, setSortField] = useState<SortField>("timestamp");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   // Graph
   const [showGraph, setShowGraph] = useState(false);
@@ -107,6 +186,13 @@ export function DroneLogsPanel({ droneId }: DroneLogsPanelProps) {
 
   const logRef = useRef<HTMLDivElement>(null);
   const msgIdRef = useRef(0);
+
+  // ── Debounce search input (300ms) ──────────────────────────
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // ── Subscribe to STATUSTEXT messages from the protocol ─────
 
@@ -156,14 +242,41 @@ export function DroneLogsPanel({ droneId }: DroneLogsPanelProps) {
     rssi: rcArr[Math.min(i, rcArr.length - 1)]?.rssi ?? 0,
   }));
 
-  // ── Filtered messages ──────────────────────────────────────
+  // ── Filtered, searched, and sorted messages ────────────────
 
-  const filteredMessages = messages.filter((m) => m.severity <= minSeverity);
+  const processedMessages = useMemo(() => {
+    let filtered = messages.filter((m) => m.severity <= minSeverity);
+
+    // Category filter
+    if (categoryFilter !== "all") {
+      filtered = filtered.filter((m) => matchesCategory(m, categoryFilter));
+    }
+
+    // Text search
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
+      filtered = filtered.filter((m) => m.text.toLowerCase().includes(q));
+    }
+
+    // Sort
+    const sorted = [...filtered];
+    sorted.sort((a, b) => {
+      let cmp = 0;
+      switch (sortField) {
+        case "timestamp": cmp = a.timestamp - b.timestamp; break;
+        case "severity": cmp = a.severity - b.severity; break;
+        case "text": cmp = a.text.localeCompare(b.text); break;
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+
+    return sorted;
+  }, [messages, minSeverity, categoryFilter, debouncedSearch, sortField, sortDir]);
 
   // ── Export log to text file ────────────────────────────────
 
   const exportLog = useCallback(() => {
-    const lines = filteredMessages.map((m) => {
+    const lines = processedMessages.map((m) => {
       const time = new Date(m.timestamp).toISOString();
       const sev = SEVERITY_LABELS[m.severity] ?? "UNKNOWN";
       return `[${time}] [${sev}] ${m.text}`;
@@ -175,12 +288,21 @@ export function DroneLogsPanel({ droneId }: DroneLogsPanelProps) {
     a.download = `altnautica-log-${droneId}-${Date.now()}.txt`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [filteredMessages, droneId]);
+  }, [processedMessages, droneId]);
 
   // ── Helpers ────────────────────────────────────────────────
 
   const toggleChannel = (key: ChannelKey) => {
     setActiveChannels((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
   };
 
   const formatTime = (ts: number) => {
@@ -207,8 +329,16 @@ export function DroneLogsPanel({ droneId }: DroneLogsPanelProps) {
           className="text-[11px]"
         />
 
+        {/* Category filter */}
+        <Select
+          value={categoryFilter}
+          onChange={(v) => setCategoryFilter(v as CategoryFilter)}
+          options={MESSAGE_CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
+          className="text-[11px]"
+        />
+
         <span className="text-[10px] text-text-tertiary font-mono">
-          {filteredMessages.length} msgs
+          {processedMessages.length} msgs
         </span>
 
         <div className="flex-1" />
@@ -255,6 +385,48 @@ export function DroneLogsPanel({ droneId }: DroneLogsPanelProps) {
         </button>
       </div>
 
+      {/* ── Search bar ────────────────────────────────────────── */}
+      <div className="flex items-center gap-2 px-3 py-1 border-b border-border-default">
+        <Search size={12} className="text-text-tertiary shrink-0" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search messages..."
+          className="flex-1 bg-transparent text-[11px] font-mono text-text-primary placeholder:text-text-tertiary outline-none"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery("")}
+            className="text-[10px] text-text-tertiary hover:text-text-primary cursor-pointer"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* ── Column headers (sortable) ─────────────────────────── */}
+      <div className="flex items-center gap-3 px-3 py-1 border-b border-border-default bg-bg-tertiary/30">
+        <button
+          onClick={() => handleSort("timestamp")}
+          className="flex items-center gap-0.5 text-[9px] font-mono text-text-tertiary hover:text-text-secondary cursor-pointer shrink-0 w-[60px]"
+        >
+          TIME <SortIcon field="timestamp" sortField={sortField} sortDir={sortDir} />
+        </button>
+        <button
+          onClick={() => handleSort("severity")}
+          className="flex items-center gap-0.5 text-[9px] font-mono text-text-tertiary hover:text-text-secondary cursor-pointer shrink-0 w-[72px]"
+        >
+          SEVERITY <SortIcon field="severity" sortField={sortField} sortDir={sortDir} />
+        </button>
+        <button
+          onClick={() => handleSort("text")}
+          className="flex items-center gap-0.5 text-[9px] font-mono text-text-tertiary hover:text-text-secondary cursor-pointer flex-1"
+        >
+          MESSAGE <SortIcon field="text" sortField={sortField} sortDir={sortDir} />
+        </button>
+      </div>
+
       {/* ── Message list ─────────────────────────────────────── */}
       <div
         ref={logRef}
@@ -262,12 +434,15 @@ export function DroneLogsPanel({ droneId }: DroneLogsPanelProps) {
         onMouseEnter={() => setAutoscroll(false)}
         onMouseLeave={() => setAutoscroll(true)}
       >
-        {filteredMessages.length === 0 ? (
+        {processedMessages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-text-tertiary text-xs">
-            Waiting for status messages...
+            {messages.length === 0
+              ? "Waiting for status messages..."
+              : "No messages match current filters"
+            }
           </div>
         ) : (
-          filteredMessages.map((msg) => (
+          processedMessages.map((msg) => (
             <div
               key={msg.id}
               className={`flex items-start gap-3 px-3 py-0.5 hover:bg-bg-tertiary/50 ${
@@ -284,7 +459,9 @@ export function DroneLogsPanel({ droneId }: DroneLogsPanelProps) {
               >
                 {SEVERITY_LABELS[msg.severity] ?? "?"}
               </span>
-              <span className="text-text-primary break-all">{msg.text}</span>
+              <span className="text-text-primary break-all">
+                <HighlightedText text={msg.text} query={debouncedSearch} />
+              </span>
             </div>
           ))
         )}

@@ -283,7 +283,7 @@ export function FramePanel() {
             {/* Frame Class & Type */}
             {!isFixedWingOnly && (
             <Card icon={<Box size={14} />} title="Frame Selection" description="Select airframe class and configuration type">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <Select
                   label={classParam}
                   options={FRAME_CLASS_OPTIONS}

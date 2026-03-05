@@ -8,8 +8,11 @@ import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
 import { usePanelParams } from "@/hooks/use-panel-params";
 import { useParamLabel } from "@/hooks/use-param-label";
+import { useParamMetadataMap } from "@/hooks/use-param-metadata";
+import { usePanelScroll } from "@/hooks/use-panel-scroll";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import { PanelHeader } from "./PanelHeader";
+import { ParamLabel } from "./ParamLabel";
 import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
 import { ShieldAlert, Battery, Radio, Gauge, Save, HardDrive, MapPin, SlidersHorizontal, Mountain } from "lucide-react";
 import { StarredParam } from "./ParamStar";
@@ -39,10 +42,20 @@ const RC_OPTION_VALUES = [
   { value: "57", label: "57 — Follow", description: "Follow another vehicle or GCS" },
 ];
 
+/** ArduCopter FS_OPTIONS bitmask bits */
+const FS_OPTION_BITS = [
+  { mask: 1 << 0, label: "Bit 0 — Continue if in auto mode on RC failsafe" },
+  { mask: 1 << 1, label: "Bit 1 — Continue if in auto mode on GCS failsafe" },
+  { mask: 1 << 2, label: "Bit 2 — Continue if in guided mode on RC failsafe" },
+  { mask: 1 << 3, label: "Bit 3 — Continue if landing on any failsafe" },
+  { mask: 1 << 4, label: "Bit 4 — Continue if in pilot controlled mode on GCS failsafe" },
+  { mask: 1 << 5, label: "Bit 5 — Release gripper" },
+];
+
 // Vehicle-specific failsafe params
 const COPTER_FS_PARAMS = [
   "FS_SHORT_ACTN", "FS_SHORT_TIMEOUT", "FS_LONG_ACTN", "FS_LONG_TIMEOUT", "FS_GCS_ENABL",
-  "TERRAIN_ENABLE",
+  "TERRAIN_ENABLE", "FS_OPTIONS", "FS_THR_VALUE",
 ];
 const PLANE_FS_PARAMS = [
   "THR_FAILSAFE", "THR_FS_VALUE",
@@ -58,6 +71,9 @@ export function FailsafePanel() {
   const getSelectedDrone = useDroneManager((s) => s.getSelectedDrone);
   const { toast } = useToast();
   const { label: pl } = useParamLabel();
+  const metadata = useParamMetadataMap();
+  const lbl = (raw: string) => <ParamLabel label={pl(raw)} metadata={metadata} />;
+  const scrollRef = usePanelScroll("failsafe");
   const [saving, setSaving] = useState(false);
 
   // Detect vehicle type for vehicle-specific param loading
@@ -80,7 +96,7 @@ export function FailsafePanel() {
     params, loading, error, dirtyParams, hasRamWrites,
     loadProgress, hasLoaded, missingOptional,
     refresh, setLocalValue, saveAllToRam, commitToFlash,
-  } = usePanelParams({ paramNames, optionalParams, panelId: "failsafe" });
+  } = usePanelParams({ paramNames, optionalParams, panelId: "failsafe", autoLoad: true });
   useUnsavedGuard(dirtyParams.size > 0);
 
   const connected = !!getSelectedProtocol();
@@ -107,7 +123,7 @@ export function FailsafePanel() {
 
   return (
     <ArmedLockOverlay>
-    <div className="flex-1 overflow-y-auto p-6">
+    <div ref={scrollRef} className="flex-1 overflow-y-auto p-6">
       <div className="max-w-2xl space-y-6">
         <PanelHeader
           title="Failsafe Configuration"
@@ -125,7 +141,7 @@ export function FailsafePanel() {
         {!isPlane && <Card icon={<ShieldAlert size={14} />} title="Short Failsafe" description="Triggered on brief signal loss">
           <StarredParam param="FS_SHORT_ACTN">
             <Select
-              label={pl("FS_SHORT_ACTN — Action")}
+              label={lbl("FS_SHORT_ACTN — Action")}
               options={[
                 { value: "0", label: "0 — Disabled" },
                 { value: "1", label: "1 — Enabled (Circle)" },
@@ -136,7 +152,7 @@ export function FailsafePanel() {
           </StarredParam>
           <StarredParam param="FS_SHORT_TIMEOUT">
             <Input
-              label={pl("FS_SHORT_TIMEOUT — Timeout (s)")}
+              label={lbl("FS_SHORT_TIMEOUT — Timeout (s)")}
               type="number"
               step="0.1"
               min="0"
@@ -151,7 +167,7 @@ export function FailsafePanel() {
         {!isPlane && <Card icon={<ShieldAlert size={14} />} title="Long Failsafe" description="Triggered on extended signal loss">
           <StarredParam param="FS_LONG_ACTN">
             <Select
-              label={pl("FS_LONG_ACTN — Action")}
+              label={lbl("FS_LONG_ACTN — Action")}
               options={[
                 { value: "0", label: "0 — Continue" },
                 { value: "1", label: "1 — RTL" },
@@ -163,7 +179,7 @@ export function FailsafePanel() {
           </StarredParam>
           <StarredParam param="FS_LONG_TIMEOUT">
             <Input
-              label={pl("FS_LONG_TIMEOUT — Timeout (s)")}
+              label={lbl("FS_LONG_TIMEOUT — Timeout (s)")}
               type="number"
               step="0.1"
               min="0"
@@ -178,7 +194,7 @@ export function FailsafePanel() {
         <Card icon={<Battery size={14} />} title="Battery Failsafe" description="Triggered on low battery voltage">
           <StarredParam param="BATT_FS_VOLTSRC">
             <Select
-              label={pl("BATT_FS_VOLTSRC — Voltage Source")}
+              label={lbl("BATT_FS_VOLTSRC — Voltage Source")}
               options={[
                 { value: "0", label: "0 — Raw Voltage" },
                 { value: "1", label: "1 — Sag Compensated" },
@@ -189,7 +205,7 @@ export function FailsafePanel() {
           </StarredParam>
           <StarredParam param="BATT_FS_LOW_VOLT">
             <Input
-              label={pl("BATT_FS_LOW_VOLT — Low Voltage Threshold")}
+              label={lbl("BATT_FS_LOW_VOLT — Low Voltage Threshold")}
               type="number"
               step="0.1"
               min="0"
@@ -200,7 +216,7 @@ export function FailsafePanel() {
           </StarredParam>
           <StarredParam param="BATT_FS_LOW_ACT">
             <Select
-              label={pl("BATT_FS_LOW_ACT — Low Voltage Action")}
+              label={lbl("BATT_FS_LOW_ACT — Low Voltage Action")}
               options={[
                 { value: "0", label: "0 — None" },
                 { value: "1", label: "1 — Land" },
@@ -217,7 +233,7 @@ export function FailsafePanel() {
         {!isPlane && <Card icon={<Radio size={14} />} title="GCS Failsafe" description="Triggered on GCS link loss">
           <StarredParam param="FS_GCS_ENABL">
             <Select
-              label={pl("FS_GCS_ENABL — GCS Failsafe")}
+              label={lbl("FS_GCS_ENABL — GCS Failsafe")}
               options={[
                 { value: "0", label: "0 — Disabled" },
                 { value: "1", label: "1 — Enabled (RTL)" },
@@ -232,7 +248,7 @@ export function FailsafePanel() {
         {/* Terrain Failsafe (Copter only) */}
         {!isPlane && <Card icon={<Mountain size={14} />} title="Terrain Failsafe" description="Triggered when terrain data is unavailable during terrain-following">
           <Select
-            label={pl("TERRAIN_ENABLE — Terrain Following")}
+            label={lbl("TERRAIN_ENABLE — Terrain Following")}
             options={[
               { value: "0", label: "0 — Disabled" },
               { value: "1", label: "1 — Enabled" },
@@ -242,10 +258,54 @@ export function FailsafePanel() {
           />
         </Card>}
 
+        {/* Failsafe Options Bitmask (Copter only) */}
+        {!isPlane && <Card icon={<ShieldAlert size={14} />} title="Failsafe Options" description="FS_OPTIONS bitmask — additional failsafe behaviors">
+          <div className="space-y-1.5">
+            {FS_OPTION_BITS.map((bit) => {
+              const current = Number(params.get("FS_OPTIONS") ?? 0);
+              const isSet = (current & bit.mask) !== 0;
+              return (
+                <label key={bit.mask} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isSet}
+                    onChange={() => set("FS_OPTIONS", String(current ^ bit.mask))}
+                    className="accent-accent-primary"
+                  />
+                  <span className="text-xs text-text-secondary">{bit.label}</span>
+                </label>
+              );
+            })}
+          </div>
+          <p className="text-[10px] font-mono text-text-tertiary mt-2">
+            FS_OPTIONS = {Number(params.get("FS_OPTIONS") ?? 0)} (0x{(Number(params.get("FS_OPTIONS") ?? 0)).toString(16).padStart(4, "0")})
+          </p>
+        </Card>}
+
+        {/* Throttle Failsafe PWM (Copter) */}
+        {!isPlane && <Card icon={<Gauge size={14} />} title="Throttle Failsafe PWM" description="PWM value below which throttle failsafe triggers">
+          <StarredParam param="FS_THR_VALUE">
+            <Input
+              label={lbl("FS_THR_VALUE — Throttle PWM Threshold")}
+              type="number"
+              step="1"
+              min="800"
+              max="1200"
+              unit="μs"
+              value={p("FS_THR_VALUE", "975")}
+              onChange={(e) => set("FS_THR_VALUE", e.target.value)}
+            />
+          </StarredParam>
+          <p className="text-[10px] text-text-tertiary">
+            When throttle PWM drops below this value, the short failsafe action triggers.
+            Set this ~10μs below your RC transmitter&apos;s minimum throttle output.
+          </p>
+        </Card>}
+
         {/* Throttle Failsafe (Plane only) */}
         {isPlane && <Card icon={<Gauge size={14} />} title="Throttle Failsafe" description="Triggered on RC throttle loss">
           <Select
-            label={pl("THR_FAILSAFE — Throttle Failsafe")}
+            label={lbl("THR_FAILSAFE — Throttle Failsafe")}
             options={[
               { value: "0", label: "0 — Disabled" },
               { value: "1", label: "1 — Enabled" },
@@ -254,7 +314,7 @@ export function FailsafePanel() {
             onChange={(v) => set("THR_FAILSAFE", v)}
           />
           <Input
-            label={pl("THR_FS_VALUE — Throttle PWM value")}
+            label={lbl("THR_FS_VALUE — Throttle PWM value")}
             type="number"
             step="1"
             min="800"
@@ -289,7 +349,7 @@ export function FailsafePanel() {
         {/* Geofence */}
         <Card icon={<MapPin size={14} />} title="Geofence" description="Geographical boundary enforcement">
           <Select
-            label={pl("FENCE_ENABLE — Fence Type")}
+            label={lbl("FENCE_ENABLE — Fence Type")}
             options={[
               { value: "0", label: "0 — Disabled" },
               { value: "1", label: "1 — Altitude Only" },
@@ -304,7 +364,7 @@ export function FailsafePanel() {
             onChange={(v) => set("FENCE_ENABLE", v)}
           />
           <Select
-            label={pl("FENCE_ACTION — Breach Action")}
+            label={lbl("FENCE_ACTION — Breach Action")}
             options={[
               { value: "0", label: "0 — Report Only" },
               { value: "1", label: "1 — RTL or Land" },
@@ -316,9 +376,9 @@ export function FailsafePanel() {
             value={p("FENCE_ACTION")}
             onChange={(v) => set("FENCE_ACTION", v)}
           />
-          <Input label={pl("FENCE_ALT_MAX — Max Altitude")} type="number" step="1" min="0" unit="m" value={p("FENCE_ALT_MAX", "100")} onChange={(e) => set("FENCE_ALT_MAX", e.target.value)} />
-          <Input label={pl("FENCE_RADIUS — Max Radius")} type="number" step="1" min="0" unit="m" value={p("FENCE_RADIUS", "300")} onChange={(e) => set("FENCE_RADIUS", e.target.value)} />
-          <Input label={pl("FENCE_ALT_MIN — Min Altitude")} type="number" step="0.5" min="-100" unit="m" value={p("FENCE_ALT_MIN")} onChange={(e) => set("FENCE_ALT_MIN", e.target.value)} />
+          <Input label={lbl("FENCE_ALT_MAX — Max Altitude")} type="number" step="1" min="0" unit="m" value={p("FENCE_ALT_MAX", "100")} onChange={(e) => set("FENCE_ALT_MAX", e.target.value)} />
+          <Input label={lbl("FENCE_RADIUS — Max Radius")} type="number" step="1" min="0" unit="m" value={p("FENCE_RADIUS", "300")} onChange={(e) => set("FENCE_RADIUS", e.target.value)} />
+          <Input label={lbl("FENCE_ALT_MIN — Min Altitude")} type="number" step="0.5" min="-100" unit="m" value={p("FENCE_ALT_MIN")} onChange={(e) => set("FENCE_ALT_MIN", e.target.value)} />
         </Card>
 
         {/* Save */}

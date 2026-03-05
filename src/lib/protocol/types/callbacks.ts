@@ -348,3 +348,105 @@ export type SystemTimeCallback = (data: {
   timeUnixUsec: number;
   timeBootMs: number;
 }) => void;
+
+export type RawImuCallback = (data: {
+  timestamp: number;
+  xacc: number;
+  yacc: number;
+  zacc: number;
+  xgyro: number;
+  ygyro: number;
+  zgyro: number;
+  xmag: number;
+  ymag: number;
+  zmag: number;
+}) => void;
+
+export type RcChannelsRawCallback = (data: {
+  timestamp: number;
+  channels: number[];
+  port: number;
+  rssi: number;
+}) => void;
+
+export type RcChannelsOverrideCallback = (data: {
+  timestamp: number;
+  channels: number[];
+  targetSystem: number;
+  targetComponent: number;
+}) => void;
+
+export type MissionItemCallback = (data: {
+  seq: number;
+  frame: number;
+  command: number;
+  current: number;
+  autocontinue: number;
+  param1: number;
+  param2: number;
+  param3: number;
+  param4: number;
+  x: number;
+  y: number;
+  z: number;
+}) => void;
+
+export type AltitudeCallback = (data: {
+  timestamp: number;
+  altitudeMonotonic: number;
+  altitudeAmsl: number;
+  altitudeLocal: number;
+  altitudeRelative: number;
+  altitudeTerrain: number;
+  bottomClearance: number;
+}) => void;
+
+export type WindCovCallback = (data: {
+  timestamp: number;
+  windX: number;
+  windY: number;
+  windZ: number;
+  varHoriz: number;
+  varVert: number;
+  windAlt: number;
+  horizAccuracy: number;
+  vertAccuracy: number;
+}) => void;
+
+export type AisVesselCallback = (data: {
+  timestamp: number;
+  MMSI: number;
+  lat: number;
+  lon: number;
+  COG: number;
+  heading: number;
+  velocity: number;
+  turnRate: number;
+  navigationalStatus: number;
+  type: number;
+  callsign: string;
+  name: string;
+  flags: number;
+}) => void;
+
+export type GimbalManagerInfoCallback = (data: {
+  timestamp: number;
+  capFlags: number;
+  gimbalDeviceId: number;
+  rollMin: number;
+  rollMax: number;
+  pitchMin: number;
+  pitchMax: number;
+  yawMin: number;
+  yawMax: number;
+}) => void;
+
+export type GimbalManagerStatusCallback = (data: {
+  timestamp: number;
+  flags: number;
+  gimbalDeviceId: number;
+  primaryControlSysid: number;
+  primaryControlCompid: number;
+  secondaryControlSysid: number;
+  secondaryControlCompid: number;
+}) => void;

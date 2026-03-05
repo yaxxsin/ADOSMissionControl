@@ -3,7 +3,8 @@
  * @description Replaces the static TileLayer with a switchable tile source.
  * Renders the active tile layer and a small control button to cycle between
  * CARTO Dark, OpenStreetMap, and Esri Satellite imagery. Persists selection
- * to settings-store.
+ * to settings-store. Supports offline tile caching via IndexedDB and
+ * no-fly zone overlay toggle.
  * @license GPL-3.0-only
  */
 
@@ -12,6 +13,16 @@
 import { useState, useCallback } from "react";
 import { TileLayer } from "react-leaflet";
 import { useSettingsStore, type MapTileSource } from "@/stores/settings-store";
+import dynamic from "next/dynamic";
+
+const CachedTileLayer = dynamic(
+  () => import("./CachedTileLayer").then((m) => ({ default: m.CachedTileLayer })),
+  { ssr: false }
+);
+const NoFlyZoneOverlay = dynamic(
+  () => import("./NoFlyZoneOverlay").then((m) => ({ default: m.NoFlyZoneOverlay })),
+  { ssr: false }
+);
 
 interface TileConfig {
   url: string;
@@ -54,6 +65,9 @@ const TILE_ORDER: MapTileSource[] = ["dark", "osm", "satellite", "terrain"];
 export function TileLayerSwitcher() {
   const source = useSettingsStore((s) => s.mapTileSource);
   const setSource = useSettingsStore((s) => s.setMapTileSource);
+  const cachingEnabled = useSettingsStore((s) => s.offlineTileCaching);
+  const showNfz = useSettingsStore((s) => s.showNoFlyZones);
+  const setShowNfz = useSettingsStore((s) => s.setShowNoFlyZones);
   const [showPicker, setShowPicker] = useState(false);
 
   const config = TILE_CONFIGS[source] ?? TILE_CONFIGS.dark;
@@ -65,12 +79,24 @@ export function TileLayerSwitcher() {
 
   return (
     <>
-      <TileLayer
-        key={source}
-        url={config.url}
-        attribution={config.attribution}
-        maxZoom={config.maxZoom}
-      />
+      {cachingEnabled ? (
+        <CachedTileLayer
+          key={source}
+          url={config.url}
+          attribution={config.attribution}
+          maxZoom={config.maxZoom}
+        />
+      ) : (
+        <TileLayer
+          key={source}
+          url={config.url}
+          attribution={config.attribution}
+          maxZoom={config.maxZoom}
+        />
+      )}
+
+      {/* No-fly zone overlay */}
+      <NoFlyZoneOverlay visible={showNfz} />
 
       {/* Layer switcher control — top right */}
       <div className="leaflet-top leaflet-right" style={{ pointerEvents: "auto" }}>
@@ -97,6 +123,18 @@ export function TileLayerSwitcher() {
                   {TILE_LABELS[s]}
                 </button>
               ))}
+              {/* Separator + NFZ toggle */}
+              <div className="border-t border-border-default my-0.5" />
+              <button
+                onClick={() => setShowNfz(!showNfz)}
+                className={`block w-full text-left px-3 py-1.5 text-[9px] font-mono transition-colors ${
+                  showNfz
+                    ? "text-status-error bg-status-error/10"
+                    : "text-text-secondary hover:text-text-primary hover:bg-surface-secondary"
+                }`}
+              >
+                {showNfz ? "NFZ ON" : "NFZ OFF"}
+              </button>
             </div>
           )}
         </div>
