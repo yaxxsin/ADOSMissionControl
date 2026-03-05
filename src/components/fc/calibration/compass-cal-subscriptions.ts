@@ -9,12 +9,7 @@ import {
   MAG_CAL_FAIL_MESSAGES,
 } from "./calibration-types";
 import type { DroneProtocol } from "@/lib/protocol/types";
-import { addSub, cleanupSubs, resetTimeout } from "./calibration-subscriptions";
-
-interface SubsManager {
-  subsRef: React.MutableRefObject<Map<string, (() => void)[]>>;
-  timeoutRef: React.MutableRefObject<Map<string, ReturnType<typeof setTimeout>>>;
-}
+import { type SubsManager, addSub, cleanupSubs, resetTimeout } from "./cal-sub-helpers";
 
 export function subscribeCompassCalibration(
   manager: SubsManager,
