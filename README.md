@@ -25,7 +25,7 @@ Altnautica Command is a web GCS that runs in any browser and also ships as a nat
 
 It replaces desktop-only tools like QGroundControl and Mission Planner with a modern web stack: React 19, TypeScript strict, real-time Zustand stores with ring-buffered telemetry, and a custom binary MAVLink v2 parser.
 
-~110K lines of TypeScript. 25 FC configuration panels. 7 pattern generators. 46 MAVLink decoders. 27 Zustand stores. Full demo mode with zero setup.
+~110K lines of TypeScript. 25 FC configuration panels. 7 pattern generators. 53 MAVLink decoders. 27 Zustand stores. Full demo mode with zero setup.
 
 **[Live App](https://command.altnautica.com)** · **[Website](https://altnautica.com/command)** · **[Community](https://command.altnautica.com/community)**
 
@@ -137,7 +137,7 @@ Open [http://localhost:4000](http://localhost:4000) for 5 simulated drones with 
 
 ### Protocol Support
 
-- **MAVLink v2** binary parser with CRC validation and 46 message decoders
+- **MAVLink v2** binary parser with CRC validation and 53 message decoders
 - **ArduPilot** with full support (all panels, calibration, missions, dataflash logs)
 - **PX4** adapter designed, implementation in progress
 - **Betaflight / iNav** planned (MSP interface stubs)
@@ -283,7 +283,7 @@ These run inside Convex functions, not in Next.js. Only needed if you use cloud 
 
 | Firmware | Status | Notes |
 |----------|--------|-------|
-| ArduPilot | **Full** | 46 decoders, 17 commands, all panels, calibration, missions, logs |
+| ArduPilot | **Full** | 53 decoders, 20 commands, all panels, calibration, missions, logs |
 | PX4 | Partial | Adapter designed, implementation in progress |
 | Betaflight | Planned | MSP interface stub |
 | iNav | Planned | MSP interface stub |
@@ -297,8 +297,8 @@ These run inside Convex functions, not in Next.js. Only needed if you use cloud 
 | Lines of TypeScript | ~110,000 |
 | FC configuration panels | 25 |
 | Zustand stores | 27 |
-| MAVLink message decoders | 46 |
-| MAV_CMD handlers | 17 |
+| MAVLink message decoders | 53 |
+| MAV_CMD handlers | 20 |
 | Pattern generators | 7 |
 | Board profiles | 9 |
 | File format handlers | 5 (KML, KMZ, CSV, .waypoints, .plan) |

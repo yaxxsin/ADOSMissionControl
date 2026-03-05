@@ -10,7 +10,7 @@
 - **Protocol:** Custom MAVLink v2 binary parser/encoder, `DroneProtocol` abstraction interface
 - **Stores:** 27 Zustand stores with ring-buffered telemetry
 - **FC panels:** 25 configuration panels + 10 shared infra components
-- **MAVLink:** 46 message decoders, 17 MAV_CMD handlers
+- **MAVLink:** 53 message decoders, 20 MAV_CMD handlers
 - **Firmware:** ArduPilot (full), PX4 (partial), Betaflight/iNav (stubs)
 - **Port:** 4000 (dev, demo, and production)
 - **License:** GPL-3.0-only
@@ -146,7 +146,7 @@ When you need to understand a system, read these files:
 | To understand... | Read |
 |-----------------|------|
 | Protocol abstraction | `src/lib/protocol/types.ts` — `DroneProtocol` interface (760 lines, every FC operation) |
-| MAVLink binary parsing | `src/lib/protocol/mavlink-parser.ts` — CRC_EXTRA map, frame decoder, 46 message types |
+| MAVLink binary parsing | `src/lib/protocol/mavlink-parser.ts` — CRC_EXTRA map, frame decoder, 53 message types |
 | MAVLink binary encoding | `src/lib/protocol/mavlink-encoder.ts` — outbound message construction |
 | MAVLink adapter | `src/lib/protocol/mavlink-adapter.ts` — `DroneProtocol` implementation for MAVLink |
 | Firmware-specific behavior | `src/lib/protocol/firmware-ardupilot.ts` — mode maps, capabilities, param names |
