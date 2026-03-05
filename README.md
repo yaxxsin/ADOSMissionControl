@@ -25,7 +25,7 @@ Altnautica Command is a web GCS that runs in any browser and also ships as a nat
 
 It replaces desktop-only tools like QGroundControl and Mission Planner with a modern web stack: React 19, TypeScript strict, real-time Zustand stores with ring-buffered telemetry, and a custom binary MAVLink v2 parser.
 
-~110K lines of TypeScript. 28 FC configuration panels. 7 pattern generators. 53 MAVLink decoders. 27 Zustand stores. Full demo mode with zero setup.
+~110K lines of TypeScript. 28 FC configuration panels. 7 pattern generators. 77 MAVLink message types. 31 Zustand stores. Full demo mode with zero setup.
 
 **[Live App](https://command.altnautica.com)** · **[Website](https://altnautica.com/command)** · **[Community](https://command.altnautica.com/community)**
 
@@ -137,7 +137,7 @@ Open [http://localhost:4000](http://localhost:4000) for 5 simulated drones with 
 
 ### Protocol Support
 
-- **MAVLink v2** binary parser with CRC validation and 53 message decoders
+- **MAVLink v2** binary parser with CRC validation and 77 message types
 - **ArduPilot** with full support (all panels, calibration, missions, dataflash logs)
 - **PX4** with full support including airframe selection, actuator configuration, MAVLink shell, and 90+ parameter mappings
 - **Betaflight / iNav** planned (MSP interface stubs)
@@ -283,7 +283,7 @@ These run inside Convex functions, not in Next.js. Only needed if you use cloud 
 
 | Firmware | Status | Notes |
 |----------|--------|-------|
-| ArduPilot | **Full** | 53 decoders, 20 commands, all panels, calibration, missions, logs |
+| ArduPilot | **Full** | 77 message types, 20 commands, all panels, calibration, missions, logs |
 | PX4 | **Full** | 90+ param mappings, airframe selection, actuator config, MAVLink shell, calibration, missions |
 | Betaflight | Planned | MSP interface stub |
 | iNav | Planned | MSP interface stub |
@@ -296,8 +296,8 @@ These run inside Convex functions, not in Next.js. Only needed if you use cloud 
 |--------|-------|
 | Lines of TypeScript | ~110,000 |
 | FC configuration panels | 28 |
-| Zustand stores | 27 |
-| MAVLink message decoders | 53 |
+| Zustand stores | 31 |
+| MAVLink message decoders | 77 |
 | MAV_CMD handlers | 20 |
 | Pattern generators | 7 |
 | Board profiles | 9 |

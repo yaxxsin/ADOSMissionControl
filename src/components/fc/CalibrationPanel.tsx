@@ -517,6 +517,10 @@ export function CalibrationPanel() {
   const [px4CalStatus, setPx4CalStatus] = useState<"idle" | "running" | "success" | "failed">("idle");
   const [px4CalCompletedSides, setPx4CalCompletedSides] = useState<Set<number>>(new Set());
   const [px4CalActiveType, setPx4CalActiveType] = useState<string | null>(null);
+  const px4CalActiveTypeRef = useRef<string | null>(null);
+  const px4CalCompletedSidesRef = useRef<Set<number>>(new Set());
+  useEffect(() => { px4CalActiveTypeRef.current = px4CalActiveType; }, [px4CalActiveType]);
+  useEffect(() => { px4CalCompletedSidesRef.current = px4CalCompletedSides; }, [px4CalCompletedSides]);
 
   // PX4-only calibration states (Quick Level, GNSS Mag Cal)
   const [px4QuickLevel, setPx4QuickLevel] = useState<CalibrationState>(INITIAL_STATE);
@@ -604,15 +608,15 @@ export function CalibrationPanel() {
         const pct = parseInt(progressMatch[1], 10);
         setPx4CalProgress(pct);
         // Also route progress into the active calibration setter
-        if (px4CalActiveType === "accel") {
+        if (px4CalActiveTypeRef.current === "accel") {
           setAccel((prev) => prev.status === "in_progress" ? { ...prev, progress: pct, message: `PX4 calibration: ${pct}%` } : prev);
-        } else if (px4CalActiveType === "compass") {
+        } else if (px4CalActiveTypeRef.current === "compass") {
           setCompass((prev) => prev.status === "in_progress" ? { ...prev, progress: pct, message: `PX4 compass calibration: ${pct}%` } : prev);
-        } else if (px4CalActiveType === "gyro") {
+        } else if (px4CalActiveTypeRef.current === "gyro") {
           setGyro((prev) => prev.status === "in_progress" ? { ...prev, progress: pct, message: `PX4 gyro calibration: ${pct}%` } : prev);
-        } else if (px4CalActiveType === "level") {
+        } else if (px4CalActiveTypeRef.current === "level") {
           setLevel((prev) => prev.status === "in_progress" ? { ...prev, progress: pct, message: `PX4 level calibration: ${pct}%` } : prev);
-        } else if (px4CalActiveType === "quick-level") {
+        } else if (px4CalActiveTypeRef.current === "quick-level") {
           setPx4QuickLevel((prev) => prev.status === "in_progress" ? { ...prev, progress: pct, message: `Quick level: ${pct}%` } : prev);
         }
         return;
@@ -629,10 +633,10 @@ export function CalibrationPanel() {
         if (pos) {
           setPx4CalCompletedSides((prev) => new Set([...prev, pos]));
           // Update accel step if running accel cal
-          if (px4CalActiveType === "accel") {
+          if (px4CalActiveTypeRef.current === "accel") {
             setAccel((prev) => {
               if (prev.status !== "in_progress") return prev;
-              const completedCount = new Set([...px4CalCompletedSides, pos]).size;
+              const completedCount = new Set([...px4CalCompletedSidesRef.current, pos]).size;
               return {
                 ...prev,
                 currentStep: completedCount,
@@ -649,7 +653,7 @@ export function CalibrationPanel() {
       // Orientation detected: [cal] orientation detected: front
       const orientMatch = text.match(/\[cal\] orientation detected: (\w+)/);
       if (orientMatch) {
-        if (px4CalActiveType === "accel") {
+        if (px4CalActiveTypeRef.current === "accel") {
           const sideNameMap: Record<string, number> = {
             back: 0, front: 1, left: 2, right: 3, up: 4, down: 5,
           };
@@ -670,12 +674,12 @@ export function CalibrationPanel() {
         setPx4CalProgress(100);
         setPx4CalStatus("success");
         // Route success to the active calibration state
-        const calTypeSetter = px4CalActiveType === "accel" ? setAccel
-          : px4CalActiveType === "compass" ? setCompass
-          : px4CalActiveType === "gyro" ? setGyro
-          : px4CalActiveType === "level" ? setLevel
-          : px4CalActiveType === "quick-level" ? setPx4QuickLevel
-          : px4CalActiveType === "gnss-mag" ? setPx4GnssMagCal
+        const calTypeSetter = px4CalActiveTypeRef.current === "accel" ? setAccel
+          : px4CalActiveTypeRef.current === "compass" ? setCompass
+          : px4CalActiveTypeRef.current === "gyro" ? setGyro
+          : px4CalActiveTypeRef.current === "level" ? setLevel
+          : px4CalActiveTypeRef.current === "quick-level" ? setPx4QuickLevel
+          : px4CalActiveTypeRef.current === "gnss-mag" ? setPx4GnssMagCal
           : null;
         if (calTypeSetter) {
           calTypeSetter((prev) => {
@@ -685,13 +689,13 @@ export function CalibrationPanel() {
               status: "success",
               progress: 100,
               message: text,
-              needsReboot: ["accel", "compass", "level"].includes(px4CalActiveType ?? ""),
+              needsReboot: ["accel", "compass", "level"].includes(px4CalActiveTypeRef.current ?? ""),
             };
           });
         }
-        const label = px4CalActiveType ?? "PX4";
+        const label = px4CalActiveTypeRef.current ?? "PX4";
         toast(`${label.charAt(0).toUpperCase() + label.slice(1)} calibration complete`, "success");
-        useDiagnosticsStore.getState().logCalibration(px4CalActiveType ?? "px4", "success");
+        useDiagnosticsStore.getState().logCalibration(px4CalActiveTypeRef.current ?? "px4", "success");
         setPx4CalActiveType(null);
         return;
       }
@@ -699,12 +703,12 @@ export function CalibrationPanel() {
       // Calibration failed: [cal] calibration failed: <reason>
       if (text.includes("calibration failed")) {
         setPx4CalStatus("failed");
-        const calTypeSetter = px4CalActiveType === "accel" ? setAccel
-          : px4CalActiveType === "compass" ? setCompass
-          : px4CalActiveType === "gyro" ? setGyro
-          : px4CalActiveType === "level" ? setLevel
-          : px4CalActiveType === "quick-level" ? setPx4QuickLevel
-          : px4CalActiveType === "gnss-mag" ? setPx4GnssMagCal
+        const calTypeSetter = px4CalActiveTypeRef.current === "accel" ? setAccel
+          : px4CalActiveTypeRef.current === "compass" ? setCompass
+          : px4CalActiveTypeRef.current === "gyro" ? setGyro
+          : px4CalActiveTypeRef.current === "level" ? setLevel
+          : px4CalActiveTypeRef.current === "quick-level" ? setPx4QuickLevel
+          : px4CalActiveTypeRef.current === "gnss-mag" ? setPx4GnssMagCal
           : null;
         if (calTypeSetter) {
           calTypeSetter((prev) => ({
@@ -714,9 +718,9 @@ export function CalibrationPanel() {
             waitingForConfirm: false,
           }));
         }
-        const label = px4CalActiveType ?? "PX4";
+        const label = px4CalActiveTypeRef.current ?? "PX4";
         toast(`${label.charAt(0).toUpperCase() + label.slice(1)} calibration failed`, "error");
-        useDiagnosticsStore.getState().logCalibration(px4CalActiveType ?? "px4", "failed");
+        useDiagnosticsStore.getState().logCalibration(px4CalActiveTypeRef.current ?? "px4", "failed");
         setPx4CalActiveType(null);
         return;
       }
@@ -731,7 +735,7 @@ export function CalibrationPanel() {
     });
 
     return unsub;
-  }, [isPx4, getSelectedProtocol, px4CalActiveType, px4CalCompletedSides, toast]);
+  }, [isPx4, getSelectedProtocol, toast]);
 
   // Fetch compass params for pre-calibration checks
   useEffect(() => {

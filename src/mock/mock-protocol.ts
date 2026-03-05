@@ -963,8 +963,86 @@ export class MockProtocol implements DroneProtocol {
 
   // ── Serial Passthrough ──────────────────────────────────
 
-  sendSerialData(): void {
-    // no-op
+  sendSerialData(text: string): void {
+    const cmd = text.trim();
+    if (!cmd) return;
+
+    const respond = (output: string) => {
+      setTimeout(() => {
+        const encoded = new TextEncoder().encode(output + '\n');
+        for (const cb of this.serialDataCbs) {
+          cb({ device: 10, data: encoded });
+        }
+      }, 100);
+    };
+
+    if (cmd === 'top') {
+      respond(
+        'Processes: 42 total, 1 running, 41 sleeping\n' +
+        '  PID COMMAND          CPU(%)  USED/STACK\n' +
+        '    1 init              0.0   1024/ 2048\n' +
+        '    2 wq:hp_default     1.2    832/ 1536\n' +
+        '    3 wq:lp_default     0.3    640/ 1280\n' +
+        '   42 mavlink_main      2.1   1280/ 2560\n' +
+        '   51 commander         1.5   1536/ 3072\n' +
+        '   67 mc_att_control    4.2   1024/ 2048\n' +
+        '   78 ekf2              8.3   2048/ 4096\n' +
+        '  CPU usage: 18.6%   Idling: 81.4%'
+      );
+    } else if (cmd.startsWith('listener')) {
+      respond(
+        'TOPIC: sensor_combined\n' +
+        '  timestamp: 285043215\n' +
+        '  gyro_rad[3]: [0.0012, -0.0008, 0.0003]\n' +
+        '  accelerometer_m_s2[3]: [0.12, -0.08, -9.78]'
+      );
+    } else if (cmd === 'dmesg') {
+      respond(
+        'HW arch: PX4_FMU_V5\n' +
+        'HW type: V500\n' +
+        'FW git-hash: a1b2c3d4\n' +
+        'NuttX: Release 11.0.0\n' +
+        'Boot complete'
+      );
+    } else if (cmd === 'param show') {
+      respond(
+        'Symbols: x = used, + = changed, * = unsaved\n' +
+        'x   SYS_AUTOSTART [4001] : 4001\n' +
+        'x   SYS_AUTOCONFIG [0] : 0\n' +
+        'x   COM_RC_LOSS_T [0.5] : 0.500000\n' +
+        'x   BAT1_SOURCE [0] : 0\n' +
+        ' 1467 parameters total, 892 used.'
+      );
+    } else if (cmd.startsWith('param show ')) {
+      const paramName = cmd.slice(11).trim();
+      respond(`x   ${paramName} [0] : 0`);
+    } else if (cmd === 'mavlink status') {
+      respond(
+        'instance #0:\n' +
+        '  GCS heartbeat: 1245 us ago\n' +
+        '  mavlink chan: #0\n' +
+        '  type: GENERIC LINK\n' +
+        '  tx: 24.3 kB/s  rx: 1.2 kB/s\n' +
+        '  rate mult: 1.000'
+      );
+    } else if (cmd === 'uorb top') {
+      respond(
+        'update: 1s, num topics: 186\n' +
+        'TOPIC NAME                INST #SUB #MSG #LOST #Q\n' +
+        'sensor_combined              0    6  250     0  4\n' +
+        'vehicle_attitude             0    4  250     0  4\n' +
+        'vehicle_local_position       0    5   50     0  4\n' +
+        'battery_status               0    3   10     0  4'
+      );
+    } else if (cmd === 'perf') {
+      respond(
+        'PERF: EKF       60 events, 16666us avg, min 15800us max 18200us 0.12ms rms\n' +
+        'PERF: ATTITUDE  250 events, 4000us avg, min 3800us max 4500us 0.08ms rms\n' +
+        'PERF: COMMANDER 50 events, 20000us avg, min 19000us max 22000us 0.15ms rms'
+      );
+    } else {
+      respond(`nsh: ${cmd}: command not found`);
+    }
   }
 
   // ── Telemetry Subscriptions ─────────────────────────────

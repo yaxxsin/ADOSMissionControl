@@ -81,8 +81,6 @@ export function FramePanel() {
   const isCopter = firmwareType === "ardupilot-copter";
   const isRover = firmwareType === "ardupilot-rover";
   const isSub = firmwareType === "ardupilot-sub";
-  const isPx4 = firmwareType === "px4";
-
   const paramNames = useMemo(() => {
     if (isPlane) return PLANE_FRAME_PARAMS;
     return COPTER_FRAME_PARAMS;
@@ -266,14 +264,6 @@ export function FramePanel() {
               connected={connected}
               error={error}
             />
-
-            {/* PX4 airframe info banner */}
-            {isPx4 && (
-              <div className="flex items-center gap-2 px-3 py-2 mb-4 bg-accent-primary/10 rounded-md text-xs text-text-secondary">
-                <Info size={14} className="text-accent-primary shrink-0" />
-                <span>PX4 uses Airframe Selection (SYS_AUTOSTART). Full Airframe panel available in a future update.</span>
-              </div>
-            )}
 
             {/* Fixed-wing only message */}
             {isFixedWingOnly && (

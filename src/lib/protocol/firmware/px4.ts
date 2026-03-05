@@ -145,9 +145,8 @@ const PX4_PARAM_MAP: Record<string, string> = {
   FS_THR_ENABLE: 'COM_RC_LOSS_T',
   FS_THR_VALUE: 'RC_FAILS_THR',
   FS_GCS_ENABLE: 'COM_DL_LOSS_T',
-  BATT_FS_LOW_ACT: 'COM_LOW_BAT_ACT',
+  BATT_FS_LOW_ACT: 'COM_LOW_BAT_ACT', // PX4 has single battery action (COM_LOW_BAT_ACT) with two thresholds (BAT_LOW_THR, BAT_CRIT_THR)
   BATT_FS_LOW_VOLT: 'BAT_LOW_THR',
-  BATT_FS_CRT_ACT: 'COM_LOW_BAT_ACT',
   BATT_FS_CRT_VOLT: 'BAT_CRIT_THR',
 
   // ── Geofence ──────────────────────────────────────────
@@ -168,8 +167,6 @@ const PX4_PARAM_MAP: Record<string, string> = {
   WPNAV_SPEED_UP: 'MPC_Z_VEL_MAX_UP',
   WPNAV_SPEED_DN: 'MPC_Z_VEL_MAX_DN',
   WPNAV_ACCEL: 'MPC_ACC_HOR',
-  PILOT_SPEED_UP: 'MPC_Z_VEL_MAX_UP',
-  PILOT_SPEED_DN: 'MPC_Z_VEL_MAX_DN',
   PILOT_ACCEL_Z: 'MPC_ACC_UP_MAX',
 
   // ── General config ────────────────────────────────────
@@ -383,32 +380,41 @@ class PX4Handler implements FirmwareHandler {
     return PX4_REVERSE_MAP[firmwareName] ?? firmwareName
   }
 
-  /** PX4 copter doesn't support some ArduPilot mission commands. */
+  /** PX4 supported mission commands, filtered by vehicle class. */
   getSupportedMissionCommands(): number[] {
-    return [
-      16,  // NAV_WAYPOINT
-      17,  // NAV_LOITER_UNLIM
-      18,  // NAV_LOITER_TURNS (plane only)
-      19,  // NAV_LOITER_TIME
-      20,  // NAV_RETURN_TO_LAUNCH
-      21,  // NAV_LAND
-      22,  // NAV_TAKEOFF
-      31,  // NAV_LOITER_TO_ALT
-      82,  // NAV_DELAY
-      85,  // NAV_VTOL_TAKEOFF
-      177, // DO_JUMP
-      178, // DO_CHANGE_SPEED
-      183, // DO_SET_SERVO
-      189, // DO_LAND_START
-      200, // DO_CONTROL_VIDEO
-      201, // DO_SET_ROI
-      203, // DO_DIGICAM_CONTROL
-      206, // DO_SET_CAM_TRIGG_DIST
+    // Base commands available to all vehicle types
+    const base = [
+      16,   // NAV_WAYPOINT
+      17,   // NAV_LOITER_UNLIM
+      19,   // NAV_LOITER_TIME
+      20,   // NAV_RETURN_TO_LAUNCH
+      21,   // NAV_LAND
+      22,   // NAV_TAKEOFF
+      31,   // NAV_LOITER_TO_ALT
+      82,   // NAV_DELAY
+      177,  // DO_JUMP
+      178,  // DO_CHANGE_SPEED
+      183,  // DO_SET_SERVO
+      200,  // DO_CONTROL_VIDEO
+      201,  // DO_SET_ROI
+      203,  // DO_DIGICAM_CONTROL
+      206,  // DO_SET_CAM_TRIGG_DIST
       2000, // IMAGE_START_CAPTURE
       2001, // IMAGE_STOP_CAPTURE
       2500, // VIDEO_START_CAPTURE
       2501, // VIDEO_STOP_CAPTURE
     ]
+
+    // Plane/VTOL only commands
+    if (this.vehicleClass !== 'copter') {
+      base.push(
+        18,  // NAV_LOITER_TURNS
+        85,  // NAV_VTOL_TAKEOFF
+        189, // DO_LAND_START
+      )
+    }
+
+    return base
   }
 }
 

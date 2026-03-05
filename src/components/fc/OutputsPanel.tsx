@@ -22,8 +22,8 @@ import { useArmedLock } from "@/hooks/use-armed-lock";
 import { PanelHeader } from "./PanelHeader";
 import { OutputTimerGroupConfig, type PwmWarning } from "./OutputTimerGroupConfig";
 import { ServoMappingTable, type OutputRow } from "./ServoMappingTable";
-import { Save, Zap, HardDrive, AlertTriangle, Info } from "lucide-react";
-import { useFirmwareCapabilities } from "@/hooks/use-firmware-capabilities";
+import { Save, Zap, HardDrive, AlertTriangle } from "lucide-react";
+
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -97,8 +97,6 @@ export function OutputsPanel() {
   const protocol = getSelectedProtocol();
   const { toast } = useToast();
   const { isLocked, lockMessage } = useArmedLock();
-  const { firmwareType } = useFirmwareCapabilities();
-  const isPx4 = firmwareType === 'px4';
   const [saving, setSaving] = useState(false);
 
   const {
@@ -306,13 +304,6 @@ export function OutputsPanel() {
             </Button>
           )}
         </PanelHeader>
-
-        {isPx4 && (
-          <div className="flex items-center gap-2 px-3 py-2 mb-4 bg-accent-primary/10 rounded-md text-xs text-text-secondary">
-            <Info size={14} className="text-accent-primary shrink-0" />
-            <span>PX4 uses Control Allocation for motor/servo mapping. Full Actuator panel available in a future update.</span>
-          </div>
-        )}
 
         <OutputTimerGroupConfig
           hasLoaded={hasLoaded}

@@ -132,6 +132,7 @@ export function MavlinkShellPanel() {
       <div className="flex items-center justify-between px-4 py-2 border-b border-border-default bg-bg-secondary">
         <div className="flex items-center gap-2">
           <Terminal size={16} className="text-accent-primary" />
+          <span className={`w-2 h-2 rounded-full ${connected ? 'bg-status-success' : 'bg-status-error'}`} />
           <h2 className="text-sm font-medium text-text-primary">MAVLink Shell</h2>
           <span className="text-[10px] text-text-tertiary">PX4 NuttX Console</span>
         </div>

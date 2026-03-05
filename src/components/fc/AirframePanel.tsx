@@ -193,6 +193,9 @@ export function AirframePanel() {
                 </button>
               ))}
             </div>
+            {filteredAirframes.length === 0 && (
+              <p className="text-xs text-text-tertiary text-center py-4">No airframes match your search.</p>
+            )}
 
             {/* Custom ID input */}
             <div className="p-3 rounded-md bg-bg-tertiary border border-border-default">

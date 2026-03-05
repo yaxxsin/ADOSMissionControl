@@ -14,7 +14,7 @@ import { Cpu, Save, HardDrive, RotateCcw } from "lucide-react";
 
 // ── Constants ────────────────────────────────────────────────
 
-const MAX_ROTORS = 4;
+const MAX_ROTORS = 8;
 const MAX_PWM = 8;
 
 const ACTUATOR_PARAMS: string[] = [
