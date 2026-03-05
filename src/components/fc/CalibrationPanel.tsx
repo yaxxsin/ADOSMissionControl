@@ -29,6 +29,7 @@ import {
 import { RcChannelMapSection } from "./RcChannelMapSection";
 import { GpsConfigSection } from "./GpsConfigSection";
 import { ServoCalibrationSection } from "./ServoCalibrationSection";
+import { useFirmwareCapabilities } from "@/hooks/use-firmware-capabilities";
 
 // ── RC Calibration Constants ─────────────────────────────
 
@@ -498,6 +499,8 @@ export function CalibrationPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const { toast } = useToast();
   const connected = !!getSelectedProtocol();
+  const { firmwareType } = useFirmwareCapabilities();
+  const isPx4 = firmwareType === "px4";
 
   const [accel, setAccel] = useState<CalibrationState>(INITIAL_STATE);
   const [gyro, setGyro] = useState<CalibrationState>(INITIAL_STATE);
@@ -508,6 +511,16 @@ export function CalibrationPanel() {
   const [esc, setEsc] = useState<CalibrationState>(INITIAL_STATE);
   const [compassmot, setCompassmot] = useState<CalibrationState>(INITIAL_STATE);
   const [logEntries, setLogEntries] = useState<CalibrationLogEntry[]>([]);
+
+  // PX4 calibration STATUSTEXT state
+  const [px4CalProgress, setPx4CalProgress] = useState(0);
+  const [px4CalStatus, setPx4CalStatus] = useState<"idle" | "running" | "success" | "failed">("idle");
+  const [px4CalCompletedSides, setPx4CalCompletedSides] = useState<Set<number>>(new Set());
+  const [px4CalActiveType, setPx4CalActiveType] = useState<string | null>(null);
+
+  // PX4-only calibration states (Quick Level, GNSS Mag Cal)
+  const [px4QuickLevel, setPx4QuickLevel] = useState<CalibrationState>(INITIAL_STATE);
+  const [px4GnssMagCal, setPx4GnssMagCal] = useState<CalibrationState>(INITIAL_STATE);
 
   // Baro live pressure display (SCALED_PRESSURE msg 29)
   const [baroPressure, setBaroPressure] = useState<{ pressAbs: number; temperature: number } | null>(null);
@@ -575,6 +588,150 @@ export function CalibrationPanel() {
 
     return unsub;
   }, [getSelectedProtocol]);
+
+  // PX4 calibration STATUSTEXT parser — parse [cal] messages for progress
+  useEffect(() => {
+    if (!isPx4) return;
+    const protocol = getSelectedProtocol();
+    if (!protocol) return;
+
+    const unsub = protocol.onStatusText(({ text }) => {
+      if (!text.startsWith("[cal]")) return;
+
+      // Progress percentage: [cal] progress <NN>
+      const progressMatch = text.match(/\[cal\] progress <(\d+)>/);
+      if (progressMatch) {
+        const pct = parseInt(progressMatch[1], 10);
+        setPx4CalProgress(pct);
+        // Also route progress into the active calibration setter
+        if (px4CalActiveType === "accel") {
+          setAccel((prev) => prev.status === "in_progress" ? { ...prev, progress: pct, message: `PX4 calibration: ${pct}%` } : prev);
+        } else if (px4CalActiveType === "compass") {
+          setCompass((prev) => prev.status === "in_progress" ? { ...prev, progress: pct, message: `PX4 compass calibration: ${pct}%` } : prev);
+        } else if (px4CalActiveType === "gyro") {
+          setGyro((prev) => prev.status === "in_progress" ? { ...prev, progress: pct, message: `PX4 gyro calibration: ${pct}%` } : prev);
+        } else if (px4CalActiveType === "level") {
+          setLevel((prev) => prev.status === "in_progress" ? { ...prev, progress: pct, message: `PX4 level calibration: ${pct}%` } : prev);
+        } else if (px4CalActiveType === "quick-level") {
+          setPx4QuickLevel((prev) => prev.status === "in_progress" ? { ...prev, progress: pct, message: `Quick level: ${pct}%` } : prev);
+        }
+        return;
+      }
+
+      // Side completion: [cal] front side done, rotate to a different side
+      const sideMatch = text.match(/\[cal\] (\w+) side done/);
+      if (sideMatch) {
+        // Map PX4 side names to accel position indices (1-based, matching ACCEL_STEPS)
+        const sideMap: Record<string, number> = {
+          back: 1, front: 2, left: 3, right: 4, up: 5, down: 6,
+        };
+        const pos = sideMap[sideMatch[1].toLowerCase()];
+        if (pos) {
+          setPx4CalCompletedSides((prev) => new Set([...prev, pos]));
+          // Update accel step if running accel cal
+          if (px4CalActiveType === "accel") {
+            setAccel((prev) => {
+              if (prev.status !== "in_progress") return prev;
+              const completedCount = new Set([...px4CalCompletedSides, pos]).size;
+              return {
+                ...prev,
+                currentStep: completedCount,
+                progress: (completedCount / ACCEL_STEPS.length) * 100,
+                message: `${sideMatch[1]} side done. Rotate to a different side.`,
+                waitingForConfirm: false,
+              };
+            });
+          }
+        }
+        return;
+      }
+
+      // Orientation detected: [cal] orientation detected: front
+      const orientMatch = text.match(/\[cal\] orientation detected: (\w+)/);
+      if (orientMatch) {
+        if (px4CalActiveType === "accel") {
+          const sideNameMap: Record<string, number> = {
+            back: 0, front: 1, left: 2, right: 3, up: 4, down: 5,
+          };
+          const stepIdx = sideNameMap[orientMatch[1].toLowerCase()];
+          if (stepIdx !== undefined) {
+            setAccel((prev) => prev.status === "in_progress" ? {
+              ...prev,
+              currentStep: stepIdx,
+              message: `Detected: ${orientMatch[1]}. Hold still...`,
+            } : prev);
+          }
+        }
+        return;
+      }
+
+      // Calibration done: [cal] calibration done: <param>
+      if (text.includes("calibration done")) {
+        setPx4CalProgress(100);
+        setPx4CalStatus("success");
+        // Route success to the active calibration state
+        const calTypeSetter = px4CalActiveType === "accel" ? setAccel
+          : px4CalActiveType === "compass" ? setCompass
+          : px4CalActiveType === "gyro" ? setGyro
+          : px4CalActiveType === "level" ? setLevel
+          : px4CalActiveType === "quick-level" ? setPx4QuickLevel
+          : px4CalActiveType === "gnss-mag" ? setPx4GnssMagCal
+          : null;
+        if (calTypeSetter) {
+          calTypeSetter((prev) => {
+            if (prev.status !== "in_progress") return prev;
+            return {
+              ...INITIAL_STATE,
+              status: "success",
+              progress: 100,
+              message: text,
+              needsReboot: ["accel", "compass", "level"].includes(px4CalActiveType ?? ""),
+            };
+          });
+        }
+        const label = px4CalActiveType ?? "PX4";
+        toast(`${label.charAt(0).toUpperCase() + label.slice(1)} calibration complete`, "success");
+        useDiagnosticsStore.getState().logCalibration(px4CalActiveType ?? "px4", "success");
+        setPx4CalActiveType(null);
+        return;
+      }
+
+      // Calibration failed: [cal] calibration failed: <reason>
+      if (text.includes("calibration failed")) {
+        setPx4CalStatus("failed");
+        const calTypeSetter = px4CalActiveType === "accel" ? setAccel
+          : px4CalActiveType === "compass" ? setCompass
+          : px4CalActiveType === "gyro" ? setGyro
+          : px4CalActiveType === "level" ? setLevel
+          : px4CalActiveType === "quick-level" ? setPx4QuickLevel
+          : px4CalActiveType === "gnss-mag" ? setPx4GnssMagCal
+          : null;
+        if (calTypeSetter) {
+          calTypeSetter((prev) => ({
+            ...prev,
+            status: "error",
+            message: text,
+            waitingForConfirm: false,
+          }));
+        }
+        const label = px4CalActiveType ?? "PX4";
+        toast(`${label.charAt(0).toUpperCase() + label.slice(1)} calibration failed`, "error");
+        useDiagnosticsStore.getState().logCalibration(px4CalActiveType ?? "px4", "failed");
+        setPx4CalActiveType(null);
+        return;
+      }
+
+      // Calibration started: [cal] calibration started: <type_id>
+      if (text.includes("calibration started")) {
+        setPx4CalProgress(0);
+        setPx4CalStatus("running");
+        setPx4CalCompletedSides(new Set());
+        return;
+      }
+    });
+
+    return unsub;
+  }, [isPx4, getSelectedProtocol, px4CalActiveType, px4CalCompletedSides, toast]);
 
   // Fetch compass params for pre-calibration checks
   useEffect(() => {
@@ -1125,13 +1282,21 @@ export function CalibrationPanel() {
         setCalSnapshot(null);
       }
 
-      // Auto-set COMPASS_AUTO_ROT=3 (lenient) to prevent orientation flickering
-      if (type === "compass" && compassParams.COMPASS_AUTO_ROT !== null && compassParams.COMPASS_AUTO_ROT !== 3) {
+      // Auto-set COMPASS_AUTO_ROT=3 (lenient) to prevent orientation flickering (ArduPilot only)
+      if (!isPx4 && type === "compass" && compassParams.COMPASS_AUTO_ROT !== null && compassParams.COMPASS_AUTO_ROT !== 3) {
         try {
           await protocol.setParameter("COMPASS_AUTO_ROT", 3);
           setCompassParams((p) => ({ ...p, COMPASS_AUTO_ROT: 3 }));
           toast("COMPASS_AUTO_ROT set to 3 (lenient) to prevent orientation flickering", "info");
         } catch { /* non-fatal */ }
+      }
+
+      // Set PX4 active cal type so STATUSTEXT parser routes progress correctly
+      if (isPx4) {
+        setPx4CalActiveType(type);
+        setPx4CalProgress(0);
+        setPx4CalStatus("running");
+        setPx4CalCompletedSides(new Set());
       }
 
       setter({
@@ -1145,6 +1310,7 @@ export function CalibrationPanel() {
         const result = await protocol.startCalibration(type);
         if (!result.success) {
           cleanupSubs(type);
+          if (isPx4) setPx4CalActiveType(null);
           const msg = result.resultCode === 5
             ? "Calibration already in progress — cancel first or wait for it to finish"
             : result.resultCode === 1
@@ -1161,6 +1327,7 @@ export function CalibrationPanel() {
         }
       } catch {
         cleanupSubs(type);
+        if (isPx4) setPx4CalActiveType(null);
         setter((prev) => ({
           ...prev,
           status: "error",
@@ -1169,8 +1336,103 @@ export function CalibrationPanel() {
         toast("Failed to send calibration command", "error");
       }
     },
-    [getSelectedProtocol, subscribeToStatus, toast, compassParams.COMPASS_AUTO_ROT, setCompassParams],
+    [getSelectedProtocol, subscribeToStatus, toast, compassParams.COMPASS_AUTO_ROT, setCompassParams, isPx4],
   );
+
+  // PX4-only: Quick Level calibration (PREFLIGHT_CALIBRATION param5=4)
+  const startPx4QuickLevel = useCallback(async () => {
+    const protocol = getSelectedProtocol();
+    if (!protocol) return;
+
+    setPx4CalActiveType("quick-level");
+    setPx4CalProgress(0);
+    setPx4CalStatus("running");
+    setPx4QuickLevel({
+      ...INITIAL_STATE,
+      status: "in_progress",
+      message: "Starting quick level calibration...",
+    });
+    subscribeToStatus(setPx4QuickLevel, 1, "level");
+
+    try {
+      // MAV_CMD_PREFLIGHT_CALIBRATION (241) with param5=4 = PX4 quick level
+      const result = await protocol.startCalibration("level");
+      if (!result.success) {
+        cleanupSubs("level");
+        setPx4CalActiveType(null);
+        setPx4QuickLevel((prev) => ({
+          ...prev,
+          status: "error",
+          message: result.message || "Quick level command rejected",
+        }));
+        toast("Quick level calibration failed", "error");
+      } else {
+        toast("Quick level calibration started", "info");
+      }
+    } catch {
+      cleanupSubs("level");
+      setPx4CalActiveType(null);
+      setPx4QuickLevel((prev) => ({
+        ...prev,
+        status: "error",
+        message: "Failed to send quick level command",
+      }));
+      toast("Failed to send quick level command", "error");
+    }
+  }, [getSelectedProtocol, subscribeToStatus, toast]);
+
+  // PX4-only: GNSS Mag Cal (MAV_CMD_FIXED_MAG_CAL_YAW = 42006)
+  const startPx4GnssMagCal = useCallback(async () => {
+    const protocol = getSelectedProtocol();
+    if (!protocol) return;
+
+    setPx4CalActiveType("gnss-mag");
+    setPx4CalProgress(0);
+    setPx4CalStatus("running");
+    setPx4GnssMagCal({
+      ...INITIAL_STATE,
+      status: "in_progress",
+      message: "Starting GNSS mag calibration... Ensure GPS fix.",
+    });
+
+    try {
+      // MAV_CMD_FIXED_MAG_CAL_YAW (42006) — uses GPS heading to calibrate compass yaw
+      const result = protocol.startGnssMagCal
+        ? await protocol.startGnssMagCal()
+        : { success: false, resultCode: -1, message: "GNSS mag cal not supported by this firmware" };
+      if (!result.success) {
+        setPx4CalActiveType(null);
+        setPx4GnssMagCal((prev) => ({
+          ...prev,
+          status: "error",
+          message: result.message || "GNSS mag cal command rejected. Ensure GPS has a fix.",
+        }));
+        toast("GNSS mag calibration failed", "error");
+      } else {
+        // For GNSS mag cal, success is immediate (single command, no progress)
+        // PX4 may also send [cal] STATUSTEXT messages, which the parser handles
+        setPx4GnssMagCal((prev) => ({
+          ...INITIAL_STATE,
+          status: "success",
+          progress: 100,
+          message: "GNSS mag calibration complete. Compass yaw aligned to GPS heading.",
+          needsReboot: true,
+        }));
+        setPx4CalStatus("success");
+        setPx4CalActiveType(null);
+        toast("GNSS mag calibration complete", "success");
+        useDiagnosticsStore.getState().logCalibration("gnss-mag", "success");
+      }
+    } catch {
+      setPx4CalActiveType(null);
+      setPx4GnssMagCal((prev) => ({
+        ...prev,
+        status: "error",
+        message: "Failed to send GNSS mag cal command",
+      }));
+      toast("Failed to send GNSS mag cal command", "error");
+    }
+  }, [getSelectedProtocol, toast]);
 
   const compassProgressEntries: CompassProgressEntry[] = Array.from(compass.compassProgress.entries())
     .map(([id, pct]) => ({
@@ -1231,7 +1493,8 @@ export function CalibrationPanel() {
           />
 
           {/* Compass pre-calibration param checks */}
-          {connected && compass.status === "idle" && (
+          {/* ArduPilot compass pre-flight checks — not applicable for PX4 */}
+          {connected && !isPx4 && compass.status === "idle" && (
             <div className="border border-border-default bg-bg-secondary p-4">
               <h3 className="text-xs font-medium text-text-primary mb-2">Compass Pre-flight Checks</h3>
               <div className="space-y-1.5">
@@ -1492,6 +1755,72 @@ export function CalibrationPanel() {
           {/* CompassMot Reboot Banner */}
           {compassmot.needsReboot && compassmot.status === "success" && (
             <CalibrationRebootBanner label="CompassMot calibration saved" onReboot={() => { const p = getSelectedProtocol(); if (p) p.reboot(); }} />
+          )}
+
+          {/* PX4-Only Calibrations */}
+          {isPx4 && (
+            <>
+              <div>
+                <h2 className="text-sm font-display font-semibold text-text-primary mt-2 mb-1">PX4-Only Calibrations</h2>
+                <p className="text-[10px] text-text-tertiary mb-4">
+                  Additional calibration options available on PX4 firmware
+                </p>
+              </div>
+
+              {/* PX4 Quick Level */}
+              <CalibrationWizard
+                title="Quick Level (PX4)"
+                description="Set level reference from current orientation. Place vehicle level before starting."
+                steps={LEVEL_STEPS}
+                currentStep={px4QuickLevel.currentStep}
+                status={px4QuickLevel.status}
+                progress={px4QuickLevel.progress}
+                statusMessage={px4QuickLevel.message}
+                onStart={startPx4QuickLevel}
+                onCancel={() => cancelCalibration("level", setPx4QuickLevel)}
+              />
+
+              {/* PX4 Quick Level Reboot Banner */}
+              {px4QuickLevel.needsReboot && px4QuickLevel.status === "success" && (
+                <CalibrationRebootBanner label="Quick level calibration saved" onReboot={() => { const p = getSelectedProtocol(); if (p) p.reboot(); }} />
+              )}
+
+              {/* PX4 GNSS Mag Cal */}
+              <CalibrationWizard
+                title="GNSS Mag Calibration (PX4)"
+                description="Calibrate compass yaw using GPS heading. Requires good GPS fix. No rotation needed."
+                steps={[{ label: "GPS Fix", description: "Ensure the vehicle has a solid GPS fix outdoors" }]}
+                currentStep={px4GnssMagCal.currentStep}
+                status={px4GnssMagCal.status}
+                progress={px4GnssMagCal.progress}
+                statusMessage={px4GnssMagCal.message}
+                preTips={[
+                  "Ensure vehicle is outdoors with clear sky view",
+                  "Wait for good GPS fix (>6 satellites) before starting",
+                  "Point vehicle nose in a known direction",
+                  "This calibration is quick and does not require rotation",
+                ]}
+                onStart={startPx4GnssMagCal}
+              />
+
+              {/* GNSS Mag Cal Reboot Banner */}
+              {px4GnssMagCal.needsReboot && px4GnssMagCal.status === "success" && (
+                <CalibrationRebootBanner label="GNSS mag calibration saved" onReboot={() => { const p = getSelectedProtocol(); if (p) p.reboot(); }} />
+              )}
+
+              {/* PX4 Thermal Calibration — deferred */}
+              <div className="mt-4 p-3 rounded-md bg-bg-tertiary border border-border-default opacity-50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-medium text-text-secondary">Thermal Calibration</div>
+                    <div className="text-[10px] text-text-tertiary">Requires cold-start hardware workflow. Coming in a future release.</div>
+                  </div>
+                  <Button size="sm" disabled>
+                    Start
+                  </Button>
+                </div>
+              </div>
+            </>
           )}
 
           {/* Calibration Before/After Comparison */}

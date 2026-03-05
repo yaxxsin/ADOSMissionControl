@@ -57,6 +57,7 @@ export interface DetectionResult {
   firmwareType: FirmwareType
   systemId?: number
   componentId?: number
+  mavType?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -250,6 +251,7 @@ export async function detectProtocol(
         firmwareType,
         systemId: hb.systemId,
         componentId: hb.componentId,
+        mavType: hb.mavType,
       })
     })
 

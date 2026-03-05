@@ -16,6 +16,7 @@ import { FlightModesPanel } from "@/components/fc/FlightModesPanel";
 import { FailsafePanel } from "@/components/fc/FailsafePanel";
 import { PowerPanel } from "@/components/fc/PowerPanel";
 import { CliPanel } from "@/components/fc/CliPanel";
+import { MavlinkShellPanel } from "@/components/fc/MavlinkShellPanel";
 import { PidTuningPanel } from "@/components/fc/PidTuningPanel";
 import { PortsPanel } from "@/components/fc/PortsPanel";
 import { MavlinkInspectorPanel } from "@/components/fc/MavlinkInspectorPanel";
@@ -23,6 +24,8 @@ import { OsdEditorPanel } from "@/components/fc/OsdEditorPanel";
 import { FirmwarePanel } from "@/components/fc/FirmwarePanel";
 import { GeofencePanel } from "@/components/fc/GeofencePanel";
 import { FramePanel } from "@/components/fc/FramePanel";
+import { AirframePanel } from "@/components/fc/AirframePanel";
+import { ActuatorPanel } from "@/components/fc/ActuatorPanel";
 import { PreArmPanel } from "@/components/fc/PreArmPanel";
 import { DebugPanel } from "@/components/fc/DebugPanel";
 import { DiagnosticsPanel } from "@/components/diagnostics/DiagnosticsPanel";
@@ -70,14 +73,15 @@ interface FcNavItem {
   icon: ReactNode;
   requiredCapability?: keyof ProtocolCapabilities;
   section?: string;
+  labelOverride?: Partial<Record<string, string>>;
 }
 
 const FC_NAV_ITEMS: FcNavItem[] = [
   // --- Flight ---
-  { id: "outputs", label: "Outputs", icon: <Cpu size={14} />, section: "Flight" },
+  { id: "outputs", label: "Outputs", icon: <Cpu size={14} />, section: "Flight", labelOverride: { px4: "Actuators" } },
   { id: "receiver", label: "Receiver", icon: <Radio size={14} />, requiredCapability: "supportsReceiver", section: "Flight" },
   { id: "modes", label: "Flight Modes", icon: <SlidersHorizontal size={14} />, requiredCapability: "supportsFlightModes", section: "Flight" },
-  { id: "frame", label: "Frame", icon: <Box size={14} />, section: "Flight" },
+  { id: "frame", label: "Frame", icon: <Box size={14} />, section: "Flight", labelOverride: { px4: "Airframe" } },
   // --- Safety ---
   { id: "failsafe", label: "Failsafe", icon: <ShieldAlert size={14} />, requiredCapability: "supportsFailsafe", section: "Safety" },
   { id: "geofence", label: "Geofence", icon: <Shield size={14} />, requiredCapability: "supportsGeoFence", section: "Safety" },
@@ -97,7 +101,7 @@ const FC_NAV_ITEMS: FcNavItem[] = [
   { id: "ports", label: "Ports", icon: <Cable size={14} />, requiredCapability: "supportsPorts", section: "System" },
   { id: "radio", label: "Radio Config", icon: <Wifi size={14} />, section: "System" },
   { id: "firmware", label: "Firmware", icon: <Zap size={14} />, requiredCapability: "supportsFirmwareFlash", section: "System" },
-  { id: "cli", label: "CLI", icon: <Terminal size={14} />, requiredCapability: "supportsCliShell", section: "System" },
+  { id: "cli", label: "CLI", icon: <Terminal size={14} />, requiredCapability: "supportsCliShell", section: "System", labelOverride: { px4: "Shell" } },
   // --- Debug ---
   { id: "mavlink", label: "MAVLink Inspector", icon: <Monitor size={14} />, requiredCapability: "supportsMavlinkInspector", section: "Debug" },
   { id: "debug", label: "Debug", icon: <Bug size={14} />, requiredCapability: "supportsDebugValues", section: "Debug" },
@@ -188,6 +192,11 @@ export function DroneConfigureTab({ droneId, droneName, isConnected }: DroneConf
               {firmwareLabel}
             </span>
           )}
+          {firmwareType === 'px4' && (
+            <span className="mt-1 block text-[10px] text-text-tertiary">
+              Some panels (OSD, LED) are not available for PX4.
+            </span>
+          )}
         </div>
         <div className="flex flex-col py-1">
           {[...sections.entries()].map(([section, items]) => (
@@ -212,7 +221,7 @@ export function DroneConfigureTab({ droneId, droneName, isConnected }: DroneConf
                   )}
                 >
                   {item.icon}
-                  {item.label}
+                  {(firmwareType && item.labelOverride?.[firmwareType]) ?? item.label}
                 </button>
               ))}
             </div>
@@ -228,10 +237,10 @@ export function DroneConfigureTab({ droneId, droneName, isConnected }: DroneConf
           <>
             <FlashCommitBanner />
             <RebootRequiredBanner rebootParams={rebootParamsList} />
-            {activePanel === "outputs" && <OutputsPanel />}
+            {activePanel === "outputs" && (firmwareType === 'px4' ? <ActuatorPanel /> : <OutputsPanel />)}
             {activePanel === "receiver" && <ReceiverPanel />}
             {activePanel === "modes" && <FlightModesPanel />}
-            {activePanel === "frame" && <FramePanel />}
+            {activePanel === "frame" && (firmwareType === 'px4' ? <AirframePanel /> : <FramePanel />)}
             {activePanel === "failsafe" && <FailsafePanel />}
             {activePanel === "geofence" && <GeofencePanel />}
             {activePanel === "health" && <PreArmPanel />}
@@ -246,7 +255,7 @@ export function DroneConfigureTab({ droneId, droneName, isConnected }: DroneConf
             {activePanel === "ports" && <PortsPanel />}
             {activePanel === "radio" && <TelRadioPanel />}
             {activePanel === "firmware" && <FirmwarePanel />}
-            {activePanel === "cli" && <CliPanel />}
+            {activePanel === "cli" && (firmwareType === 'px4' ? <MavlinkShellPanel /> : <CliPanel />)}
             {activePanel === "mavlink" && <MavlinkInspectorPanel />}
             {activePanel === "debug" && <DebugPanel />}
             {activePanel === "diagnostics" && <DiagnosticsPanel />}

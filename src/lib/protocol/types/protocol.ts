@@ -145,6 +145,10 @@ export interface DroneProtocol {
   cancelCompassCal?(compassMask?: number): Promise<CommandResult>;
   /** Send PREFLIGHT_CALIBRATION with all zeros to cancel any active non-compass calibration. */
   cancelCalibration?(): Promise<CommandResult>;
+  /** PX4 only: Send MAV_CMD_FIXED_MAG_CAL_YAW (42006) to calibrate compass using GPS heading. */
+  startGnssMagCal?(): Promise<CommandResult>;
+  /** Send a generic MAV_CMD command. Use for commands without a dedicated method. */
+  sendCommand?(commandId: number, params: number[]): Promise<CommandResult>;
 
   // ── Motor Test ──────────────────────────────────────────
   motorTest(motor: number, throttle: number, duration: number): Promise<CommandResult>;

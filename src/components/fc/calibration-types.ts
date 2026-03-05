@@ -139,6 +139,7 @@ export const LOG_KEYWORDS = [
   "place vehicle", "baro", "airspeed", "pitot", "horizon",
   "radio", "rc ", "esc", "motor", "throttle", "compassmot",
   "interference", "compensation", "trim", "imu", "offsets",
+  "[cal]",  // PX4 calibration STATUSTEXT prefix
 ];
 
 /** Per-type calibration timeout in ms */

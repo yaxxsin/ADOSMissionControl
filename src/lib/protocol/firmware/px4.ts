@@ -19,6 +19,11 @@ import type {
 // PX4 mode constants
 // ---------------------------------------------------------------------------
 
+// Note: TERMINATION in PX4 is a MAV_CMD (MAV_CMD_DO_FLIGHTTERMINATION),
+// not a flight mode. It cannot be set via SET_MODE.
+// ALTITUDE_CRUISE does not exist in PX4. The closest equivalent
+// is ALTCTL (Altitude Control) + manual throttle.
+
 /** PX4 main mode IDs (bits 16-23 of custom_mode). */
 const PX4_MAIN_MODE = {
   MANUAL: 1,
@@ -173,6 +178,59 @@ const PX4_PARAM_MAP: Record<string, string> = {
   LAND_SPEED: 'MPC_LAND_SPEED',
   RTL_ALT: 'RTL_RETURN_ALT',
   // RTL_SPEED: no direct PX4 equivalent (PX4 uses MPC_XY_VEL_MAX for all horizontal speeds)
+
+  // ── PX4-only PID gain multipliers (passthrough — no ArduPilot equivalent) ──
+  MC_ROLLRATE_K: 'MC_ROLLRATE_K',
+  MC_PITCHRATE_K: 'MC_PITCHRATE_K',
+  MC_YAWRATE_K: 'MC_YAWRATE_K',
+
+  // ── PX4 battery extras ─────────────────────────────────────
+  BAT1_N_CELLS: 'BAT1_N_CELLS',
+  BAT1_R_INTERNAL: 'BAT1_R_INTERNAL',
+
+  // ── Sensors / rangefinder (PX4 uses SENS_EN_* booleans) ─────
+  SENS_EN_MB12XX: 'SENS_EN_MB12XX',
+  SENS_EN_LL40LS: 'SENS_EN_LL40LS',
+  SENS_EN_SF1XX: 'SENS_EN_SF1XX',
+  EKF2_RNG_AID: 'EKF2_RNG_AID',
+  EKF2_RNG_A_HMAX: 'EKF2_RNG_A_HMAX',
+  EKF2_RNG_NOISE: 'EKF2_RNG_NOISE',
+  EKF2_RNG_SFE: 'EKF2_RNG_SFE',
+  EKF2_MIN_RNG: 'EKF2_MIN_RNG',
+
+  // ── Gimbal (PX4 mount params) ───────────────────────────────
+  MNT1_TYPE: 'MNT_MODE_IN',
+  MNT1_RC_IN_TILT: 'MNT_MAN_PITCH',
+  MNT1_RC_IN_ROLL: 'MNT_MAN_ROLL',
+  MNT1_RC_IN_PAN: 'MNT_MAN_YAW',
+  MNT1_RC_RATE: 'MNT_RATE_PITCH',
+
+  // ── Camera (PX4 trigger params) ─────────────────────────────
+  CAM1_TYPE: 'TRIG_MODE',
+  CAM1_DURATION: 'TRIG_ACT_TIME',
+  CAM1_TRIGG_DIST: 'TRIG_DIST',
+  CAM1_SERVO_ON: 'TRIG_PWM_SHOOT',
+
+  // ── EKF failsafe (PX4-only, passthrough) ────────────────────
+  COM_POS_FS_DELAY: 'COM_POS_FS_DELAY',
+  COM_POS_FS_EPH: 'COM_POS_FS_EPH',
+  COM_POS_FS_EPV: 'COM_POS_FS_EPV',
+  COM_VEL_FS_EVH: 'COM_VEL_FS_EVH',
+
+  // ── Geofence extras ─────────────────────────────────────────
+  GF_ALTMODE: 'GF_ALTMODE',
+  GF_SOURCE: 'GF_SOURCE',
+
+  // ── Serial ports (PX4 SER_TELn) ────────────────────────────
+  SER_TEL1_BAUD: 'SER_TEL1_BAUD',
+  SER_TEL2_BAUD: 'SER_TEL2_BAUD',
+  SER_TEL3_BAUD: 'SER_TEL3_BAUD',
+  SER_GPS1_BAUD: 'SER_GPS1_BAUD',
+
+  // ── Airframe / actuator (PX4-only) ─────────────────────────
+  SYS_AUTOSTART: 'SYS_AUTOSTART',
+  SYS_AUTOCONFIG: 'SYS_AUTOCONFIG',
+  CA_ROTOR_COUNT: 'CA_ROTOR_COUNT',
 }
 
 const PX4_REVERSE_MAP: Record<string, string> = Object.fromEntries(
@@ -182,6 +240,11 @@ const PX4_REVERSE_MAP: Record<string, string> = Object.fromEntries(
 // ---------------------------------------------------------------------------
 // PX4 capabilities
 // ---------------------------------------------------------------------------
+
+// TODO: PX4 Component Metadata Protocol (MAVLink FTP) — deferred, LOW priority
+// PX4 supports downloading parameter metadata via MAVLink FTP protocol.
+// This would enable parameter descriptions, valid ranges, and units in the UI.
+// For now, supportsParamMetadata is not in ProtocolCapabilities; add when implemented.
 
 const PX4_CAPABILITIES: ProtocolCapabilities = {
   supportsArming: true,
@@ -198,7 +261,7 @@ const PX4_CAPABILITIES: ProtocolCapabilities = {
   supportsLogDownload: true,
   supportsOsd: false,
   supportsPidTuning: true,
-  supportsPorts: false,
+  supportsPorts: true,
   supportsFailsafe: true,
   supportsPowerConfig: true,
   supportsReceiver: true,
@@ -319,11 +382,83 @@ class PX4Handler implements FirmwareHandler {
   reverseMapParameterName(firmwareName: string): string {
     return PX4_REVERSE_MAP[firmwareName] ?? firmwareName
   }
+
+  /** PX4 copter doesn't support some ArduPilot mission commands. */
+  getSupportedMissionCommands(): number[] {
+    return [
+      16,  // NAV_WAYPOINT
+      17,  // NAV_LOITER_UNLIM
+      18,  // NAV_LOITER_TURNS (plane only)
+      19,  // NAV_LOITER_TIME
+      20,  // NAV_RETURN_TO_LAUNCH
+      21,  // NAV_LAND
+      22,  // NAV_TAKEOFF
+      31,  // NAV_LOITER_TO_ALT
+      82,  // NAV_DELAY
+      85,  // NAV_VTOL_TAKEOFF
+      177, // DO_JUMP
+      178, // DO_CHANGE_SPEED
+      183, // DO_SET_SERVO
+      189, // DO_LAND_START
+      200, // DO_CONTROL_VIDEO
+      201, // DO_SET_ROI
+      203, // DO_DIGICAM_CONTROL
+      206, // DO_SET_CAM_TRIGG_DIST
+      2000, // IMAGE_START_CAPTURE
+      2001, // IMAGE_STOP_CAPTURE
+      2500, // VIDEO_START_CAPTURE
+      2501, // VIDEO_STOP_CAPTURE
+    ]
+  }
 }
+
+// ---------------------------------------------------------------------------
+// PX4 vehicle class from MAV_TYPE
+// ---------------------------------------------------------------------------
+
+/** Map MAV_TYPE enum to vehicle class for PX4. */
+export function px4VehicleClassFromMavType(mavType: number): VehicleClass {
+  switch (mavType) {
+    // Fixed wing / VTOL
+    case 1:   // FIXED_WING
+    case 22:  // VTOL_FIXEDROTOR
+    case 23:  // VTOL_TAILSITTER
+    case 24:  // VTOL_TILTROTOR
+    case 25:  // VTOL_RESERVED2
+    case 26:  // VTOL_RESERVED3
+    case 27:  // VTOL_RESERVED4
+    case 28:  // VTOL_RESERVED5
+      return 'plane'
+    // Multirotor
+    case 2:   // QUADROTOR
+    case 3:   // COAXIAL
+    case 4:   // HELICOPTER
+    case 13:  // HEXAROTOR
+    case 14:  // OCTOROTOR
+    case 15:  // TRICOPTER
+      return 'copter'
+    // Ground
+    case 10:  // GROUND_ROVER
+      return 'rover'
+    // Sub
+    case 12:  // SUBMARINE
+      return 'sub'
+    default:
+      return 'copter'
+  }
+}
+
+/** Standard message for PX4-unsupported panel placeholders. */
+export const PX4_UNSUPPORTED_MESSAGE = 'This feature is not available for PX4 firmware.'
 
 // ---------------------------------------------------------------------------
 // Singleton export
 // ---------------------------------------------------------------------------
+
+/** Create a PX4 handler for a specific vehicle class. */
+export function createPX4Handler(vehicleClass: VehicleClass = 'copter'): FirmwareHandler {
+  return new PX4Handler(vehicleClass)
+}
 
 export const px4Handler: FirmwareHandler = new PX4Handler()
 

@@ -375,6 +375,9 @@ export class MAVLinkAdapter implements DroneProtocol {
   private requestDataStreams(): void {
     if (!this.transport?.isConnected) return
 
+    // PX4 auto-detects link type and adjusts telemetry rates — skip stream requests
+    if (this.firmwareHandler?.firmwareType === 'px4') return
+
     const streams: [number, number][] = [
       [10, 10],  // EXTRA1 (ATTITUDE) at 10 Hz
       [6,  5],   // POSITION (GLOBAL_POSITION_INT) at 5 Hz
@@ -974,11 +977,25 @@ export class MAVLinkAdapter implements DroneProtocol {
         }
       })
 
-      this.transport!.send(encodeParamSet(this.targetSysId, this.targetCompId, firmwareName, value, type, this.sysId, this.compId))
+      // PX4 integer param types need byte-wise encoding: write int as Int32, read same bytes as Float32
+      // This is because PX4 uses a memcpy pattern for integer params over MAVLink
+      let encodedValue = value
+      if (this.firmwareHandler?.firmwareType === 'px4' && type !== 9) {
+        // paramType 6=INT32, 4=INT16, 2=INT8
+        const tmp = new DataView(new ArrayBuffer(4))
+        tmp.setInt32(0, Math.round(value), true)
+        encodedValue = tmp.getFloat32(0, true)
+      }
+
+      this.transport!.send(encodeParamSet(this.targetSysId, this.targetCompId, firmwareName, encodedValue, type, this.sysId, this.compId))
     })
   }
 
   // ── Mission ────────────────────────────────────────────
+
+  // Note: PX4 doesn't support MISSION_WRITE_PARTIAL_LIST -- always send full mission.
+  // Current implementation already sends full mission list via MISSION_COUNT handshake,
+  // so no PX4-specific change needed.
 
   async uploadMission(items: MissionItem[]): Promise<CommandResult> {
     if (!this.transport?.isConnected) return { success: false, resultCode: -1, message: 'Not connected' }
@@ -1032,6 +1049,11 @@ export class MAVLinkAdapter implements DroneProtocol {
 
   async startCalibration(type: 'accel' | 'gyro' | 'compass' | 'level' | 'airspeed' | 'baro' | 'rc' | 'esc' | 'compassmot'): Promise<CommandResult> {
     if (type === 'compass') {
+      if (this.firmwareHandler?.firmwareType === 'px4') {
+        // PX4 uses PREFLIGHT_CALIBRATION (241) with param2=1 for mag cal
+        // Progress reported via STATUSTEXT [cal] messages
+        return this.sendCommandLong(241, [0, 1, 0, 0, 0, 0, 0], 120000)
+      }
       // ArduPilot uses MAV_CMD_DO_START_MAG_CAL (42424), not PREFLIGHT_CALIBRATION
       // param1=0 (all compasses), param2=1 (retry on failure), param3=0 (no autosave — requires DO_ACCEPT_MAG_CAL), param4=2 (2s delay)
       return this.sendCommandLong(42424, [0, 1, 0, 2, 0, 0, 0], 30000)
@@ -1083,6 +1105,21 @@ export class MAVLinkAdapter implements DroneProtocol {
   async cancelCalibration(): Promise<CommandResult> {
     // Send PREFLIGHT_CALIBRATION with all zeros to cancel any active calibration
     return this.sendCommandLong(241, [0, 0, 0, 0, 0, 0, 0])
+  }
+
+  async startGnssMagCal(): Promise<CommandResult> {
+    // MAV_CMD_FIXED_MAG_CAL_YAW (42006) — PX4 only
+    // Uses GPS heading to calibrate compass yaw offset
+    // param1=0 (yaw angle, 0=auto from GPS), param2=0 (compass mask, 0=all)
+    return this.sendCommandLong(42006, [0, 0, 0, 0, 0, 0, 0])
+  }
+
+  async sendCommand(commandId: number, params: number[]): Promise<CommandResult> {
+    const p: [number, number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0, 0]
+    for (let i = 0; i < Math.min(7, params.length); i++) {
+      p[i] = params[i]
+    }
+    return this.sendCommandLong(commandId, p)
   }
 
   // ── Motor Test ─────────────────────────────────────────
@@ -1211,6 +1248,11 @@ export class MAVLinkAdapter implements DroneProtocol {
   }
 
   async setHome(useCurrent: boolean, lat = 0, lon = 0, alt = 0): Promise<CommandResult> {
+    // PX4 uses EKF origin for home position — only current position supported
+    if (!useCurrent && this.firmwareHandler?.firmwareType === 'px4') {
+      return { success: false, resultCode: 4, message: 'PX4 uses EKF origin for home position — only "use current" is supported' }
+    }
+
     // MAV_CMD_DO_SET_HOME (179): param1=1 → use current position, param1=0 → use specified
     return this.sendCommandLong(179, [useCurrent ? 1 : 0, 0, 0, 0, lat, lon, alt])
   }

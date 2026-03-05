@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
@@ -17,6 +17,7 @@ import {
   Info,
   AlertTriangle,
 } from "lucide-react";
+import { useFirmwareCapabilities } from "@/hooks/use-firmware-capabilities";
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -70,20 +71,50 @@ const PORT_PARAMS: string[] = Array.from({ length: NUM_PORTS }, (_, i) => [
   `SERIAL${i}_BAUD`,
 ]).flat();
 
+// ── PX4 Constants ────────────────────────────────────────────
+
+const PX4_PORTS = [
+  { label: "TELEM1", baudParam: "SER_TEL1_BAUD" },
+  { label: "TELEM2", baudParam: "SER_TEL2_BAUD" },
+  { label: "TELEM3", baudParam: "SER_TEL3_BAUD" },
+  { label: "GPS1", baudParam: "SER_GPS1_BAUD" },
+];
+
+const PX4_PORT_PARAMS: string[] = PX4_PORTS.map((p) => p.baudParam);
+
+const PX4_BAUD_OPTIONS = [
+  { value: "0", label: "Auto" },
+  { value: "9600", label: "9600" },
+  { value: "19200", label: "19200" },
+  { value: "38400", label: "38400" },
+  { value: "57600", label: "57600" },
+  { value: "115200", label: "115200" },
+  { value: "230400", label: "230400" },
+  { value: "460800", label: "460800" },
+  { value: "921600", label: "921600" },
+];
+
 // ── Main Component ───────────────────────────────────────────
 
 export function PortsPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const protocol = getSelectedProtocol();
   const { toast } = useToast();
+  const { firmwareType } = useFirmwareCapabilities();
+  const isPx4 = firmwareType === "px4";
   const [saving, setSaving] = useState(false);
   const [needsReboot, setNeedsReboot] = useState(false);
+
+  const portParamNames = useMemo(
+    () => (isPx4 ? PX4_PORT_PARAMS : PORT_PARAMS),
+    [isPx4],
+  );
 
   const {
     params, loading, error, dirtyParams, hasRamWrites,
     loadProgress, hasLoaded,
     refresh, setLocalValue, saveAllToRam, commitToFlash, revertAll,
-  } = usePanelParams({ paramNames: PORT_PARAMS, panelId: "ports" });
+  } = usePanelParams({ paramNames: portParamNames, panelId: "ports" });
   useUnsavedGuard(dirtyParams.size > 0);
 
   const connected = !!protocol;
@@ -221,6 +252,23 @@ export function PortsPanel() {
             ) : loading && !hasLoaded ? (
               <div className="flex items-center justify-center py-16">
                 <span className="text-xs text-text-tertiary">Loading serial parameters...</span>
+              </div>
+            ) : isPx4 ? (
+              <div className="space-y-3">
+                <p className="text-xs text-text-tertiary">
+                  PX4 auto-detects port protocols. Configure baud rates below.
+                </p>
+                {PX4_PORTS.map((port) => (
+                  <div key={port.baudParam} className="flex items-center gap-4 p-3 rounded-md bg-bg-tertiary">
+                    <span className="text-xs font-medium text-text-primary w-20">{port.label}</span>
+                    <Select
+                      value={String(params.get(port.baudParam) ?? "0")}
+                      onChange={(v) => setLocalValue(port.baudParam, Number(v))}
+                      options={PX4_BAUD_OPTIONS}
+                      className="flex-1"
+                    />
+                  </div>
+                ))}
               </div>
             ) : (
               <>

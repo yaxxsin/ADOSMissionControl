@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useTelemetryStore } from "@/stores/telemetry-store";
 import { usePanelParams } from "@/hooks/use-panel-params";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
+import { useFirmwareCapabilities } from "@/hooks/use-firmware-capabilities";
 import { PanelHeader } from "./PanelHeader";
 import { ArmedLockOverlay } from "@/components/indicators/ArmedLockOverlay";
 import {
@@ -31,6 +33,8 @@ export function PidTuningPanel() {
   const getSelectedDrone = useDroneManager((s) => s.getSelectedDrone);
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
+  const { firmwareType } = useFirmwareCapabilities();
+  const isPx4 = firmwareType === 'px4';
 
   // Detect vehicle type from connected drone
   const drone = getSelectedDrone();
@@ -77,8 +81,9 @@ export function PidTuningPanel() {
       ...axes.flatMap((a) => a.params.map((p) => p.param)),
       ...ACRO_PARAMS.map((p) => p.param),
       ...(showFilters ? FILTER_PARAMS.map((p) => p.param) : []),
+      ...(isPx4 ? ["MC_ROLLRATE_K", "MC_PITCHRATE_K", "MC_YAWRATE_K"] : []),
     ];
-  }, [vehicleType, showFilters]);
+  }, [vehicleType, showFilters, isPx4]);
 
   const {
     params, loading, error, dirtyParams, hasRamWrites,
@@ -487,6 +492,30 @@ export function PidTuningPanel() {
             </div>
           )}
         </div>
+
+        {/* PX4 Gain Multipliers */}
+        {isPx4 && hasLoaded && (
+          <section className="border-t border-border-secondary pt-4 mt-4">
+            <h3 className="text-sm font-medium text-text-secondary mb-3">PX4 Gain Multipliers</h3>
+            <p className="text-xs text-text-tertiary mb-3">Overall rate controller gain scaling. Default 1.0. Reduce to dampen response.</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {["MC_ROLLRATE_K", "MC_PITCHRATE_K", "MC_YAWRATE_K"].map((param) => (
+                <div key={param}>
+                  <label className="text-xs text-text-secondary mb-1 block">{param.replace("MC_", "").replace("RATE_K", "")}</label>
+                  <Input
+                    type="number"
+                    step={0.1}
+                    min={0}
+                    max={5}
+                    value={String(params.get(param) ?? 1.0)}
+                    onChange={(e) => setLocalValue(param, Number(e.target.value) || 0)}
+                    className="h-8 text-xs"
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Save / Revert */}
         <div className="flex items-center gap-3 pt-2 pb-4">

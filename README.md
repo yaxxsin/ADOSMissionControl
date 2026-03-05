@@ -25,7 +25,7 @@ Altnautica Command is a web GCS that runs in any browser and also ships as a nat
 
 It replaces desktop-only tools like QGroundControl and Mission Planner with a modern web stack: React 19, TypeScript strict, real-time Zustand stores with ring-buffered telemetry, and a custom binary MAVLink v2 parser.
 
-~110K lines of TypeScript. 25 FC configuration panels. 7 pattern generators. 53 MAVLink decoders. 27 Zustand stores. Full demo mode with zero setup.
+~110K lines of TypeScript. 28 FC configuration panels. 7 pattern generators. 53 MAVLink decoders. 27 Zustand stores. Full demo mode with zero setup.
 
 **[Live App](https://command.altnautica.com)** · **[Website](https://altnautica.com/command)** · **[Community](https://command.altnautica.com/community)**
 
@@ -57,7 +57,7 @@ Open [http://localhost:4000](http://localhost:4000) for 5 simulated drones with 
   </tr>
   <tr>
     <td><img src="public/screenshots/3d-simulation.png" alt="3D Simulation" width="100%"><br><sub>Cesium 3D globe with flight path replay</sub></td>
-    <td><img src="public/screenshots/configure.png" alt="FC Configuration" width="100%"><br><sub>25 panels for full flight controller setup</sub></td>
+    <td><img src="public/screenshots/configure.png" alt="FC Configuration" width="100%"><br><sub>28 panels for full flight controller setup</sub></td>
   </tr>
   <tr>
     <td><img src="public/screenshots/parameters.png" alt="FC Parameters" width="100%"><br><sub>Search, edit, and write all FC parameters</sub></td>
@@ -71,7 +71,7 @@ Open [http://localhost:4000](http://localhost:4000) for 5 simulated drones with 
 
 ### Flight Controller Configuration
 
-- **25 configuration panels** covering calibration, receiver, outputs, PID tuning, failsafe, power, ports, OSD, firmware, and more
+- **28 configuration panels** covering calibration, receiver, outputs, PID tuning, failsafe, power, ports, OSD, firmware, PX4 airframe selection, PX4 actuator configuration, MAVLink shell, and more
 - **AI PID tuning** with FFT noise analysis, step response, tracking quality, and motor health. AI suggestions are rate-limited on the hosted version (3/week). Self-host with your own `GROQ_API_KEY` for unlimited use
 - **Board auto-detection** with 9 profiles (SpeedyBee F405 Wing/V3/V4, Matek H743, Pixhawk 4/6C/6X) and STM32 timer group maps
 - **Full parameter system** for searching, editing, and writing all FC parameters with real-time validation
@@ -139,14 +139,14 @@ Open [http://localhost:4000](http://localhost:4000) for 5 simulated drones with 
 
 - **MAVLink v2** binary parser with CRC validation and 53 message decoders
 - **ArduPilot** with full support (all panels, calibration, missions, dataflash logs)
-- **PX4** adapter designed, implementation in progress
+- **PX4** with full support including airframe selection, actuator configuration, MAVLink shell, and 90+ parameter mappings
 - **Betaflight / iNav** planned (MSP interface stubs)
 - Multi-firmware `DroneProtocol` abstraction. Components never call MAVLink directly
 
 ### Demo Mode
 
 - 5 simulated drones with realistic telemetry (GPS tracks, battery drain, altitude profiles)
-- Full mock MAVLink. All 25 FC panels work against simulated FC responses
+- Full mock MAVLink. All 28 FC panels work against simulated FC responses
 - Zero setup: `npm run demo` or pass `?demo=true` in the URL
 
 ---
@@ -284,7 +284,7 @@ These run inside Convex functions, not in Next.js. Only needed if you use cloud 
 | Firmware | Status | Notes |
 |----------|--------|-------|
 | ArduPilot | **Full** | 53 decoders, 20 commands, all panels, calibration, missions, logs |
-| PX4 | Partial | Adapter designed, implementation in progress |
+| PX4 | **Full** | 90+ param mappings, airframe selection, actuator config, MAVLink shell, calibration, missions |
 | Betaflight | Planned | MSP interface stub |
 | iNav | Planned | MSP interface stub |
 
@@ -295,7 +295,7 @@ These run inside Convex functions, not in Next.js. Only needed if you use cloud 
 | Metric | Count |
 |--------|-------|
 | Lines of TypeScript | ~110,000 |
-| FC configuration panels | 25 |
+| FC configuration panels | 28 |
 | Zustand stores | 27 |
 | MAVLink message decoders | 53 |
 | MAV_CMD handlers | 20 |
@@ -325,7 +325,7 @@ npm run demo   # Test against simulated drones
 npm run lint   # Must pass before PR
 ```
 
-Areas where help is especially useful: PX4 adapter, Betaflight/iNav MSP, new board profiles, UDP transport, unit tests, and new pattern generators.
+Areas where help is especially useful: Betaflight/iNav MSP, new board profiles, UDP transport, unit tests, and new pattern generators.
 
 ---
 

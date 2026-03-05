@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useTelemetryStore } from "@/stores/telemetry-store";
 import { usePanelParams } from "@/hooks/use-panel-params";
+import { useFirmwareCapabilities } from "@/hooks/use-firmware-capabilities";
 import { useParamLabel } from "@/hooks/use-param-label";
 import { useParamMetadataMap } from "@/hooks/use-param-metadata";
 import { usePanelScroll } from "@/hooks/use-panel-scroll";
@@ -50,6 +51,7 @@ const OPTIONAL_POWER_PARAMS = [
   "BATT2_MONITOR", "BATT2_CAPACITY", "BATT2_AMP_PERVLT", "BATT2_AMP_OFFSET",
   "BATT2_FS_LOW_VOLT", "BATT2_FS_LOW_ACT", "BATT2_FS_CRT_VOLT", "BATT2_FS_CRT_ACT",
   "BATT2_FS_LOW_MAH", "BATT2_FS_CRT_MAH",
+  "BAT1_N_CELLS", "BAT1_R_INTERNAL",
 ];
 
 function cellVoltageColor(v: number): string {
@@ -67,6 +69,8 @@ function cellVoltageBg(v: number): string {
 export function PowerPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const { toast } = useToast();
+  const { firmwareType } = useFirmwareCapabilities();
+  const isPx4 = firmwareType === 'px4';
   const { label: pl } = useParamLabel();
   const metadata = useParamMetadataMap();
   const lbl = (raw: string) => <ParamLabel label={pl(raw)} metadata={metadata} />;
@@ -473,6 +477,30 @@ export function PowerPanel() {
               </div>
             </div>
           </>
+        )}
+
+        {/* PX4 Battery Config */}
+        {isPx4 && hasLoaded && (
+          <section className="border-t border-border-secondary pt-4 mt-4">
+            <h3 className="text-sm font-medium text-text-secondary mb-3">PX4 Battery Config</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Cell Count</label>
+                <Input type="number" step={1} min={1} max={14}
+                  value={String(params.get("BAT1_N_CELLS") ?? 4)}
+                  onChange={(e) => setLocalValue("BAT1_N_CELLS", Number(e.target.value) || 4)}
+                  className="h-8 text-xs" />
+                <p className="text-[10px] text-text-tertiary mt-1">PX4 needs explicit cell count (ArduPilot auto-detects)</p>
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Internal Resistance (Ohm)</label>
+                <Input type="number" step={0.001} min={0} max={1}
+                  value={String(params.get("BAT1_R_INTERNAL") ?? 0.005)}
+                  onChange={(e) => setLocalValue("BAT1_R_INTERNAL", Number(e.target.value) || 0)}
+                  className="h-8 text-xs" />
+              </div>
+            </div>
+          </section>
         )}
 
         {/* Save */}

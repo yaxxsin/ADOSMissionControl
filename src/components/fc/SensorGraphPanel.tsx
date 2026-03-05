@@ -5,6 +5,7 @@ import { useDroneManager } from "@/stores/drone-manager";
 import { useTelemetryStore } from "@/stores/telemetry-store";
 import { VibrationGauges } from "@/components/indicators/VibrationGauges";
 import { EkfStatusBars } from "@/components/indicators/EkfStatusBars";
+import { useFirmwareCapabilities } from "@/hooks/use-firmware-capabilities";
 import { Activity, Pause, Play } from "lucide-react";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -140,6 +141,7 @@ function WaveformChart({
 export function SensorGraphPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const selectedDroneId = useDroneManager((s) => s.selectedDroneId);
+  const { firmwareType } = useFirmwareCapabilities();
 
   // Also read attitude ring buffer for gyro rate data as fallback
   const attitudeRing = useTelemetryStore((s) => s.attitude);
@@ -284,6 +286,9 @@ export function SensorGraphPanel() {
           /* ── EKF tab ── */
           <div className="max-w-lg space-y-4">
             <SectionHeader title="EKF Status" subtitle="Extended Kalman Filter variance" />
+            {firmwareType === 'px4' && (
+              <span className="text-[10px] text-text-tertiary ml-2">(via ESTIMATOR_STATUS)</span>
+            )}
             <EkfStatusBars />
           </div>
         ) : !hasImuData && !hasAttitudeFallback ? (

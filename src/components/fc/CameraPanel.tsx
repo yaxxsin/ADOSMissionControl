@@ -14,6 +14,7 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Camera, Save, HardDrive, Aperture, Ruler, Calculator, Timer } from "lucide-react";
 import { ParamLabel } from "./ParamLabel";
+import { useFirmwareCapabilities } from "@/hooks/use-firmware-capabilities";
 
 const CAMERA_PARAMS: string[] = [];
 
@@ -34,6 +35,8 @@ const CAM_TYPE_OPTIONS = [
 export function CameraPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const { toast } = useToast();
+  const { firmwareType } = useFirmwareCapabilities();
+  const isPx4 = firmwareType === "px4";
   const { label: pl } = useParamLabel();
   const metadata = useParamMetadataMap();
   const lbl = (raw: string) => <ParamLabel label={pl(raw)} metadata={metadata} />;
@@ -145,6 +148,12 @@ export function CameraPanel() {
             connected={connected}
             error={error}
           />
+
+          {isPx4 && (
+            <p className="text-xs text-text-tertiary mb-3">
+              PX4 uses TRIG_* parameters for camera trigger. Parameters mapped automatically.
+            </p>
+          )}
 
           {/* Camera Type */}
           <Card icon={<Camera size={14} />} title="Camera Configuration" description="Camera type and trigger method">

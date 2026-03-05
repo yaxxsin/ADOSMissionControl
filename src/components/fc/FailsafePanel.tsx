@@ -7,6 +7,7 @@ import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 import { useDroneManager } from "@/stores/drone-manager";
 import { usePanelParams } from "@/hooks/use-panel-params";
+import { useFirmwareCapabilities } from "@/hooks/use-firmware-capabilities";
 import { useParamLabel } from "@/hooks/use-param-label";
 import { useParamMetadataMap } from "@/hooks/use-param-metadata";
 import { usePanelScroll } from "@/hooks/use-panel-scroll";
@@ -83,9 +84,16 @@ export function FailsafePanel() {
     return vc === "plane" || vc === "vtol";
   }, [drone?.vehicleInfo?.vehicleClass]);
 
+  const { firmwareType } = useFirmwareCapabilities();
+  const isPx4 = firmwareType === 'px4';
+
   const paramNames = useMemo(
-    () => [...SHARED_FS_PARAMS, ...(isPlane ? PLANE_FS_PARAMS : COPTER_FS_PARAMS)],
-    [isPlane],
+    () => [
+      ...SHARED_FS_PARAMS,
+      ...(isPlane ? PLANE_FS_PARAMS : COPTER_FS_PARAMS),
+      ...(isPx4 ? ["COM_POS_FS_DELAY", "COM_POS_FS_EPH", "COM_POS_FS_EPV", "COM_VEL_FS_EVH"] : []),
+    ],
+    [isPlane, isPx4],
   );
   const optionalParams = useMemo(
     () => isPlane ? COPTER_FS_PARAMS : PLANE_FS_PARAMS,
@@ -380,6 +388,45 @@ export function FailsafePanel() {
           <Input label={lbl("FENCE_RADIUS — Max Radius")} type="number" step="1" min="0" unit="m" value={p("FENCE_RADIUS", "300")} onChange={(e) => set("FENCE_RADIUS", e.target.value)} />
           <Input label={lbl("FENCE_ALT_MIN — Min Altitude")} type="number" step="0.5" min="-100" unit="m" value={p("FENCE_ALT_MIN")} onChange={(e) => set("FENCE_ALT_MIN", e.target.value)} />
         </Card>
+
+        {/* EKF Position Failsafe (PX4 only) */}
+        {isPx4 && hasLoaded && (
+          <section className="border-t border-border-secondary pt-4 mt-4">
+            <h3 className="text-sm font-medium text-text-secondary mb-3 flex items-center gap-2">
+              <Gauge size={14} /> EKF Position Failsafe (PX4)
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Position Loss Delay (s)</label>
+                <Input type="number" step={0.5} min={0} max={30}
+                  value={p("COM_POS_FS_DELAY", "1")}
+                  onChange={(e) => set("COM_POS_FS_DELAY", e.target.value)}
+                  className="h-8 text-xs" />
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Max EPH (m)</label>
+                <Input type="number" step={1} min={0} max={50}
+                  value={p("COM_POS_FS_EPH", "5")}
+                  onChange={(e) => set("COM_POS_FS_EPH", e.target.value)}
+                  className="h-8 text-xs" />
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Max EPV (m)</label>
+                <Input type="number" step={1} min={0} max={100}
+                  value={p("COM_POS_FS_EPV", "10")}
+                  onChange={(e) => set("COM_POS_FS_EPV", e.target.value)}
+                  className="h-8 text-xs" />
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Max EVH (m/s)</label>
+                <Input type="number" step={0.5} min={0} max={10}
+                  value={p("COM_VEL_FS_EVH", "1")}
+                  onChange={(e) => set("COM_VEL_FS_EVH", e.target.value)}
+                  className="h-8 text-xs" />
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Save */}
         <div className="flex items-center gap-3 pt-2 pb-4">

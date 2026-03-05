@@ -640,4 +640,78 @@ export const PX4_MOCK_PARAMS: MockParam[] = [
   { name: "COM_ARM_CHK_MODE", value: 1, type: 9 },
   { name: "COM_ARM_AUTH_REQ", value: 0, type: 9 },
   { name: "SYS_AUTOSTART", value: 4001, type: 9 },
+
+  // ── PX4-only PID gain multipliers ──────────────────────────
+  { name: "MC_ROLLRATE_K", value: 1.0, type: 9 },
+  { name: "MC_PITCHRATE_K", value: 1.0, type: 9 },
+  { name: "MC_YAWRATE_K", value: 1.0, type: 9 },
+
+  // ── PX4 battery extras ─────────────────────────────────────
+  { name: "BAT1_N_CELLS", value: 4, type: 9 },
+  { name: "BAT1_R_INTERNAL", value: 0.005, type: 9 },
+
+  // ── Sensors / rangefinder ──────────────────────────────────
+  { name: "SENS_EN_MB12XX", value: 0, type: 9 },
+  { name: "SENS_EN_LL40LS", value: 0, type: 9 },
+  { name: "SENS_EN_SF1XX", value: 0, type: 9 },
+  { name: "EKF2_RNG_AID", value: 1, type: 9 },
+  { name: "EKF2_RNG_A_HMAX", value: 5, type: 9 },
+  { name: "EKF2_RNG_NOISE", value: 0.05, type: 9 },
+  { name: "EKF2_RNG_SFE", value: 0.05, type: 9 },
+  { name: "EKF2_MIN_RNG", value: 0.1, type: 9 },
+
+  // ── Gimbal (PX4 mount params) ──────────────────────────────
+  { name: "MNT_MODE_IN", value: 0, type: 9 },
+  { name: "MNT_MAN_PITCH", value: 0, type: 9 },
+  { name: "MNT_MAN_ROLL", value: 0, type: 9 },
+  { name: "MNT_MAN_YAW", value: 0, type: 9 },
+  { name: "MNT_RATE_PITCH", value: 90, type: 9 },
+  { name: "MNT_RATE_YAW", value: 90, type: 9 },
+
+  // ── Camera (PX4 trigger params) ────────────────────────────
+  { name: "TRIG_MODE", value: 0, type: 9 },
+  { name: "TRIG_ACT_TIME", value: 40, type: 9 },
+  { name: "TRIG_DIST", value: 25, type: 9 },
+  { name: "TRIG_PWM_SHOOT", value: 1900, type: 9 },
+
+  // ── EKF failsafe (PX4-only) ────────────────────────────────
+  { name: "COM_POS_FS_DELAY", value: 1, type: 9 },
+  { name: "COM_POS_FS_EPH", value: 5, type: 9 },
+  { name: "COM_POS_FS_EPV", value: 10, type: 9 },
+  { name: "COM_VEL_FS_EVH", value: 1, type: 9 },
+
+  // ── Geofence extras ────────────────────────────────────────
+  { name: "GF_ALTMODE", value: 0, type: 9 },
+  { name: "GF_SOURCE", value: 0, type: 9 },
+
+  // ── Serial ports ───────────────────────────────────────────
+  { name: "SER_TEL1_BAUD", value: 57600, type: 9 },
+  { name: "SER_TEL2_BAUD", value: 921600, type: 9 },
+  { name: "SER_TEL3_BAUD", value: 57600, type: 9 },
+  { name: "SER_GPS1_BAUD", value: 0, type: 9 },
+
+  // ── Airframe / actuator ────────────────────────────────────
+  { name: "SYS_AUTOCONFIG", value: 0, type: 9 },
+  { name: "CA_ROTOR_COUNT", value: 4, type: 9 },
+  { name: "CA_ROTOR0_PX", value: 0.15, type: 9 },
+  { name: "CA_ROTOR0_PY", value: 0.15, type: 9 },
+  { name: "CA_ROTOR0_PZ", value: 0, type: 9 },
+  { name: "CA_ROTOR1_PX", value: -0.15, type: 9 },
+  { name: "CA_ROTOR1_PY", value: -0.15, type: 9 },
+  { name: "CA_ROTOR1_PZ", value: 0, type: 9 },
+  { name: "CA_ROTOR2_PX", value: 0.15, type: 9 },
+  { name: "CA_ROTOR2_PY", value: -0.15, type: 9 },
+  { name: "CA_ROTOR2_PZ", value: 0, type: 9 },
+  { name: "CA_ROTOR3_PX", value: -0.15, type: 9 },
+  { name: "CA_ROTOR3_PY", value: 0.15, type: 9 },
+  { name: "CA_ROTOR3_PZ", value: 0, type: 9 },
+  { name: "PWM_MAIN_FUNC1", value: 101, type: 9 },
+  { name: "PWM_MAIN_FUNC2", value: 102, type: 9 },
+  { name: "PWM_MAIN_FUNC3", value: 103, type: 9 },
+  { name: "PWM_MAIN_FUNC4", value: 104, type: 9 },
+  { name: "PWM_MAIN_FUNC5", value: 0, type: 9 },
+  { name: "PWM_MAIN_FUNC6", value: 0, type: 9 },
+  { name: "PWM_MAIN_FUNC7", value: 0, type: 9 },
+  { name: "PWM_MAIN_FUNC8", value: 0, type: 9 },
+  { name: "CA_SV_CS_COUNT", value: 0, type: 9 },
 ];

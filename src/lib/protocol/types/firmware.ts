@@ -41,4 +41,7 @@ export interface FirmwareHandler {
 
   /** Map a firmware-specific param name back to the canonical name. */
   reverseMapParameterName(firmwareName: string): string;
+
+  /** List of supported MAV_CMD IDs for mission items. Optional -- all commands allowed if not implemented. */
+  getSupportedMissionCommands?(): number[];
 }

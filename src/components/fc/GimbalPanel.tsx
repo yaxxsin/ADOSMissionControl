@@ -15,6 +15,7 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Move3D, Save, HardDrive, Crosshair, RotateCcw, MapPin, Settings2 } from "lucide-react";
 import { ParamLabel } from "./ParamLabel";
+import { useFirmwareCapabilities } from "@/hooks/use-firmware-capabilities";
 
 const GIMBAL_PARAMS: string[] = [];
 
@@ -64,6 +65,8 @@ const MNT_MODE_OPTIONS = [
 export function GimbalPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const { toast } = useToast();
+  const { firmwareType } = useFirmwareCapabilities();
+  const isPx4 = firmwareType === "px4";
   const { label: pl } = useParamLabel();
   const metadata = useParamMetadataMap();
   const lbl = (raw: string) => <ParamLabel label={pl(raw)} metadata={metadata} />;
@@ -155,6 +158,12 @@ export function GimbalPanel() {
             connected={connected}
             error={error}
           />
+
+          {isPx4 && (
+            <p className="text-xs text-text-tertiary mb-3">
+              PX4 uses MNT_MODE_IN for gimbal mode. Parameters mapped from ArduPilot equivalents.
+            </p>
+          )}
 
           {/* Mount Configuration */}
           <Card icon={<Move3D size={14} />} title="Gimbal Configuration" description="Mount type and default behavior">

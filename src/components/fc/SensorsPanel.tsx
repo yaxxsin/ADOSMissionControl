@@ -17,6 +17,7 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Gauge, Save, HardDrive } from "lucide-react";
 import { ParamLabel } from "./ParamLabel";
+import { useFirmwareCapabilities } from "@/hooks/use-firmware-capabilities";
 
 const SENSOR_PARAMS = [
   "GND_ABS_PRESS", "GND_TEMP", "BARO_PRIMARY",
@@ -26,6 +27,9 @@ const OPTIONAL_SENSOR_PARAMS = [
   "RNGFND1_TYPE", "RNGFND1_PIN", "RNGFND1_MIN_CM", "RNGFND1_MAX_CM", "RNGFND1_ORIENT",
   "FLOW_TYPE", "FLOW_FXSCALER", "FLOW_FYSCALER", "FLOW_ORIENT_YAW",
   "ARSPD_TYPE", "ARSPD_USE", "ARSPD_OFFSET", "ARSPD_RATIO",
+  // PX4 rangefinder and EKF2 range params (silently fail on ArduPilot)
+  "SENS_EN_MB12XX", "SENS_EN_LL40LS", "SENS_EN_SF1XX",
+  "EKF2_RNG_AID", "EKF2_RNG_A_HMAX", "EKF2_RNG_NOISE", "EKF2_RNG_SFE", "EKF2_MIN_RNG",
 ];
 
 const RNGFND_TYPE_OPTIONS = [
@@ -65,6 +69,8 @@ const ARSPD_TYPE_OPTIONS = [
 export function SensorsPanel() {
   const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
   const { toast } = useToast();
+  const { firmwareType } = useFirmwareCapabilities();
+  const isPx4 = firmwareType === "px4";
   const { label: pl } = useParamLabel();
   const metadata = useParamMetadataMap();
   const lbl = (raw: string) => <ParamLabel label={pl(raw)} metadata={metadata} />;
@@ -122,47 +128,75 @@ export function SensorsPanel() {
           {/* Rangefinder */}
           <CollapsibleSection title="Rangefinder" defaultOpen>
             <div className="p-4 space-y-3">
-              <Select
-                label={lbl("RNGFND1_TYPE — Sensor Type")}
-                options={RNGFND_TYPE_OPTIONS}
-                value={p("RNGFND1_TYPE")}
-                onChange={(v) => set("RNGFND1_TYPE", v)}
-              />
-              {p("RNGFND1_TYPE") !== "0" && (
-                <>
-                  <Input
-                    label={lbl("RNGFND1_PIN — Analog Pin")}
-                    type="number"
-                    step="1"
-                    min="-1"
-                    value={p("RNGFND1_PIN", "-1")}
-                    onChange={(e) => set("RNGFND1_PIN", e.target.value)}
-                  />
-                  <Input
-                    label={lbl("RNGFND1_MIN_CM — Min Distance")}
-                    type="number"
-                    step="1"
-                    min="0"
-                    unit="cm"
-                    value={p("RNGFND1_MIN_CM", "20")}
-                    onChange={(e) => set("RNGFND1_MIN_CM", e.target.value)}
-                  />
-                  <Input
-                    label={lbl("RNGFND1_MAX_CM — Max Distance")}
-                    type="number"
-                    step="1"
-                    min="0"
-                    unit="cm"
-                    value={p("RNGFND1_MAX_CM", "700")}
-                    onChange={(e) => set("RNGFND1_MAX_CM", e.target.value)}
-                  />
-                  <Select
-                    label={lbl("RNGFND1_ORIENT — Orientation")}
-                    options={RNGFND_ORIENT_OPTIONS}
-                    value={p("RNGFND1_ORIENT", "25")}
-                    onChange={(v) => set("RNGFND1_ORIENT", v)}
-                  />
-                  {/* Live distance readout */}
+              {isPx4 ? (
+                <div className="space-y-3">
+                  <h4 className="text-xs font-medium text-text-secondary">Rangefinder Sensors</h4>
+                  {[
+                    { param: "SENS_EN_MB12XX", label: "MaxBotix I2C" },
+                    { param: "SENS_EN_LL40LS", label: "LidarLite" },
+                    { param: "SENS_EN_SF1XX", label: "LightWare SF1x" },
+                  ].map(({ param, label }) => (
+                    <div key={param} className="flex items-center justify-between p-2 rounded bg-bg-tertiary">
+                      <span className="text-xs text-text-primary">{label}</span>
+                      <button
+                        onClick={() => setLocalValue(param, (params.get(param) ?? 0) ? 0 : 1)}
+                        className={`w-10 h-5 rounded-full transition-colors ${(params.get(param) ?? 0) ? "bg-accent-primary" : "bg-bg-quaternary"}`}
+                      >
+                        <div className={`w-4 h-4 rounded-full bg-white transition-transform ${(params.get(param) ?? 0) ? "translate-x-5" : "translate-x-0.5"}`} />
+                      </button>
+                    </div>
+                  ))}
+                  <h4 className="text-xs font-medium text-text-secondary mt-4">EKF Range Config</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Range Aid Enable</label>
+                      <Select
+                        value={String(params.get("EKF2_RNG_AID") ?? 1)}
+                        onChange={(v) => setLocalValue("EKF2_RNG_AID", Number(v))}
+                        options={[
+                          { value: "0", label: "Disabled" },
+                          { value: "1", label: "Enabled" },
+                        ]}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Max Height (m)</label>
+                      <Input
+                        type="number"
+                        step={1}
+                        min={0}
+                        max={50}
+                        value={String(params.get("EKF2_RNG_A_HMAX") ?? 5)}
+                        onChange={(e) => setLocalValue("EKF2_RNG_A_HMAX", Number(e.target.value) || 0)}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Noise (m)</label>
+                      <Input
+                        type="number"
+                        step={0.01}
+                        min={0}
+                        max={1}
+                        value={String(params.get("EKF2_RNG_NOISE") ?? 0.05)}
+                        onChange={(e) => setLocalValue("EKF2_RNG_NOISE", Number(e.target.value) || 0)}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Min Range (m)</label>
+                      <Input
+                        type="number"
+                        step={0.1}
+                        min={0}
+                        max={5}
+                        value={String(params.get("EKF2_MIN_RNG") ?? 0.1)}
+                        onChange={(e) => setLocalValue("EKF2_MIN_RNG", Number(e.target.value) || 0)}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  </div>
+                  {/* Live distance readout (shared between firmwares) */}
                   {latestDistance && (
                     <div className="mt-2 p-3 bg-bg-tertiary/50 rounded space-y-2">
                       <div className="flex items-center justify-between">
@@ -171,19 +205,75 @@ export function SensorsPanel() {
                           {(latestDistance.currentDistance / 100).toFixed(2)} <span className="text-[10px] text-text-tertiary">m</span>
                         </span>
                       </div>
-                      <div className="h-2 bg-bg-tertiary rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-accent-primary transition-all duration-200"
-                          style={{
-                            width: `${Math.min(100, Math.max(0, ((latestDistance.currentDistance - latestDistance.minDistance) / (latestDistance.maxDistance - latestDistance.minDistance)) * 100))}%`,
-                          }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-[9px] text-text-tertiary font-mono">
-                        <span>{(latestDistance.minDistance / 100).toFixed(1)}m</span>
-                        <span>{(latestDistance.maxDistance / 100).toFixed(1)}m</span>
-                      </div>
                     </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <Select
+                    label={lbl("RNGFND1_TYPE — Sensor Type")}
+                    options={RNGFND_TYPE_OPTIONS}
+                    value={p("RNGFND1_TYPE")}
+                    onChange={(v) => set("RNGFND1_TYPE", v)}
+                  />
+                  {p("RNGFND1_TYPE") !== "0" && (
+                    <>
+                      <Input
+                        label={lbl("RNGFND1_PIN — Analog Pin")}
+                        type="number"
+                        step="1"
+                        min="-1"
+                        value={p("RNGFND1_PIN", "-1")}
+                        onChange={(e) => set("RNGFND1_PIN", e.target.value)}
+                      />
+                      <Input
+                        label={lbl("RNGFND1_MIN_CM — Min Distance")}
+                        type="number"
+                        step="1"
+                        min="0"
+                        unit="cm"
+                        value={p("RNGFND1_MIN_CM", "20")}
+                        onChange={(e) => set("RNGFND1_MIN_CM", e.target.value)}
+                      />
+                      <Input
+                        label={lbl("RNGFND1_MAX_CM — Max Distance")}
+                        type="number"
+                        step="1"
+                        min="0"
+                        unit="cm"
+                        value={p("RNGFND1_MAX_CM", "700")}
+                        onChange={(e) => set("RNGFND1_MAX_CM", e.target.value)}
+                      />
+                      <Select
+                        label={lbl("RNGFND1_ORIENT — Orientation")}
+                        options={RNGFND_ORIENT_OPTIONS}
+                        value={p("RNGFND1_ORIENT", "25")}
+                        onChange={(v) => set("RNGFND1_ORIENT", v)}
+                      />
+                      {/* Live distance readout */}
+                      {latestDistance && (
+                        <div className="mt-2 p-3 bg-bg-tertiary/50 rounded space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-text-tertiary">Live Distance</span>
+                            <span className="text-sm font-mono text-text-primary">
+                              {(latestDistance.currentDistance / 100).toFixed(2)} <span className="text-[10px] text-text-tertiary">m</span>
+                            </span>
+                          </div>
+                          <div className="h-2 bg-bg-tertiary rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-accent-primary transition-all duration-200"
+                              style={{
+                                width: `${Math.min(100, Math.max(0, ((latestDistance.currentDistance - latestDistance.minDistance) / (latestDistance.maxDistance - latestDistance.minDistance)) * 100))}%`,
+                              }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-[9px] text-text-tertiary font-mono">
+                            <span>{(latestDistance.minDistance / 100).toFixed(1)}m</span>
+                            <span>{(latestDistance.maxDistance / 100).toFixed(1)}m</span>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
               )}
