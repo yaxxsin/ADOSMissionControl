@@ -190,7 +190,7 @@ export class PX4SerialFlasher implements FirmwareFlasher {
     await this.writer.write(data);
   }
 
-  private async waitForBytes(count: number, timeoutMs = PX4_BL.DEFAULT_TIMEOUT): Promise<number[]> {
+  private async waitForBytes(count: number, timeoutMs: number = PX4_BL.DEFAULT_TIMEOUT): Promise<number[]> {
     if (!this.reader) throw new Error("Serial port not open");
     const deadline = Date.now() + timeoutMs;
     while (this.readBuffer.length < count) {
@@ -207,7 +207,7 @@ export class PX4SerialFlasher implements FirmwareFlasher {
     return this.readBuffer.splice(0, count);
   }
 
-  private async expectInsyncOk(timeoutMs = PX4_BL.DEFAULT_TIMEOUT): Promise<void> {
+  private async expectInsyncOk(timeoutMs: number = PX4_BL.DEFAULT_TIMEOUT): Promise<void> {
     const response = await this.waitForBytes(2, timeoutMs);
     if (response[0] !== PX4_BL.INSYNC) throw new Error(`PX4 bootloader: expected INSYNC (0x12), got 0x${response[0].toString(16)}`);
     if (response[1] === PX4_BL.FAILED) throw new Error("PX4 bootloader: operation FAILED");
