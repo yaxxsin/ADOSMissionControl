@@ -7,6 +7,7 @@ import { useDroneStore } from "@/stores/drone-store";
 import { useDroneManager } from "@/stores/drone-manager";
 import { useMissionStore } from "@/stores/mission-store";
 import { Pause, Play } from "lucide-react";
+import { useDefaultCenter } from "@/hooks/use-default-center";
 import {
   MapContainer,
   Circle,
@@ -39,8 +40,10 @@ const PlannedVsActualOverlay = dynamic(
   () => import("@/components/logs/PlannedVsActualOverlay").then((m) => ({ default: m.PlannedVsActualOverlay })),
   { ssr: false }
 );
-
-const BANGALORE_CENTER: [number, number] = [12.9716, 77.5946];
+const LocateControl = dynamic(
+  () => import("@/components/map/LocateControl").then((m) => ({ default: m.LocateControl })),
+  { ssr: false }
+);
 
 /** SVG arrow icon for the drone marker, rotated by heading. */
 function createDroneIcon(heading: number): L.DivIcon {
@@ -112,6 +115,7 @@ export function OverviewMap() {
   const homePos: [number, number] | null =
     trail.length > 0 ? [trail[0].lat, trail[0].lon] : null;
 
+  const defaultCenter = useDefaultCenter();
   const hasGps = dronePos !== null;
 
   return (
@@ -130,7 +134,7 @@ export function OverviewMap() {
       )}
 
       <MapContainer
-        center={dronePos ?? BANGALORE_CENTER}
+        center={dronePos ?? defaultCenter}
         zoom={17}
         className="w-full h-full"
         zoomControl={false}
@@ -174,6 +178,7 @@ export function OverviewMap() {
         )}
 
         <GcsMarker />
+        <LocateControl style={{ marginBottom: 40 }} />
       </MapContainer>
 
       {/* Mission pause/resume overlay — top right */}

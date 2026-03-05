@@ -37,9 +37,30 @@ export function WelcomeModal() {
   const [units, setLocalUnits] = useState<UnitSystem>("metric");
   const [demoMode, setLocalDemoMode] = useState(true);
   const [audioEnabled, setLocalAudioEnabled] = useState(false);
-  const [locationEnabled, setLocalLocationEnabled] = useState(false);
+  const [locationEnabled, setLocalLocationEnabled] = useState(true);
   const [locationPermission, setLocationPermission] = useState<GeoPermission>("prompt");
   const [locationChecking, setLocationChecking] = useState(false);
+
+  // Auto-request location permission on mount
+  useEffect(() => {
+    if (!isSupported) {
+      setLocalLocationEnabled(false);
+      return;
+    }
+    let cancelled = false;
+    setLocationChecking(true);
+    requestPermission().then((perm) => {
+      if (cancelled) return;
+      setLocationChecking(false);
+      setLocationPermission(perm);
+      if (perm === "granted") {
+        setLocalLocationEnabled(true);
+      } else {
+        setLocalLocationEnabled(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [isSupported, requestPermission]);
 
   // Auto-set units when jurisdiction changes
   useEffect(() => {

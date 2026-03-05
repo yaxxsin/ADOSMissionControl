@@ -14,7 +14,8 @@ import type { Waypoint, PlannerTool } from "@/lib/types";
 import type { RallyPoint } from "@/stores/rally-store";
 import type { DrawnPolygon, DrawnCircle } from "@/lib/drawing/types";
 import { haversineDistance, bearing } from "@/lib/telemetry-utils";
-import { DEFAULT_CENTER, MAP_COLORS } from "@/lib/map-constants";
+import { MAP_COLORS } from "@/lib/map-constants";
+import { useDefaultCenter } from "@/hooks/use-default-center";
 import { DrawingManager } from "@/lib/drawing/drawing-manager";
 import { useDrawingStore } from "@/stores/drawing-store";
 import { usePlannerStore } from "@/stores/planner-store";
@@ -44,6 +45,10 @@ const GcsMarker = dynamic(
 );
 const PatternOverlay = dynamic(
   () => import("@/components/planner/PatternOverlay").then((m) => ({ default: m.PatternOverlay })),
+  { ssr: false }
+);
+const LocateControl = dynamic(
+  () => import("@/components/map/LocateControl").then((m) => ({ default: m.LocateControl })),
   { ssr: false }
 );
 
@@ -164,6 +169,7 @@ export function PlannerMap({
   const fitRequestTs = usePlannerStore((s) => s.fitRequestTs);
   const clearFitRequest = usePlannerStore((s) => s.clearFitRequest);
 
+  const defaultCenter = useDefaultCenter();
   const isDrawingTool = DRAWING_TOOLS.includes(activeTool);
 
   // Initialize DrawingManager when map is ready
@@ -331,7 +337,7 @@ export function PlannerMap({
   return (
     <div className="w-full h-full relative">
       <MapContainer
-        center={DEFAULT_CENTER}
+        center={defaultCenter}
         zoom={13}
         className="w-full h-full"
         zoomControl={false}
@@ -367,6 +373,7 @@ export function PlannerMap({
         ))}
 
         <GcsMarker />
+        <LocateControl />
         <PatternOverlay />
 
         {/* Waypoint markers */}

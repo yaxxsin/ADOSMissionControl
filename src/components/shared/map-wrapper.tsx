@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type { ReactNode } from "react";
+import { useDefaultCenter } from "@/hooks/use-default-center";
 
 const MapContainer = dynamic(
   () => import("react-leaflet").then((m) => m.MapContainer),
@@ -15,6 +16,10 @@ const GcsMarker = dynamic(
   () => import("@/components/map/GcsMarker").then((m) => ({ default: m.GcsMarker })),
   { ssr: false }
 );
+const LocateControl = dynamic(
+  () => import("@/components/map/LocateControl").then((m) => ({ default: m.LocateControl })),
+  { ssr: false }
+);
 
 interface MapWrapperProps {
   center?: [number, number];
@@ -23,18 +28,19 @@ interface MapWrapperProps {
   children?: ReactNode;
 }
 
-const BANGALORE_CENTER: [number, number] = [12.9716, 77.5946];
-
 export function MapWrapper({
-  center = BANGALORE_CENTER,
+  center,
   zoom = 12,
   className = "w-full h-full",
   children,
 }: MapWrapperProps) {
+  const defaultCenter = useDefaultCenter();
+  const mapCenter = center ?? defaultCenter;
+
   return (
     <div className="isolate w-full h-full">
       <MapContainer
-        center={center}
+        center={mapCenter}
         zoom={zoom}
         className={className}
         zoomControl={false}
@@ -44,6 +50,7 @@ export function MapWrapper({
         <TileLayerSwitcher />
         {children}
         <GcsMarker />
+        <LocateControl />
       </MapContainer>
     </div>
   );
