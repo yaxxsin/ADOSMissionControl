@@ -9,6 +9,7 @@ import { CompactInfoCards } from "@/components/flight/CompactInfoCards";
 import { OsdOverlay } from "@/components/flight/OsdOverlay";
 import { VideoCanvas } from "@/components/flight/VideoCanvas";
 import { TelemetryFreshnessIndicator } from "@/components/indicators/TelemetryFreshnessIndicator";
+import { RecordingControls } from "@/components/shared/RecordingControls";
 import { useUiStore } from "@/stores/ui-store";
 import type { FleetDrone } from "@/lib/types";
 
@@ -115,6 +116,7 @@ export function DroneOverviewTab({ drone }: DroneOverviewTabProps) {
               <Maximize2 size={12} />
               Immersive
             </button>
+            <RecordingControls />
           </div>
         )}
 

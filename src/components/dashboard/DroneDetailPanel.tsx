@@ -15,6 +15,7 @@ import { DroneConfigureTab } from "@/components/drone-detail/DroneConfigureTab";
 import { CalibrationPanel } from "@/components/fc/CalibrationPanel";
 import { ParametersPanel } from "@/components/fc/ParametersPanel";
 import { X, RotateCcw, Trash2 } from "lucide-react";
+import { ConnectionQualityMeter } from "@/components/indicators/ConnectionQualityMeter";
 import { useUiStore } from "@/stores/ui-store";
 
 const TABS = [
@@ -139,6 +140,7 @@ export function DroneDetailPanel({ droneId, onClose }: DroneDetailPanelProps) {
             onClick={() => setDeleteOpen(true)}
             className="text-status-error hover:text-status-error"
           />
+          {isConnected && <ConnectionQualityMeter />}
           {isConnected && (
             <Button
               variant="danger"

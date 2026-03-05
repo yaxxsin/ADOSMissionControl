@@ -27,8 +27,6 @@ import { DisconnectGuard } from "@/components/fc/DisconnectGuard";
 import { cn } from "@/lib/utils";
 import { ChangelogNotificationGate } from "@/components/changelog/ChangelogNotificationGate";
 import { ChangelogBadge } from "@/components/changelog/ChangelogBadge";
-import { ConnectionQualityMeter } from "@/components/indicators/ConnectionQualityMeter";
-import { RecordingControls } from "@/components/shared/RecordingControls";
 import Link from "next/link";
 
 export function CommandShell({ children }: { children: React.ReactNode }) {
@@ -159,12 +157,6 @@ export function CommandShell({ children }: { children: React.ReactNode }) {
               )}
             </div>
           </Tooltip>
-
-          {/* Connection quality meter — only when a drone is connected */}
-          {mavConnected && <ConnectionQualityMeter />}
-
-          {/* Telemetry recording controls — only when a drone is connected */}
-          {mavConnected && <RecordingControls />}
 
           {/* Alert count */}
           {alertCount > 0 && (

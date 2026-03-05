@@ -26,6 +26,7 @@ import { FramePanel } from "@/components/fc/FramePanel";
 import { PreArmPanel } from "@/components/fc/PreArmPanel";
 import { DebugPanel } from "@/components/fc/DebugPanel";
 import { DiagnosticsPanel } from "@/components/diagnostics/DiagnosticsPanel";
+import { LogAnalysisPanel } from "@/components/logs/LogAnalysisPanel";
 import { SensorGraphPanel } from "@/components/fc/SensorGraphPanel";
 import { SensorsPanel } from "@/components/fc/SensorsPanel";
 import { GimbalPanel } from "@/components/fc/GimbalPanel";
@@ -101,6 +102,7 @@ const FC_NAV_ITEMS: FcNavItem[] = [
   { id: "mavlink", label: "MAVLink Inspector", icon: <Monitor size={14} />, requiredCapability: "supportsMavlinkInspector", section: "Debug" },
   { id: "debug", label: "Debug", icon: <Bug size={14} />, requiredCapability: "supportsDebugValues", section: "Debug" },
   { id: "diagnostics", label: "Diagnostics", icon: <Stethoscope size={14} />, section: "Debug" },
+  { id: "logs", label: "Log Analysis", icon: <BarChart3 size={14} />, section: "Debug" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -248,6 +250,7 @@ export function DroneConfigureTab({ droneId, droneName, isConnected }: DroneConf
             {activePanel === "mavlink" && <MavlinkInspectorPanel />}
             {activePanel === "debug" && <DebugPanel />}
             {activePanel === "diagnostics" && <DiagnosticsPanel />}
+            {activePanel === "logs" && <LogAnalysisPanel />}
           </>
         )}
       </div>
