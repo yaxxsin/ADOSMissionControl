@@ -1,5 +1,5 @@
 /**
- * GPS waypoint routes around Bangalore for demo drones.
+ * GPS waypoint routes for demo drones.
  * Each path is a closed loop — drone cycles through waypoints continuously.
  */
 
@@ -11,55 +11,55 @@ export interface PathWaypoint {
 }
 
 /**
- * Path 0: Alpha-1 — Security patrol circuit around Cubbon Park.
+ * Path 0: Alpha-1 — Security patrol loop.
  */
-const CUBBON_PARK_PATROL: PathWaypoint[] = [
-  { lat: 12.9766, lon: 77.5933, alt: 40, speed: 8 },
-  { lat: 12.9790, lon: 77.5960, alt: 45, speed: 8 },
-  { lat: 12.9810, lon: 77.5993, alt: 40, speed: 8 },
-  { lat: 12.9795, lon: 77.6025, alt: 45, speed: 8 },
-  { lat: 12.9770, lon: 77.6040, alt: 40, speed: 8 },
-  { lat: 12.9745, lon: 77.6020, alt: 45, speed: 8 },
-  { lat: 12.9730, lon: 77.5985, alt: 40, speed: 8 },
-  { lat: 12.9745, lon: 77.5950, alt: 45, speed: 8 },
+const PATROL_LOOP_A: PathWaypoint[] = [
+  { lat: 0.005, lon: 0.003, alt: 40, speed: 8 },
+  { lat: 0.007, lon: 0.005, alt: 45, speed: 8 },
+  { lat: 0.009, lon: 0.007, alt: 40, speed: 8 },
+  { lat: 0.008, lon: 0.010, alt: 45, speed: 8 },
+  { lat: 0.006, lon: 0.011, alt: 40, speed: 8 },
+  { lat: 0.004, lon: 0.009, alt: 45, speed: 8 },
+  { lat: 0.003, lon: 0.006, alt: 40, speed: 8 },
+  { lat: 0.004, lon: 0.004, alt: 45, speed: 8 },
 ];
 
 /**
- * Path 1: Bravo-2 — Survey grid over Ulsoor Lake.
+ * Path 1: Bravo-2 — Survey grid pattern.
  */
-const ULSOOR_LAKE_SURVEY: PathWaypoint[] = [
-  { lat: 12.9836, lon: 77.6094, alt: 80, speed: 5 },
-  { lat: 12.9850, lon: 77.6094, alt: 80, speed: 5 },
-  { lat: 12.9850, lon: 77.6130, alt: 80, speed: 5 },
-  { lat: 12.9836, lon: 77.6130, alt: 80, speed: 5 },
-  { lat: 12.9836, lon: 77.6165, alt: 80, speed: 5 },
-  { lat: 12.9850, lon: 77.6165, alt: 80, speed: 5 },
-  { lat: 12.9850, lon: 77.6200, alt: 80, speed: 5 },
-  { lat: 12.9836, lon: 77.6200, alt: 80, speed: 5 },
-  { lat: 12.9822, lon: 77.6200, alt: 80, speed: 5 },
-  { lat: 12.9822, lon: 77.6165, alt: 80, speed: 5 },
-  { lat: 12.9822, lon: 77.6130, alt: 80, speed: 5 },
-  { lat: 12.9822, lon: 77.6094, alt: 80, speed: 5 },
+const SURVEY_GRID_A: PathWaypoint[] = [
+  { lat: 0.010, lon: 0.010, alt: 80, speed: 5 },
+  { lat: 0.012, lon: 0.010, alt: 80, speed: 5 },
+  { lat: 0.012, lon: 0.013, alt: 80, speed: 5 },
+  { lat: 0.010, lon: 0.013, alt: 80, speed: 5 },
+  { lat: 0.010, lon: 0.016, alt: 80, speed: 5 },
+  { lat: 0.012, lon: 0.016, alt: 80, speed: 5 },
+  { lat: 0.012, lon: 0.019, alt: 80, speed: 5 },
+  { lat: 0.010, lon: 0.019, alt: 80, speed: 5 },
+  { lat: 0.008, lon: 0.019, alt: 80, speed: 5 },
+  { lat: 0.008, lon: 0.016, alt: 80, speed: 5 },
+  { lat: 0.008, lon: 0.013, alt: 80, speed: 5 },
+  { lat: 0.008, lon: 0.010, alt: 80, speed: 5 },
 ];
 
 /**
- * Path 2: Echo-5 — SAR search grid near Whitefield.
+ * Path 2: Echo-5 — SAR search pattern.
  */
-const WHITEFIELD_SAR: PathWaypoint[] = [
-  { lat: 12.9698, lon: 77.7500, alt: 60, speed: 10 },
-  { lat: 12.9730, lon: 77.7530, alt: 65, speed: 10 },
-  { lat: 12.9760, lon: 77.7500, alt: 60, speed: 10 },
-  { lat: 12.9730, lon: 77.7470, alt: 65, speed: 10 },
-  { lat: 12.9698, lon: 77.7440, alt: 60, speed: 10 },
-  { lat: 12.9666, lon: 77.7470, alt: 65, speed: 10 },
-  { lat: 12.9666, lon: 77.7530, alt: 60, speed: 10 },
-  { lat: 12.9698, lon: 77.7560, alt: 65, speed: 10 },
+const SAR_SEARCH_A: PathWaypoint[] = [
+  { lat: -0.005, lon: 0.020, alt: 60, speed: 10 },
+  { lat: -0.003, lon: 0.023, alt: 65, speed: 10 },
+  { lat: -0.001, lon: 0.020, alt: 60, speed: 10 },
+  { lat: -0.003, lon: 0.017, alt: 65, speed: 10 },
+  { lat: -0.005, lon: 0.014, alt: 60, speed: 10 },
+  { lat: -0.007, lon: 0.017, alt: 65, speed: 10 },
+  { lat: -0.007, lon: 0.023, alt: 60, speed: 10 },
+  { lat: -0.005, lon: 0.026, alt: 65, speed: 10 },
 ];
 
 export const FLIGHT_PATHS: PathWaypoint[][] = [
-  CUBBON_PARK_PATROL,
-  ULSOOR_LAKE_SURVEY,
-  WHITEFIELD_SAR,
+  PATROL_LOOP_A,
+  SURVEY_GRID_A,
+  SAR_SEARCH_A,
 ];
 
 /**

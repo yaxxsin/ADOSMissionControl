@@ -28,10 +28,10 @@ const GcsMarker = dynamic(
 );
 
 
-/** Generate a mock path around Bangalore. */
+/** Generate a mock path for route replay. */
 function generateMockPath(): [number, number][] {
-  const baseLat = 12.97;
-  const baseLon = 77.59;
+  const baseLat = 0.0;
+  const baseLon = 0.0;
   const points: [number, number][] = [];
   const steps = 40;
   for (let i = 0; i <= steps; i++) {
@@ -98,7 +98,7 @@ export function RouteReplayMap({ path: providedPath }: RouteReplayMapProps) {
     setProgress(0);
   }, []);
 
-  const center: [number, number] = path.length > 0 ? path[0] : [12.97, 77.59];
+  const center: [number, number] = path.length > 0 ? path[0] : [0, 0];
 
   return (
     <div className="flex flex-col h-full">

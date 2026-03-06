@@ -103,8 +103,8 @@ export interface TelemetryTickContext {
   emitCameraImageCaptured(data: { timestamp: number; lat: number; lon: number; alt: number; imageIndex: number; captureResult: number; fileUrl: string }): void;
 }
 
-const MOCK_HOME_LAT = 12.9716;
-const MOCK_HOME_LON = 77.5946;
+const MOCK_HOME_LAT = 0.0;
+const MOCK_HOME_LON = 0.0;
 
 export function startTelemetryTick(
   ctx: TelemetryTickContext,

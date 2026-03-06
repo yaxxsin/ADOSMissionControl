@@ -4,8 +4,8 @@
  * @license GPL-3.0-only
  */
 
-/** Default map center: Bangalore, India. */
-export const DEFAULT_CENTER: [number, number] = [12.9716, 77.5946];
+/** Default map center: Null Island (no location bias). */
+export const DEFAULT_CENTER: [number, number] = [0, 0];
 
 /** Design-system color tokens used across map components. */
 export const MAP_COLORS = {

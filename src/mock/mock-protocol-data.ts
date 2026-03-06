@@ -9,8 +9,8 @@
 
 import type { VehicleInfo, MissionItem, LogEntry } from "@/lib/protocol/types";
 
-export const MOCK_HOME_LAT = 12.9716;
-export const MOCK_HOME_LON = 77.5946;
+export const MOCK_HOME_LAT = 0.0;
+export const MOCK_HOME_LON = 0.0;
 
 /** 5-point polygon fence centered on mock home, ~200m radius. */
 export const MOCK_FENCE_POLYGON: Array<{ idx: number; lat: number; lon: number }> = [
@@ -39,15 +39,15 @@ export const BETAFLIGHT_VEHICLE_INFO: VehicleInfo = {
   autopilotType: 0, vehicleType: 2,
 };
 
-/** 6 realistic waypoints around Bangalore: TAKEOFF -> 4 waypoints -> LAND */
+/** 6 waypoints: TAKEOFF -> 4 waypoints -> LAND */
 export function getMockMission(): MissionItem[] {
   return [
-    { seq: 0, frame: 3, command: 22, current: 1, autocontinue: 1, param1: 0, param2: 0, param3: 0, param4: 0, x: Math.round(12.9716 * 1e7), y: Math.round(77.5946 * 1e7), z: 50 },
-    { seq: 1, frame: 3, command: 16, current: 0, autocontinue: 1, param1: 0, param2: 0, param3: 0, param4: 0, x: Math.round(12.9736 * 1e7), y: Math.round(77.5966 * 1e7), z: 50 },
-    { seq: 2, frame: 3, command: 16, current: 0, autocontinue: 1, param1: 5, param2: 0, param3: 0, param4: 0, x: Math.round(12.9756 * 1e7), y: Math.round(77.5946 * 1e7), z: 60 },
-    { seq: 3, frame: 3, command: 16, current: 0, autocontinue: 1, param1: 0, param2: 0, param3: 0, param4: 0, x: Math.round(12.9756 * 1e7), y: Math.round(77.5926 * 1e7), z: 60 },
-    { seq: 4, frame: 3, command: 16, current: 0, autocontinue: 1, param1: 0, param2: 0, param3: 0, param4: 0, x: Math.round(12.9736 * 1e7), y: Math.round(77.5926 * 1e7), z: 50 },
-    { seq: 5, frame: 3, command: 21, current: 0, autocontinue: 1, param1: 0, param2: 0, param3: 0, param4: 0, x: Math.round(12.9716 * 1e7), y: Math.round(77.5946 * 1e7), z: 0 },
+    { seq: 0, frame: 3, command: 22, current: 1, autocontinue: 1, param1: 0, param2: 0, param3: 0, param4: 0, x: Math.round(0.0 * 1e7), y: Math.round(0.0 * 1e7), z: 50 },
+    { seq: 1, frame: 3, command: 16, current: 0, autocontinue: 1, param1: 0, param2: 0, param3: 0, param4: 0, x: Math.round(0.002 * 1e7), y: Math.round(0.002 * 1e7), z: 50 },
+    { seq: 2, frame: 3, command: 16, current: 0, autocontinue: 1, param1: 5, param2: 0, param3: 0, param4: 0, x: Math.round(0.004 * 1e7), y: Math.round(0.0 * 1e7), z: 60 },
+    { seq: 3, frame: 3, command: 16, current: 0, autocontinue: 1, param1: 0, param2: 0, param3: 0, param4: 0, x: Math.round(0.004 * 1e7), y: Math.round(-0.002 * 1e7), z: 60 },
+    { seq: 4, frame: 3, command: 16, current: 0, autocontinue: 1, param1: 0, param2: 0, param3: 0, param4: 0, x: Math.round(0.002 * 1e7), y: Math.round(-0.002 * 1e7), z: 50 },
+    { seq: 5, frame: 3, command: 21, current: 0, autocontinue: 1, param1: 0, param2: 0, param3: 0, param4: 0, x: Math.round(0.0 * 1e7), y: Math.round(0.0 * 1e7), z: 0 },
   ];
 }
 

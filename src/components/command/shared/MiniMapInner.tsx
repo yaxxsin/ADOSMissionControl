@@ -8,14 +8,13 @@
 
 import { MapContainer, TileLayer, CircleMarker } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-
-const DEFAULT_CENTER: [number, number] = [12.9716, 77.5946];
+import { DEFAULT_CENTER } from "@/lib/map-constants";
 
 export default function MiniMapInner() {
   return (
     <MapContainer
       center={DEFAULT_CENTER}
-      zoom={15}
+      zoom={3}
       style={{ width: "100%", height: "100%" }}
       zoomControl={false}
       attributionControl={false}

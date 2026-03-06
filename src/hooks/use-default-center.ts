@@ -1,7 +1,7 @@
 /**
  * @module use-default-center
  * @description Returns the user's GPS position as map center if available,
- * otherwise falls back to Bangalore.
+ * otherwise falls back to Null Island (0, 0).
  * @license GPL-3.0-only
  */
 

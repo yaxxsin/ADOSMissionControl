@@ -23,7 +23,7 @@ const TileLayerSwitcher = dynamic(
   { ssr: false }
 );
 
-const BANGALORE_CENTER: [number, number] = [12.9716, 77.5946];
+const FALLBACK_CENTER: [number, number] = [0, 0];
 
 /** Fit map bounds to the trail polyline. */
 function FitBounds({ positions }: { positions: [number, number][] }) {
@@ -49,7 +49,7 @@ export function GpsTrackMap() {
 
   const startPos = positions.length > 0 ? positions[0] : null;
   const endPos = positions.length > 1 ? positions[positions.length - 1] : null;
-  const center = startPos ?? BANGALORE_CENTER;
+  const center = startPos ?? FALLBACK_CENTER;
 
   // Stats
   let totalDist = 0;
