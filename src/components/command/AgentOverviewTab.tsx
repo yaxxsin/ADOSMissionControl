@@ -12,6 +12,7 @@ import { AgentStatusCard } from "./shared/AgentStatusCard";
 import { ServiceTable } from "./shared/ServiceTable";
 import { SystemResourceGauges } from "./shared/SystemResourceGauges";
 import { LogViewer } from "./shared/LogViewer";
+import { AgentDisconnectedPage } from "./AgentDisconnectedPage";
 
 export function AgentOverviewTab() {
   const connected = useAgentStore((s) => s.connected);
@@ -33,18 +34,7 @@ export function AgentOverviewTab() {
   }, [connected, fetchServices, fetchResources, fetchLogs]);
 
   if (!connected || !status) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center space-y-2">
-          <p className="text-sm text-text-secondary">
-            No agent connected
-          </p>
-          <p className="text-xs text-text-tertiary">
-            Enter the agent URL above and click Connect
-          </p>
-        </div>
-      </div>
-    );
+    return <AgentDisconnectedPage />;
   }
 
   return (

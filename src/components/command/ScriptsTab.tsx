@@ -10,6 +10,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAgentStore } from "@/stores/agent-store";
+import { AgentDisconnectedPage } from "./AgentDisconnectedPage";
 import type { CommandResult } from "@/lib/agent/types";
 
 interface HistoryEntry {
@@ -70,13 +71,7 @@ export function ScriptsTab() {
   }
 
   if (!connected) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center space-y-2">
-          <p className="text-sm text-text-secondary">Connect to an agent to send commands</p>
-        </div>
-      </div>
-    );
+    return <AgentDisconnectedPage />;
   }
 
   return (

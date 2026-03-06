@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Package, Download, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAgentStore } from "@/stores/agent-store";
+import { AgentDisconnectedPage } from "./AgentDisconnectedPage";
 import type { MockModule } from "@/mock/mock-agent";
 
 export function ModuleStoreTab() {
@@ -26,19 +27,7 @@ export function ModuleStoreTab() {
   }, []);
 
   if (!connected) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center space-y-3 max-w-sm">
-          <Package size={32} className="text-text-tertiary mx-auto" />
-          <h3 className="text-sm font-medium text-text-primary">
-            Module Store
-          </h3>
-          <p className="text-xs text-text-tertiary leading-relaxed">
-            Connect to an agent to manage modules.
-          </p>
-        </div>
-      </div>
-    );
+    return <AgentDisconnectedPage />;
   }
 
   const installed = modules.filter((m) => m.installed);

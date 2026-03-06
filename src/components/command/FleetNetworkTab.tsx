@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Network, Wifi, Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAgentStore } from "@/stores/agent-store";
+import { AgentDisconnectedPage } from "./AgentDisconnectedPage";
 import type { MockNetwork } from "@/mock/mock-agent";
 
 export function FleetNetworkTab() {
@@ -16,19 +17,7 @@ export function FleetNetworkTab() {
   }, [connected]);
 
   if (!connected || !network) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center space-y-3 max-w-sm">
-          <Network size={32} className="text-text-tertiary mx-auto" />
-          <h3 className="text-sm font-medium text-text-primary">
-            Fleet Networking
-          </h3>
-          <p className="text-xs text-text-tertiary leading-relaxed">
-            Connect to an agent to view network status.
-          </p>
-        </div>
-      </div>
-    );
+    return <AgentDisconnectedPage />;
   }
 
   return (
