@@ -11,6 +11,12 @@ import type {
   SystemResources,
   LogEntry,
   CommandResult,
+  PeripheralInfo,
+  ScriptInfo,
+  ScriptRunResult,
+  SuiteInfo,
+  DroneNetEnrollment,
+  NetworkPeer,
 } from "./types";
 
 export class AgentClient {
@@ -78,5 +84,74 @@ export class AgentClient {
     return this.request<CommandResult>(`/api/v1/services/${encodeURIComponent(name)}/restart`, {
       method: "POST",
     });
+  }
+
+  // ── Peripherals ─────────────────────────────────────────
+
+  async getPeripherals(): Promise<PeripheralInfo[]> {
+    return this.request<PeripheralInfo[]>("/api/v1/peripherals");
+  }
+
+  async scanPeripherals(): Promise<PeripheralInfo[]> {
+    return this.request<PeripheralInfo[]>("/api/v1/peripherals/scan", { method: "POST" });
+  }
+
+  // ── Scripts ─────────────────────────────────────────────
+
+  async getScripts(): Promise<ScriptInfo[]> {
+    return this.request<ScriptInfo[]>("/api/v1/scripts");
+  }
+
+  async saveScript(name: string, content: string, suite?: string): Promise<ScriptInfo> {
+    return this.request<ScriptInfo>("/api/v1/scripts", {
+      method: "POST",
+      body: JSON.stringify({ name, content, suite }),
+    });
+  }
+
+  async deleteScript(id: string): Promise<CommandResult> {
+    return this.request<CommandResult>(`/api/v1/scripts/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  }
+
+  async runScript(id: string): Promise<ScriptRunResult> {
+    return this.request<ScriptRunResult>(`/api/v1/scripts/${encodeURIComponent(id)}/run`, {
+      method: "POST",
+    });
+  }
+
+  // ── Suites ──────────────────────────────────────────────
+
+  async getSuites(): Promise<SuiteInfo[]> {
+    return this.request<SuiteInfo[]>("/api/v1/suites");
+  }
+
+  async installSuite(id: string): Promise<CommandResult> {
+    return this.request<CommandResult>(`/api/v1/suites/${encodeURIComponent(id)}/install`, {
+      method: "POST",
+    });
+  }
+
+  async uninstallSuite(id: string): Promise<CommandResult> {
+    return this.request<CommandResult>(`/api/v1/suites/${encodeURIComponent(id)}/uninstall`, {
+      method: "POST",
+    });
+  }
+
+  async activateSuite(id: string): Promise<CommandResult> {
+    return this.request<CommandResult>(`/api/v1/suites/${encodeURIComponent(id)}/activate`, {
+      method: "POST",
+    });
+  }
+
+  // ── Fleet ───────────────────────────────────────────────
+
+  async getEnrollment(): Promise<DroneNetEnrollment> {
+    return this.request<DroneNetEnrollment>("/api/v1/fleet/enrollment");
+  }
+
+  async getPeers(): Promise<NetworkPeer[]> {
+    return this.request<NetworkPeer[]>("/api/v1/fleet/peers");
   }
 }

@@ -73,3 +73,63 @@ export interface CommandResult {
   message: string;
   data?: unknown;
 }
+
+export type PeripheralCategory = "sensor" | "camera" | "video" | "gimbal" | "compute";
+
+export interface PeripheralInfo {
+  name: string;
+  type: string;
+  category: PeripheralCategory;
+  bus: string;
+  address: string;
+  rate_hz: number;
+  status: "ok" | "warning" | "error" | "offline";
+  last_reading: string;
+}
+
+export interface ScriptInfo {
+  id: string;
+  name: string;
+  content: string;
+  suite?: string;
+  lastModified: string;
+}
+
+export interface ScriptRunResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  durationMs: number;
+}
+
+export interface SuiteInfo {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  sensorsRequired: string[];
+  tierRequired: number;
+  version: string;
+  installed: boolean;
+  active: boolean;
+  category: "security" | "mapping" | "agriculture" | "logistics" | "rescue" | "inspection";
+}
+
+export interface DroneNetEnrollment {
+  enrolled: boolean;
+  droneId?: string;
+  fleetName?: string;
+  tier?: number;
+  enrolledSince?: string;
+}
+
+export interface NetworkPeer {
+  id: string;
+  name: string;
+  signal_dbm: number;
+  last_seen: string;
+  battery_percent: number;
+  distance_m: number;
+  tier: number;
+  link_type: string;
+}

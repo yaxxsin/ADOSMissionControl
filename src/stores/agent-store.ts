@@ -12,6 +12,12 @@ import type {
   SystemResources,
   LogEntry,
   CommandResult,
+  PeripheralInfo,
+  ScriptInfo,
+  ScriptRunResult,
+  SuiteInfo,
+  DroneNetEnrollment,
+  NetworkPeer,
 } from "@/lib/agent/types";
 
 interface AgentStore {
@@ -24,6 +30,15 @@ interface AgentStore {
   services: ServiceInfo[];
   resources: SystemResources | null;
   logs: LogEntry[];
+
+  peripherals: PeripheralInfo[];
+  scripts: ScriptInfo[];
+  suites: SuiteInfo[];
+  enrollment: DroneNetEnrollment | null;
+  peers: NetworkPeer[];
+  cpuHistory: number[];
+  scriptOutput: ScriptRunResult | null;
+  runningScript: string | null;
 
   pollInterval: ReturnType<typeof setInterval> | null;
 
@@ -38,7 +53,22 @@ interface AgentStore {
   startPolling: () => void;
   stopPolling: () => void;
   clear: () => void;
+
+  fetchPeripherals: () => Promise<void>;
+  scanPeripherals: () => Promise<void>;
+  fetchScripts: () => Promise<void>;
+  saveScript: (name: string, content: string, suite?: string) => Promise<ScriptInfo | null>;
+  deleteScript: (id: string) => Promise<void>;
+  runScript: (id: string) => Promise<void>;
+  fetchSuites: () => Promise<void>;
+  installSuite: (id: string) => Promise<void>;
+  uninstallSuite: (id: string) => Promise<void>;
+  activateSuite: (id: string) => Promise<void>;
+  fetchEnrollment: () => Promise<void>;
+  fetchPeers: () => Promise<void>;
 }
+
+const MAX_CPU_HISTORY = 60;
 
 export const useAgentStore = create<AgentStore>((set, get) => ({
   agentUrl: null,
@@ -50,6 +80,15 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   services: [],
   resources: null,
   logs: [],
+
+  peripherals: [],
+  scripts: [],
+  suites: [],
+  enrollment: null,
+  peers: [],
+  cpuHistory: [],
+  scriptOutput: null,
+  runningScript: null,
 
   pollInterval: null,
 
@@ -83,6 +122,14 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       services: [],
       resources: null,
       logs: [],
+      peripherals: [],
+      scripts: [],
+      suites: [],
+      enrollment: null,
+      peers: [],
+      cpuHistory: [],
+      scriptOutput: null,
+      runningScript: null,
     });
   },
 
@@ -112,7 +159,11 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     if (!client) return;
     try {
       const resources = await client.getSystemResources();
-      set({ resources });
+      set((state) => {
+        const cpuHistory = [...state.cpuHistory, resources.cpu_percent];
+        if (cpuHistory.length > MAX_CPU_HISTORY) cpuHistory.shift();
+        return { resources, cpuHistory };
+      });
     } catch { /* silent */ }
   },
 
@@ -164,5 +215,130 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
   clear() {
     get().disconnect();
+  },
+
+  // ── Peripherals ─────────────────────────────────────────
+
+  async fetchPeripherals() {
+    const { client } = get();
+    if (!client) return;
+    try {
+      const peripherals = await (client as AgentClient & { getPeripherals: () => Promise<PeripheralInfo[]> }).getPeripherals();
+      set({ peripherals });
+    } catch { /* silent */ }
+  },
+
+  async scanPeripherals() {
+    const { client } = get();
+    if (!client) return;
+    try {
+      const peripherals = await (client as AgentClient & { scanPeripherals: () => Promise<PeripheralInfo[]> }).scanPeripherals();
+      set({ peripherals });
+    } catch { /* silent */ }
+  },
+
+  // ── Scripts ─────────────────────────────────────────────
+
+  async fetchScripts() {
+    const { client } = get();
+    if (!client) return;
+    try {
+      const scripts = await (client as AgentClient & { getScripts: () => Promise<ScriptInfo[]> }).getScripts();
+      set({ scripts });
+    } catch { /* silent */ }
+  },
+
+  async saveScript(name: string, content: string, suite?: string) {
+    const { client } = get();
+    if (!client) return null;
+    try {
+      const script = await (client as AgentClient & { saveScript: (n: string, c: string, s?: string) => Promise<ScriptInfo> }).saveScript(name, content, suite);
+      await get().fetchScripts();
+      return script;
+    } catch {
+      return null;
+    }
+  },
+
+  async deleteScript(id: string) {
+    const { client } = get();
+    if (!client) return;
+    try {
+      await (client as AgentClient & { deleteScript: (id: string) => Promise<CommandResult> }).deleteScript(id);
+      await get().fetchScripts();
+    } catch { /* silent */ }
+  },
+
+  async runScript(id: string) {
+    const { client } = get();
+    if (!client) return;
+    set({ runningScript: id, scriptOutput: null });
+    try {
+      const result = await (client as AgentClient & { runScript: (id: string) => Promise<ScriptRunResult> }).runScript(id);
+      set({ scriptOutput: result, runningScript: null });
+    } catch {
+      set({
+        scriptOutput: { stdout: "", stderr: "Failed to execute script", exitCode: 1, durationMs: 0 },
+        runningScript: null,
+      });
+    }
+  },
+
+  // ── Suites ──────────────────────────────────────────────
+
+  async fetchSuites() {
+    const { client } = get();
+    if (!client) return;
+    try {
+      const suites = await (client as AgentClient & { getSuites: () => Promise<SuiteInfo[]> }).getSuites();
+      set({ suites });
+    } catch { /* silent */ }
+  },
+
+  async installSuite(id: string) {
+    const { client } = get();
+    if (!client) return;
+    try {
+      await (client as AgentClient & { installSuite: (id: string) => Promise<CommandResult> }).installSuite(id);
+      await get().fetchSuites();
+    } catch { /* silent */ }
+  },
+
+  async uninstallSuite(id: string) {
+    const { client } = get();
+    if (!client) return;
+    try {
+      await (client as AgentClient & { uninstallSuite: (id: string) => Promise<CommandResult> }).uninstallSuite(id);
+      await get().fetchSuites();
+    } catch { /* silent */ }
+  },
+
+  async activateSuite(id: string) {
+    const { client } = get();
+    if (!client) return;
+    try {
+      await (client as AgentClient & { activateSuite: (id: string) => Promise<CommandResult> }).activateSuite(id);
+      await get().fetchSuites();
+    } catch { /* silent */ }
+  },
+
+  // ── Fleet ───────────────────────────────────────────────
+
+  async fetchEnrollment() {
+    const { client } = get();
+    if (!client) return;
+    try {
+      const enrollment = await (client as AgentClient & { getEnrollment: () => Promise<DroneNetEnrollment> }).getEnrollment();
+      set({ enrollment });
+    } catch { /* silent */ }
+  },
+
+  async fetchPeers() {
+    const { client } = get();
+    if (!client) return;
+    try {
+      const peers = await (client as AgentClient & { getPeers: () => Promise<NetworkPeer[]> }).getPeers();
+      set({ peers });
+    } catch { /* silent */ }
   },
 }));

@@ -2,7 +2,7 @@
 
 /**
  * @module CommandPage
- * @description Main layout for the Command tab with fleet sidebar and sub-tab switching.
+ * @description Main layout for the Command tab with fleet sidebar, sub-tab switching, and drone context rail.
  * @license GPL-3.0-only
  */
 
@@ -24,16 +24,17 @@ import { CommandLockedPage } from "./CommandLockedPage";
 import { CommandFleetPanel } from "./CommandFleetPanel";
 import { AgentOverviewTab } from "./AgentOverviewTab";
 import { ScriptsTab } from "./ScriptsTab";
-import { SensorsTab } from "./SensorsTab";
+import { PeripheralsTab } from "./PeripheralsTab";
 import { FleetNetworkTab } from "./FleetNetworkTab";
 import { ModuleStoreTab } from "./ModuleStoreTab";
+import { DroneContextRail } from "./shared/DroneContextRail";
 
-type SubTab = "overview" | "scripts" | "sensors" | "fleet" | "modules";
+type SubTab = "overview" | "scripts" | "peripherals" | "fleet" | "modules";
 
 const subTabs = [
   { id: "overview" as const, label: "Overview", icon: Monitor },
   { id: "scripts" as const, label: "Scripts", icon: TerminalSquare },
-  { id: "sensors" as const, label: "Sensors", icon: Radio },
+  { id: "peripherals" as const, label: "Peripherals", icon: Radio },
   { id: "fleet" as const, label: "Fleet Network", icon: Network },
   { id: "modules" as const, label: "Module Store", icon: Package },
 ];
@@ -176,11 +177,12 @@ export function CommandPage() {
         <div className="flex-1 overflow-y-auto">
           {activeTab === "overview" && <AgentOverviewTab />}
           {activeTab === "scripts" && <ScriptsTab />}
-          {activeTab === "sensors" && <SensorsTab />}
+          {activeTab === "peripherals" && <PeripheralsTab />}
           {activeTab === "fleet" && <FleetNetworkTab />}
           {activeTab === "modules" && <ModuleStoreTab />}
         </div>
       </div>
+      {connected && <DroneContextRail />}
     </div>
   );
 }
