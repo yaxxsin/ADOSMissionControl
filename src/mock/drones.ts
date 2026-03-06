@@ -13,6 +13,7 @@ export interface DemoDroneConfig {
   batteryStart: number;
   pathIndex: number; // index into FLIGHT_PATHS
   healthScore: number;
+  hasAgent?: boolean;
 }
 
 /**
@@ -32,6 +33,7 @@ export const DEMO_DRONES: DemoDroneConfig[] = [
     batteryStart: 82,
     pathIndex: 0,
     healthScore: 95,
+    hasAgent: true,
   },
   {
     id: "bravo-2",
@@ -46,6 +48,7 @@ export const DEMO_DRONES: DemoDroneConfig[] = [
     batteryStart: 67,
     pathIndex: 1,
     healthScore: 88,
+    hasAgent: true,
   },
   {
     id: "echo-5",
@@ -60,6 +63,7 @@ export const DEMO_DRONES: DemoDroneConfig[] = [
     batteryStart: 91,
     pathIndex: 2,
     healthScore: 92,
+    hasAgent: true,
   },
   {
     id: "charlie",
@@ -100,6 +104,7 @@ export function configToFleetDrone(cfg: DemoDroneConfig): FleetDrone {
     armState: cfg.status === "in_mission" ? "armed" : "disarmed",
     lastHeartbeat: 1740600000000,
     healthScore: cfg.healthScore,
+    hasAgent: cfg.hasAgent,
     position: {
       timestamp: 1740600000000,
       lat: cfg.homeLat,

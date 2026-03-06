@@ -54,7 +54,13 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   pollInterval: null,
 
   async connect(url: string) {
-    const client = new AgentClient(url);
+    let client: AgentClient;
+    if (url === "mock://demo") {
+      const { MockAgentClient } = await import("@/mock/mock-agent");
+      client = new MockAgentClient() as unknown as AgentClient;
+    } else {
+      client = new AgentClient(url);
+    }
     set({ agentUrl: url, client, connectionError: null });
     try {
       const status = await client.getStatus();

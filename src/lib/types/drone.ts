@@ -44,6 +44,7 @@ export interface FleetDrone extends DroneInfo {
   battery?: BatteryData;
   gps?: GpsData;
   healthScore: number; // 0-100
+  hasAgent?: boolean;
 }
 
 export type AlertSeverity = "info" | "warning" | "critical";
