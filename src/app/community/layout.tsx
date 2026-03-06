@@ -10,6 +10,7 @@ const tabs = [
   { label: "Changelog", href: "/community/changelog" },
   { label: "Requests", href: "/community/requests" },
   { label: "Kanban", href: "/community/kanban", adminOnly: true },
+  { label: "Testers", href: "/community/testers", adminOnly: true },
   { label: "Roadmap", href: "/community/roadmap" },
   { label: "Contact", href: "/community/contact" },
 ];

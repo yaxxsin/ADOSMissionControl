@@ -15,9 +15,12 @@ import {
   Package,
   Plug,
   Unplug,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAgentStore } from "@/stores/agent-store";
+import { useHasCommandAccess } from "@/hooks/use-has-command-access";
+import { CommandLockedPage } from "./CommandLockedPage";
 import { AgentOverviewTab } from "./AgentOverviewTab";
 import { ScriptsTab } from "./ScriptsTab";
 import { SensorsTab } from "./SensorsTab";
@@ -35,6 +38,7 @@ const subTabs = [
 ];
 
 export function CommandPage() {
+  const { hasAccess, isLoading, profile } = useHasCommandAccess();
   const [activeTab, setActiveTab] = useState<SubTab>("overview");
   const [urlInput, setUrlInput] = useState("http://localhost:8080");
 
@@ -58,6 +62,18 @@ export function CommandPage() {
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter") handleConnect();
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 size={20} className="animate-spin text-text-tertiary" />
+      </div>
+    );
+  }
+
+  if (!hasAccess) {
+    return <CommandLockedPage profile={profile} />;
   }
 
   return (

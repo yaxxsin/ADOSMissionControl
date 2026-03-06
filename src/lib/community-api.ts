@@ -42,6 +42,9 @@ export const communityApi = {
   },
   profiles: {
     getMyProfile: makeFunctionReference<"query">("profiles:getMyProfile"),
+    applyForAlpha: makeFunctionReference<"mutation">("profiles:applyForAlpha"),
+    listAlphaApplications: makeFunctionReference<"query">("profiles:listAlphaApplications"),
+    updateRole: makeFunctionReference<"mutation">("profiles:updateRole"),
   },
   clientConfig: {
     get: makeFunctionReference<"query">("clientConfig:getClientConfig"),
