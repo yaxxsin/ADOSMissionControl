@@ -56,5 +56,6 @@ export const communityApi = {
   adsbCache: {
     getAll: makeFunctionReference<"query">("cmdAdsbCacheMutations:getAll"),
     getByRegion: makeFunctionReference<"query">("cmdAdsbCacheMutations:getByRegion"),
+    getRegionList: makeFunctionReference<"query">("cmdAdsbCacheMutations:getRegionList"),
   },
 };

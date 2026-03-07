@@ -9,6 +9,7 @@ import type { AirspaceZone, BoundingBox } from "./types";
 import { getUSAirspaceZones } from "./faa-data";
 import { getIndiaAirspaceZones } from "./dgca-zones";
 import { getAustraliaAirspaceZones } from "./casa-zones";
+import { getICAOStandardZones } from "./icao-zones";
 
 export async function loadAirspaceZones(
   jurisdiction: Jurisdiction | null,
@@ -32,5 +33,6 @@ export async function loadAllAirspaceZones(bbox: BoundingBox): Promise<AirspaceZ
     getUSAirspaceZones(bbox),
     getAustraliaAirspaceZones(bbox),
   ]);
-  return [...india, ...us, ...au];
+  const icao = getICAOStandardZones(bbox);
+  return [...india, ...us, ...au, ...icao];
 }

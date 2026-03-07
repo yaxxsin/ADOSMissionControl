@@ -171,6 +171,7 @@ export interface AirTrafficLayers {
   ownDrone: boolean;
   terrain: boolean;
   heatmap: boolean;
+  trails: boolean;
 }
 
 export const DEFAULT_LAYERS: AirTrafficLayers = {
@@ -181,6 +182,7 @@ export const DEFAULT_LAYERS: AirTrafficLayers = {
   ownDrone: true,
   terrain: true,
   heatmap: false,
+  trails: false,
 };
 
 // ── Zone Color Config ──────────────────────────────────────────────

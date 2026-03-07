@@ -1,7 +1,7 @@
 /**
  * @module airspace/airport-database
  * @description Global airport database with spatial lookup utilities.
- * Loads ~165 curated airports from a static JSON file on first access.
+ * Loads ~5000+ airports (large + medium worldwide) from a static JSON file on first access.
  * @license GPL-3.0-only
  */
 
@@ -88,4 +88,31 @@ export async function findByIcao(icao: string): Promise<Airport | null> {
 export async function getByCountry(countryCode: string): Promise<Airport[]> {
   const airports = await getAirports();
   return airports.filter((a) => a.country === countryCode);
+}
+
+/** Get all unique country codes in the database. */
+export function getAllCountryCodes(): string[] {
+  const airports = getAirportsSync();
+  return [...new Set(airports.map((a) => a.country))].sort();
+}
+
+/** Get total airport count. */
+export function getAirportCount(): number {
+  return getAirportsSync().length;
+}
+
+/** Search airports by name, ICAO, IATA, or municipality. Case-insensitive. */
+export function searchAirports(query: string, limit = 20): Airport[] {
+  if (!query || query.length < 2) return [];
+  const airports = getAirportsSync();
+  const q = query.toLowerCase();
+  return airports
+    .filter(
+      (a) =>
+        a.icao.toLowerCase().includes(q) ||
+        a.iata.toLowerCase().includes(q) ||
+        a.name.toLowerCase().includes(q) ||
+        a.municipality.toLowerCase().includes(q),
+    )
+    .slice(0, limit);
 }

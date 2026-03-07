@@ -24,6 +24,7 @@ export function AirspaceVolumeEntities({ viewer }: AirspaceVolumeEntitiesProps) 
   const zones = useAirspaceStore((s) => s.zones);
   const layerVisibility = useAirspaceStore((s) => s.layerVisibility);
   const operationalAltitude = useAirspaceStore((s) => s.operationalAltitude);
+  const showIcaoZones = useAirspaceStore((s) => s.showIcaoZones);
   const entityIdsRef = useRef<string[]>([]);
 
   useEffect(() => {
@@ -42,6 +43,8 @@ export function AirspaceVolumeEntities({ viewer }: AirspaceVolumeEntitiesProps) 
     for (const zone of zones) {
       // Filter by operational altitude: skip zones entirely above the slider
       if (zone.floorAltitude > operationalAltitude) continue;
+      // Filter ICAO-generated zones by the showIcaoZones toggle
+      if (zone.metadata?.generated === "icao-standard" && !showIcaoZones) continue;
       const colors = ZONE_COLORS[zone.type];
       if (!colors) continue;
 
@@ -88,7 +91,7 @@ export function AirspaceVolumeEntities({ viewer }: AirspaceVolumeEntitiesProps) 
         }
       }
     };
-  }, [viewer, zones, layerVisibility.airspace, operationalAltitude]);
+  }, [viewer, zones, layerVisibility.airspace, operationalAltitude, showIcaoZones]);
 
   return null;
 }

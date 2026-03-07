@@ -28,6 +28,8 @@ export function LayerControlPanel() {
   const setLayerVisibility = useAirspaceStore((s) => s.setLayerVisibility);
   const activeJurisdictions = useAirspaceStore((s) => s.activeJurisdictions);
   const toggleJurisdiction = useAirspaceStore((s) => s.toggleJurisdiction);
+  const showIcaoZones = useAirspaceStore((s) => s.showIcaoZones);
+  const setShowIcaoZones = useAirspaceStore((s) => s.setShowIcaoZones);
 
   if (collapsed) {
     return (
@@ -105,6 +107,19 @@ export function LayerControlPanel() {
               </span>
             </label>
           ))}
+          <label
+            className="flex items-center gap-2 px-2 py-1 rounded hover:bg-bg-secondary/50 transition-colors cursor-pointer"
+          >
+            <input
+              type="checkbox"
+              checked={showIcaoZones}
+              onChange={(e) => setShowIcaoZones(e.target.checked)}
+              className="w-3 h-3 rounded accent-accent-primary shrink-0"
+            />
+            <span className="text-[11px] font-mono text-text-primary">
+              ICAO (Global)
+            </span>
+          </label>
         </div>
       </div>
     </div>

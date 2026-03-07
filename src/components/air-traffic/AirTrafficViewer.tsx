@@ -31,6 +31,7 @@ import { AircraftEntities } from "./entities/AircraftEntities";
 import { DronePositionEntity } from "./entities/DronePositionEntity";
 import { NotamEntities } from "./entities/NotamEntities";
 import { ZoneBoundaryEntities } from "./entities/ZoneBoundaryEntities";
+import { AirportEntities } from "./entities/AirportEntities";
 import { LayerControlPanel } from "./panels/LayerControlPanel";
 import { AirspaceInfoPanel } from "./panels/AirspaceInfoPanel";
 import { AlertsPanel } from "./panels/AlertsPanel";
@@ -317,6 +318,7 @@ export function AirTrafficViewer() {
       <DronePositionEntity viewer={viewer} />
       <NotamEntities viewer={viewer} />
       <ZoneBoundaryEntities viewer={viewer} />
+      <AirportEntities viewer={viewer} />
 
       {/* Overlays */}
       <FlyabilityOverlay />

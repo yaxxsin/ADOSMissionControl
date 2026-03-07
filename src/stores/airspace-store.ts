@@ -35,9 +35,11 @@ interface AirspaceStoreState {
   viewportState: ViewportState;
   operationalAltitude: number;
   timelineTime: Date;
+  showIcaoZones: boolean;
   loading: boolean;
   error: string | null;
 
+  setShowIcaoZones: (show: boolean) => void;
   setJurisdiction: (j: Jurisdiction | null) => void;
   setZones: (zones: AirspaceZone[]) => void;
   setNotams: (notams: Notam[]) => void;
@@ -66,6 +68,7 @@ const INITIAL_STATE = {
   activeJurisdictions: new Set<Jurisdiction>(["dgca", "faa", "casa"]),
   viewportState: { cameraAlt: 0, visibleAirports: [], aircraftInView: 0 } as ViewportState,
   operationalAltitude: 120,
+  showIcaoZones: false,
   timelineTime: new Date(),
   loading: false,
   error: null as string | null,
@@ -74,6 +77,7 @@ const INITIAL_STATE = {
 export const useAirspaceStore = create<AirspaceStoreState>()((set) => ({
   ...INITIAL_STATE,
 
+  setShowIcaoZones: (showIcaoZones) => set({ showIcaoZones }),
   setJurisdiction: (jurisdiction) => set({ jurisdiction }),
   setZones: (zones) => set({ zones }),
   setNotams: (notams) => set({ notams }),

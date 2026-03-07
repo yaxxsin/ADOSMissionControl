@@ -29,6 +29,10 @@ interface TrafficStoreState {
   connectionQuality: "good" | "degraded" | "disconnected";
   consecutiveFailures: number;
   lastError: string | null;
+  selectedAircraft: string | null;
+  followAircraft: string | null;
+  trackedAircraft: Set<string>;
+  aircraftTrails: Map<string, Array<{ lat: number; lon: number; alt: number; time: number }>>;
 
   updateAircraft: (aircraft: AircraftState[]) => void;
   setThreatLevels: (threats: Map<string, ThreatLevel>) => void;
@@ -40,6 +44,9 @@ interface TrafficStoreState {
   setDataSource: (source: string) => void;
   setDisplayMode: (mode: DisplayMode) => void;
   setConnectionQuality: (quality: "good" | "degraded" | "disconnected") => void;
+  setSelectedAircraft: (icao24: string | null) => void;
+  setFollowAircraft: (icao24: string | null) => void;
+  toggleTracked: (icao24: string) => void;
   recordFailure: (error: string) => void;
   recordSuccess: (source: string) => void;
   clear: () => void;
@@ -61,6 +68,10 @@ export const useTrafficStore = create<TrafficStoreState>()((set, get) => ({
   connectionQuality: "disconnected",
   consecutiveFailures: 0,
   lastError: null,
+  selectedAircraft: null,
+  followAircraft: null,
+  trackedAircraft: new Set<string>(),
+  aircraftTrails: new Map<string, Array<{ lat: number; lon: number; alt: number; time: number }>>(),
 
   updateAircraft: (incoming) => {
     const now = Date.now();
@@ -86,7 +97,23 @@ export const useTrafficStore = create<TrafficStoreState>()((set, get) => ({
       }
     }
 
-    set({ aircraft: merged, threatLevels: threats, lastUpdate: now });
+    // Append positions to trails for tracked aircraft
+    const trails = new Map(get().aircraftTrails);
+    const tracked = get().trackedAircraft;
+    for (const ac of incoming) {
+      if (tracked.has(ac.icao24) && ac.lat && ac.lon) {
+        const trail = trails.get(ac.icao24) ?? [];
+        trail.push({ lat: ac.lat, lon: ac.lon, alt: ac.altitudeMsl ?? 0, time: Date.now() });
+        if (trail.length > 60) trail.shift();
+        trails.set(ac.icao24, trail);
+      }
+    }
+    // Prune trails for removed aircraft
+    for (const icao24 of trails.keys()) {
+      if (!merged.has(icao24)) trails.delete(icao24);
+    }
+
+    set({ aircraft: merged, threatLevels: threats, aircraftTrails: trails, lastUpdate: now });
   },
 
   setThreatLevels: (threatLevels) => set({ threatLevels: new Map(threatLevels) }),
@@ -107,6 +134,14 @@ export const useTrafficStore = create<TrafficStoreState>()((set, get) => ({
   setDataSource: (dataSource) => set({ dataSource }),
   setDisplayMode: (displayMode) => set({ displayMode }),
   setConnectionQuality: (connectionQuality) => set({ connectionQuality }),
+  setSelectedAircraft: (selectedAircraft) => set({ selectedAircraft }),
+  setFollowAircraft: (followAircraft) => set({ followAircraft }),
+  toggleTracked: (icao24) => set((s) => {
+    const next = new Set(s.trackedAircraft);
+    if (next.has(icao24)) next.delete(icao24);
+    else next.add(icao24);
+    return { trackedAircraft: next };
+  }),
 
   recordFailure: (error) => {
     const failures = get().consecutiveFailures + 1;
@@ -140,5 +175,9 @@ export const useTrafficStore = create<TrafficStoreState>()((set, get) => ({
       connectionQuality: "disconnected",
       consecutiveFailures: 0,
       lastError: null,
+      selectedAircraft: null,
+      followAircraft: null,
+      trackedAircraft: new Set<string>(),
+      aircraftTrails: new Map<string, Array<{ lat: number; lon: number; alt: number; time: number }>>(),
     }),
 }));
