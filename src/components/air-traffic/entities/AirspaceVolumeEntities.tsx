@@ -32,10 +32,7 @@ export function AirspaceVolumeEntities({ viewer }: AirspaceVolumeEntitiesProps) 
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
     if (!layerVisibility.airspace) {
-      // Remove all existing entities
-      for (const id of entityIdsRef.current) {
-        viewer.entities.removeById(id);
-      }
+      // Cleanup is handled by the useEffect return; just clear the ref
       entityIdsRef.current = [];
       viewer.scene.requestRender();
       return;
@@ -44,12 +41,11 @@ export function AirspaceVolumeEntities({ viewer }: AirspaceVolumeEntitiesProps) 
     const Cesium = require("cesium");
     const newIds: string[] = [];
 
-    // Remove old entities
-    for (const id of entityIdsRef.current) {
-      viewer.entities.removeById(id);
-    }
+    // Previous entities are removed by the useEffect cleanup return (no manual removal needed)
 
     for (const zone of zones) {
+      // Filter by operational altitude: skip zones entirely above the slider
+      if (zone.floorAltitude > operationalAltitude) continue;
       const colors = ZONE_COLORS[zone.type];
       if (!colors) continue;
 

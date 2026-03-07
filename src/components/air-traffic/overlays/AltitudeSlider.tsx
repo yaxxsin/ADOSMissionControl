@@ -2,6 +2,7 @@
  * @module AltitudeSlider
  * @description Vertical slider on the right side of the viewport.
  * Sets operational altitude for filtering which zones are shown as restricted.
+ * Uses a rotated horizontal slider for cross-browser compatibility.
  * @license GPL-3.0-only
  */
 
@@ -22,8 +23,8 @@ export function AltitudeSlider() {
         </span>
       </div>
 
-      {/* Vertical slider */}
-      <div className="relative h-48 w-6 flex items-center justify-center">
+      {/* Vertical slider via CSS rotation of a horizontal range input */}
+      <div className="relative w-6 h-48 flex items-center justify-center">
         <input
           type="range"
           min={0}
@@ -31,11 +32,7 @@ export function AltitudeSlider() {
           step={10}
           value={altitude}
           onChange={(e) => setAltitude(parseInt(e.target.value, 10))}
-          className="h-full w-6 appearance-none bg-transparent cursor-pointer"
-          style={{
-            writingMode: "vertical-lr",
-            direction: "rtl",
-          }}
+          className="absolute w-48 appearance-none bg-transparent cursor-pointer origin-center -rotate-90 [&::-webkit-slider-runnable-track]:h-1 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-border-default [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent-primary [&::-webkit-slider-thumb]:-mt-[5px] [&::-moz-range-track]:h-1 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-border-default [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-accent-primary [&::-moz-range-thumb]:border-0"
         />
       </div>
 

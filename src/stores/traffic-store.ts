@@ -54,13 +54,22 @@ export const useTrafficStore = create<TrafficStoreState>()((set, get) => ({
     }
 
     // Remove stale entries (not seen in >60s)
+    // lastSeen is stored as ms-epoch from both providers
     for (const [key, ac] of merged) {
-      if (now - ac.lastSeen * 1000 > STALE_THRESHOLD_MS) {
+      if (now - ac.lastSeen > STALE_THRESHOLD_MS) {
         merged.delete(key);
       }
     }
 
-    set({ aircraft: merged, lastUpdate: now });
+    // Prune orphaned threat levels for removed aircraft
+    const threats = new Map(get().threatLevels);
+    for (const icao24 of threats.keys()) {
+      if (!merged.has(icao24)) {
+        threats.delete(icao24);
+      }
+    }
+
+    set({ aircraft: merged, threatLevels: threats, lastUpdate: now });
   },
 
   setThreatLevels: (threatLevels) => set({ threatLevels: new Map(threatLevels) }),

@@ -24,10 +24,7 @@ export default function AirTrafficPage() {
   return (
     <div className="flex-1 flex h-full overflow-hidden">
       {/* 3D Viewer */}
-      <AirTrafficViewer
-        showTrafficPanel={trafficPanelVisible}
-        onTrafficPanelClose={() => setTrafficPanelVisible(false)}
-      />
+      <AirTrafficViewer />
 
       {/* Right panel: Traffic list */}
       {trafficPanelVisible && (

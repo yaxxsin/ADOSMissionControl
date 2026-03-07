@@ -18,6 +18,7 @@ interface NotamEntitiesProps {
 export function NotamEntities({ viewer }: NotamEntitiesProps) {
   const notams = useAirspaceStore((s) => s.notams);
   const layerVisibility = useAirspaceStore((s) => s.layerVisibility);
+  const timelineTime = useAirspaceStore((s) => s.timelineTime);
   const entityIdsRef = useRef<string[]>([]);
 
   useEffect(() => {
@@ -37,7 +38,16 @@ export function NotamEntities({ viewer }: NotamEntitiesProps) {
     const Cesium = require("cesium");
     const newIds: string[] = [];
 
-    for (const notam of notams) {
+    // Filter NOTAMs by timeline time (only show active at selected time)
+    const timeMs = timelineTime.getTime();
+    const activeNotams = notams.filter((n) => {
+      if (!n.effectiveFrom || !n.effectiveTo) return true; // show if no time range
+      const from = new Date(n.effectiveFrom).getTime();
+      const to = new Date(n.effectiveTo).getTime();
+      return timeMs >= from && timeMs <= to;
+    });
+
+    for (const notam of activeNotams) {
       if (notam.lat == null || notam.lon == null) continue;
 
       const entityId = `notam-${notam.id}`;
@@ -88,7 +98,7 @@ export function NotamEntities({ viewer }: NotamEntitiesProps) {
         }
       }
     };
-  }, [viewer, notams, layerVisibility.restrictions]);
+  }, [viewer, notams, layerVisibility.restrictions, timelineTime]);
 
   return null;
 }

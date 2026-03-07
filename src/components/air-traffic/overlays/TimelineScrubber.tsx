@@ -36,7 +36,8 @@ export function TimelineScrubber() {
     setTimelineTime(new Date());
   }, [setTimelineTime]);
 
-  const isNow = Math.abs(timelineTime.getTime() - now.getTime()) < 60000;
+  // Round to 5-minute step granularity for "Now" detection
+  const isNow = Math.abs(timelineTime.getTime() - now.getTime()) < 5 * 60 * 1000;
 
   const formatTime = (date: Date) =>
     date.toLocaleTimeString("en-IN", {

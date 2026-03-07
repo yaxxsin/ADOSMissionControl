@@ -7,14 +7,13 @@
 
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import type { Viewer as CesiumViewer } from "cesium";
 import { useTrafficStore } from "@/stores/traffic-store";
-import { THREAT_COLORS, type AircraftState, type ThreatLevel } from "@/lib/airspace/types";
+import { THREAT_COLORS, type ThreatLevel } from "@/lib/airspace/types";
 
 interface AircraftEntitiesProps {
   viewer: CesiumViewer | null;
-  onAircraftClick?: (aircraft: AircraftState) => void;
 }
 
 /** SVG aircraft icon (top-down silhouette) rendered as a data URI. */
@@ -25,14 +24,12 @@ function createAircraftSvg(color: string): string {
   return `data:image/svg+xml;base64,${btoa(svg)}`;
 }
 
-export function AircraftEntities({ viewer, onAircraftClick }: AircraftEntitiesProps) {
+export function AircraftEntities({ viewer }: AircraftEntitiesProps) {
   const aircraft = useTrafficStore((s) => s.aircraft);
   const threatLevels = useTrafficStore((s) => s.threatLevels);
   const altitudeFilter = useTrafficStore((s) => s.altitudeFilter);
   const layerVisible = useTrafficStore((s) => s.polling);
   const entityIdsRef = useRef<Set<string>>(new Set());
-  const onClickRef = useRef(onAircraftClick);
-  onClickRef.current = onAircraftClick;
 
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
@@ -108,28 +105,7 @@ export function AircraftEntities({ viewer, onAircraftClick }: AircraftEntitiesPr
     viewer.scene.requestRender();
   }, [viewer, aircraft, threatLevels, altitudeFilter, layerVisible]);
 
-  // Click handler
-  useEffect(() => {
-    if (!viewer || viewer.isDestroyed()) return;
-    const Cesium = require("cesium");
-
-    const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    handler.setInputAction((click: any) => {
-      const picked = viewer.scene.pick(click.position);
-      if (Cesium.defined(picked) && picked.id?.id?.startsWith("aircraft-")) {
-        const icao24 = picked.id.id.replace("aircraft-", "");
-        const ac = useTrafficStore.getState().aircraft.get(icao24);
-        if (ac && onClickRef.current) {
-          onClickRef.current(ac);
-        }
-      }
-    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
-
-    return () => {
-      if (!handler.isDestroyed()) handler.destroy();
-    };
-  }, [viewer]);
+  // Click handling consolidated in AirTrafficViewer to avoid duplicate ScreenSpaceEventHandlers
 
   return null;
 }

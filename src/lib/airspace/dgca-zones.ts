@@ -4,30 +4,8 @@
  * @license GPL-3.0-only
  */
 
-import type { AirspaceZone, BoundingBox, GeoJSONPolygon } from "./types";
-
-function circlePolygon(
-  centerLat: number,
-  centerLon: number,
-  radiusKm: number,
-  points = 36,
-): GeoJSONPolygon {
-  const coords: number[][] = [];
-  for (let i = 0; i <= points; i++) {
-    const angle = (i / points) * 2 * Math.PI;
-    const lat = centerLat + (radiusKm / 111.32) * Math.cos(angle);
-    const lon =
-      centerLon +
-      (radiusKm / (111.32 * Math.cos(centerLat * (Math.PI / 180)))) *
-        Math.sin(angle);
-    coords.push([lon, lat]);
-  }
-  return { type: "Polygon", coordinates: [coords] };
-}
-
-function inBbox(lat: number, lon: number, bbox: BoundingBox): boolean {
-  return lat >= bbox.south && lat <= bbox.north && lon >= bbox.west && lon <= bbox.east;
-}
+import type { AirspaceZone, BoundingBox } from "./types";
+import { circlePolygon, inBbox } from "./geo-utils";
 
 interface AirportDef {
   name: string;
