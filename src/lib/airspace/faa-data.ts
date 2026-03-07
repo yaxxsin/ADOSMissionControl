@@ -41,6 +41,7 @@ async function buildZones(): Promise<ZoneEntry[]> {
           name: `${name} ${isLarge ? "Class B" : "Class D"}`,
           type: zoneType as AirspaceZone["type"],
           geometry: circlePolygon(lat, lon, radiusKm),
+          circle: { lat, lon, radiusM: radiusKm * 1000 },
           floorAltitude: 0,
           ceilingAltitude: ceiling,
           authority: "FAA",

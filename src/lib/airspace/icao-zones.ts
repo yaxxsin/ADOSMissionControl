@@ -62,6 +62,7 @@ export function getICAOStandardZones(bbox: BoundingBox): AirspaceZone[] {
           name: `${airport.name} Class B`,
           type: "classB",
           geometry: circlePolygon(airport.lat, airport.lon, 15 * NM_TO_KM),
+          circle: { lat: airport.lat, lon: airport.lon, radiusM: 15 * 1852 },
           floorAltitude: 0,
           ceilingAltitude: 3048, // 10,000 ft
           authority: "ICAO",
@@ -74,6 +75,7 @@ export function getICAOStandardZones(bbox: BoundingBox): AirspaceZone[] {
           name: `${airport.name} Class D`,
           type: "classD",
           geometry: circlePolygon(airport.lat, airport.lon, 5 * NM_TO_KM),
+          circle: { lat: airport.lat, lon: airport.lon, radiusM: 5 * 1852 },
           floorAltitude: 0,
           ceilingAltitude: 762, // 2,500 ft
           authority: "ICAO",

@@ -8,7 +8,7 @@
 "use client";
 
 import { useEffect, useRef, useMemo } from "react";
-import { Cartesian3, Cartesian2, Color, PolygonHierarchy, ClassificationType, LabelStyle, VerticalOrigin, HorizontalOrigin, DistanceDisplayCondition, type Viewer as CesiumViewer } from "cesium";
+import { Cartesian3, Cartesian2, Color, PolygonHierarchy, ClassificationType, HeightReference, LabelStyle, VerticalOrigin, HorizontalOrigin, DistanceDisplayCondition, type Viewer as CesiumViewer } from "cesium";
 import { useAirspaceStore } from "@/stores/airspace-store";
 import { ZONE_COLORS, type AirspaceZone, type AirspaceZoneType } from "@/lib/airspace/types";
 
@@ -76,44 +76,79 @@ export function ZoneBoundaryEntities({ viewer }: ZoneBoundaryEntitiesProps) {
       const borderColor = Color.fromCssColorString(colors.border).withAlpha(colors.borderOpacity);
       const fillColor = Color.fromCssColorString(colors.fill).withAlpha(Math.min(colors.fillOpacity * 0.5, 0.15));
 
-      // Render as ground polygon (2D boundary overlay)
-      const coords = zone.geometry.type === "Polygon"
-        ? zone.geometry.coordinates[0]
-        : zone.geometry.coordinates[0][0];
-
-      if (!coords || coords.length < 3) continue;
-
       const entityId = `zone-boundary-${zone.id}`;
-      const positions = coords.map(([lon, lat]: number[]) =>
-        Cartesian3.fromDegrees(lon, lat)
-      );
 
-      viewer.entities.add({
-        id: entityId,
-        name: zone.name,
-        polygon: {
-          hierarchy: new PolygonHierarchy(positions),
-          material: fillColor,
-          outline: true,
-          outlineColor: borderColor,
-          outlineWidth: 2,
-          height: 0,
-          classificationType: ClassificationType.BOTH,
-        },
-        description: buildDescription(zone),
-      });
+      if (zone.circle) {
+        // Render as geodetically correct ellipse (smooth circle on globe)
+        viewer.entities.add({
+          id: entityId,
+          name: zone.name,
+          position: Cartesian3.fromDegrees(zone.circle.lon, zone.circle.lat),
+          ellipse: {
+            semiMajorAxis: zone.circle.radiusM,
+            semiMinorAxis: zone.circle.radiusM,
+            material: fillColor,
+            outline: true,
+            outlineColor: borderColor,
+            outlineWidth: 1,
+            heightReference: HeightReference.CLAMP_TO_GROUND,
+            classificationType: ClassificationType.BOTH,
+          },
+          description: buildDescription(zone),
+        });
+      } else {
+        // Render as ground polygon for real (non-circle) geometries
+        const coords = zone.geometry.type === "Polygon"
+          ? zone.geometry.coordinates[0]
+          : zone.geometry.coordinates[0][0];
+
+        if (!coords || coords.length < 3) continue;
+
+        const positions = coords.map(([lon, lat]: number[]) =>
+          Cartesian3.fromDegrees(lon, lat)
+        );
+
+        viewer.entities.add({
+          id: entityId,
+          name: zone.name,
+          polygon: {
+            hierarchy: new PolygonHierarchy(positions),
+            material: fillColor,
+            outline: true,
+            outlineColor: borderColor,
+            outlineWidth: 2,
+            height: 0,
+            classificationType: ClassificationType.BOTH,
+          },
+          description: buildDescription(zone),
+        });
+      }
 
       newIds.push(entityId);
 
       // Add center label for all zone types
       {
         const labelId = `zone-label-${zone.id}`;
-        const centroid = computeCentroid(coords);
         const labelText = ZONE_LABEL_TEXT[zone.type] ?? zone.type.toUpperCase();
+
+        // Use circle center directly when available, otherwise compute centroid
+        let labelLon: number;
+        let labelLat: number;
+        if (zone.circle) {
+          labelLon = zone.circle.lon;
+          labelLat = zone.circle.lat;
+        } else {
+          const coords = zone.geometry.type === "Polygon"
+            ? zone.geometry.coordinates[0]
+            : zone.geometry.coordinates[0][0];
+          const centroid = computeCentroid(coords);
+          labelLon = centroid[0];
+          labelLat = centroid[1];
+        }
 
         viewer.entities.add({
           id: labelId,
-          position: Cartesian3.fromDegrees(centroid[0], centroid[1]),
+          position: Cartesian3.fromDegrees(labelLon, labelLat),
           label: {
             text: labelText,
             font: "bold 11px monospace",

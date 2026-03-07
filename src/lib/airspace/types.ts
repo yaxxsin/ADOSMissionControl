@@ -61,6 +61,8 @@ export interface AirspaceZone {
   validFrom?: string;
   validTo?: string;
   laancCeiling?: number;
+  /** Original circle parameters for geodetically correct rendering. */
+  circle?: { lat: number; lon: number; radiusM: number };
   metadata: Record<string, string>;
 }
 

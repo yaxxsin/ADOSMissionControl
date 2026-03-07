@@ -56,37 +56,64 @@ export function AirspaceVolumeEntities({ viewer }: AirspaceVolumeEntitiesProps) 
       const fillColor = Color.fromCssColorString(colors.fill).withAlpha(colors.fillOpacity);
       const borderColor = Color.fromCssColorString(colors.border).withAlpha(colors.borderOpacity);
 
-      const polygons = extractPolygons(zone.geometry);
-
       // Compute LOD visibility range based on zone size
       const lodDistance = getZoneLodDistance(zone.type, zone.ceilingAltitude);
+      const description = `<p><b>${zone.name}</b></p><p>Type: ${zone.type}</p><p>Floor: ${zone.floorAltitude}m / Ceiling: ${zone.ceilingAltitude}m</p><p>Authority: ${zone.authority}</p>`;
 
-      for (let i = 0; i < polygons.length; i++) {
-        const ring = polygons[i];
-        if (ring.length < 3) continue;
-
-        const entityId = `airspace-volume-${zone.id}-${i}`;
-        const positions = polygonToCartesian(ring);
+      if (zone.circle) {
+        // Render as geodetically correct 3D cylinder
+        const entityId = `airspace-volume-${zone.id}-0`;
+        const extrudedHeight = Math.max(zone.ceilingAltitude, 1); // avoid zero-height degenerate volume
 
         viewer.entities.add({
           id: entityId,
           name: zone.name,
-          polygon: {
-            hierarchy: new PolygonHierarchy(positions),
+          position: Cartesian3.fromDegrees(zone.circle.lon, zone.circle.lat),
+          ellipse: {
+            semiMajorAxis: zone.circle.radiusM,
+            semiMinorAxis: zone.circle.radiusM,
             height: zone.floorAltitude,
-            extrudedHeight: zone.ceilingAltitude,
+            extrudedHeight,
             material: fillColor,
             outline: true,
             outlineColor: borderColor,
             outlineWidth: 1,
-            closeTop: true,
-            closeBottom: true,
             distanceDisplayCondition: new DistanceDisplayCondition(0, lodDistance),
           },
-          description: `<p><b>${zone.name}</b></p><p>Type: ${zone.type}</p><p>Floor: ${zone.floorAltitude}m / Ceiling: ${zone.ceilingAltitude}m</p><p>Authority: ${zone.authority}</p>`,
+          description,
         });
 
         newIds.push(entityId);
+      } else {
+        const polygons = extractPolygons(zone.geometry);
+
+        for (let i = 0; i < polygons.length; i++) {
+          const ring = polygons[i];
+          if (ring.length < 3) continue;
+
+          const entityId = `airspace-volume-${zone.id}-${i}`;
+          const positions = polygonToCartesian(ring);
+
+          viewer.entities.add({
+            id: entityId,
+            name: zone.name,
+            polygon: {
+              hierarchy: new PolygonHierarchy(positions),
+              height: zone.floorAltitude,
+              extrudedHeight: zone.ceilingAltitude,
+              material: fillColor,
+              outline: true,
+              outlineColor: borderColor,
+              outlineWidth: 1,
+              closeTop: true,
+              closeBottom: true,
+              distanceDisplayCondition: new DistanceDisplayCondition(0, lodDistance),
+            },
+            description,
+          });
+
+          newIds.push(entityId);
+        }
       }
     }
 

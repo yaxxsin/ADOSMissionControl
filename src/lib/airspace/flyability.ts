@@ -128,6 +128,11 @@ function getDefaultMaxAlt(jurisdiction: Jurisdiction | null): number {
 }
 
 function isPointInZone(lat: number, lon: number, zone: AirspaceZone): boolean {
+  // For circle zones, use exact haversine distance check
+  if (zone.circle) {
+    return haversineDistance(lat, lon, zone.circle.lat, zone.circle.lon) <= zone.circle.radiusM;
+  }
+
   const coords = zone.geometry.type === "Polygon"
     ? zone.geometry.coordinates[0]
     : zone.geometry.coordinates[0]?.[0];
