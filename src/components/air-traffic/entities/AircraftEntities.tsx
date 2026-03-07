@@ -8,7 +8,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { Viewer as CesiumViewer } from "cesium";
+import { Cartesian3, Cartesian2, Color, LabelStyle, VerticalOrigin, HorizontalOrigin, Math as CesiumMath, type Viewer as CesiumViewer } from "cesium";
 import { useTrafficStore } from "@/stores/traffic-store";
 import { THREAT_COLORS, type ThreatLevel } from "@/lib/airspace/types";
 
@@ -34,7 +34,6 @@ export function AircraftEntities({ viewer }: AircraftEntitiesProps) {
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
 
-    const Cesium = require("cesium");
     const currentIds = new Set<string>();
 
     for (const [icao24, ac] of aircraft) {
@@ -55,39 +54,39 @@ export function AircraftEntities({ viewer }: AircraftEntitiesProps) {
       const existing = viewer.entities.getById(entityId);
       if (existing) {
         // Update position and rotation
-        existing.position = Cesium.Cartesian3.fromDegrees(ac.lon, ac.lat, altM) as any;
+        existing.position = Cartesian3.fromDegrees(ac.lon, ac.lat, altM) as any;
         if (existing.billboard) {
-          existing.billboard.rotation = Cesium.Math.toRadians(-heading) as any;
+          existing.billboard.rotation = CesiumMath.toRadians(-heading) as any;
           existing.billboard.image = createAircraftSvg(color) as any;
         }
       } else {
         viewer.entities.add({
           id: entityId,
           name: callsign,
-          position: Cesium.Cartesian3.fromDegrees(ac.lon, ac.lat, altM),
+          position: Cartesian3.fromDegrees(ac.lon, ac.lat, altM),
           billboard: {
             image: createAircraftSvg(color),
             width: 24,
             height: 24,
-            rotation: Cesium.Math.toRadians(-heading),
-            alignedAxis: Cesium.Cartesian3.UNIT_Z,
-            verticalOrigin: Cesium.VerticalOrigin.CENTER,
-            horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+            rotation: CesiumMath.toRadians(-heading),
+            alignedAxis: Cartesian3.UNIT_Z,
+            verticalOrigin: VerticalOrigin.CENTER,
+            horizontalOrigin: HorizontalOrigin.CENTER,
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
           },
           label: {
             text: callsign,
             font: "10px monospace",
-            fillColor: Cesium.Color.fromCssColorString(color),
-            outlineColor: Cesium.Color.BLACK,
+            fillColor: Color.fromCssColorString(color),
+            outlineColor: Color.BLACK,
             outlineWidth: 2,
-            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-            pixelOffset: new Cesium.Cartesian2(0, -16),
+            style: LabelStyle.FILL_AND_OUTLINE,
+            verticalOrigin: VerticalOrigin.BOTTOM,
+            pixelOffset: new Cartesian2(0, -16),
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
             showBackground: true,
-            backgroundColor: Cesium.Color.fromCssColorString("#0a0a0f").withAlpha(0.7),
-            backgroundPadding: new Cesium.Cartesian2(4, 2),
+            backgroundColor: Color.fromCssColorString("#0a0a0f").withAlpha(0.7),
+            backgroundPadding: new Cartesian2(4, 2),
           },
           description: `<p><b>${callsign}</b></p><p>ICAO: ${icao24}</p><p>Alt: ${altM.toFixed(0)}m MSL</p><p>Speed: ${ac.velocity?.toFixed(0) ?? "?"} m/s</p><p>Heading: ${heading.toFixed(0)}&deg;</p><p>VRate: ${ac.verticalRate?.toFixed(1) ?? "?"} m/s</p><p>Country: ${ac.originCountry}</p>`,
         });

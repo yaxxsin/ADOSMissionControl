@@ -8,7 +8,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { Viewer as CesiumViewer } from "cesium";
+import { Cartesian3, Color, PolygonHierarchy, type Viewer as CesiumViewer } from "cesium";
 import { useAirspaceStore } from "@/stores/airspace-store";
 import { ZONE_COLORS, type AirspaceZone, type GeoJSONPolygon, type GeoJSONMultiPolygon } from "@/lib/airspace/types";
 
@@ -16,11 +16,8 @@ interface AirspaceVolumeEntitiesProps {
   viewer: CesiumViewer | null;
 }
 
-function polygonToCartesian(
-  Cesium: typeof import("cesium"),
-  coords: number[][]
-): InstanceType<typeof Cesium.Cartesian3>[] {
-  return coords.map(([lon, lat]) => Cesium.Cartesian3.fromDegrees(lon, lat));
+function polygonToCartesian(coords: number[][]): Cartesian3[] {
+  return coords.map(([lon, lat]) => Cartesian3.fromDegrees(lon, lat));
 }
 
 export function AirspaceVolumeEntities({ viewer }: AirspaceVolumeEntitiesProps) {
@@ -38,7 +35,6 @@ export function AirspaceVolumeEntities({ viewer }: AirspaceVolumeEntitiesProps) 
       return;
     }
 
-    const Cesium = require("cesium");
     const newIds: string[] = [];
 
     // Previous entities are removed by the useEffect cleanup return (no manual removal needed)
@@ -49,8 +45,8 @@ export function AirspaceVolumeEntities({ viewer }: AirspaceVolumeEntitiesProps) 
       const colors = ZONE_COLORS[zone.type];
       if (!colors) continue;
 
-      const fillColor = Cesium.Color.fromCssColorString(colors.fill).withAlpha(colors.fillOpacity);
-      const borderColor = Cesium.Color.fromCssColorString(colors.border).withAlpha(colors.borderOpacity);
+      const fillColor = Color.fromCssColorString(colors.fill).withAlpha(colors.fillOpacity);
+      const borderColor = Color.fromCssColorString(colors.border).withAlpha(colors.borderOpacity);
 
       const polygons = extractPolygons(zone.geometry);
 
@@ -59,13 +55,13 @@ export function AirspaceVolumeEntities({ viewer }: AirspaceVolumeEntitiesProps) 
         if (ring.length < 3) continue;
 
         const entityId = `airspace-volume-${zone.id}-${i}`;
-        const positions = polygonToCartesian(Cesium, ring);
+        const positions = polygonToCartesian(ring);
 
         viewer.entities.add({
           id: entityId,
           name: zone.name,
           polygon: {
-            hierarchy: new Cesium.PolygonHierarchy(positions),
+            hierarchy: new PolygonHierarchy(positions),
             height: zone.floorAltitude,
             extrudedHeight: zone.ceilingAltitude,
             material: fillColor,

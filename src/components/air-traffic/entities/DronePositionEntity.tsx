@@ -8,7 +8,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { Viewer as CesiumViewer } from "cesium";
+import { Cartesian3, Cartesian2, Color, VerticalOrigin, HorizontalOrigin, LabelStyle, type Viewer as CesiumViewer } from "cesium";
 import { useTelemetryStore } from "@/stores/telemetry-store";
 import { useAirspaceStore } from "@/stores/airspace-store";
 
@@ -52,8 +52,7 @@ export function DronePositionEntity({ viewer }: DronePositionEntityProps) {
       return;
     }
 
-    const Cesium = require("cesium");
-    const pos = Cesium.Cartesian3.fromDegrees(
+    const pos = Cartesian3.fromDegrees(
       latest.lon,
       latest.lat,
       latest.relativeAlt ?? latest.alt ?? 0
@@ -71,23 +70,23 @@ export function DronePositionEntity({ viewer }: DronePositionEntityProps) {
           image: createDroneSvg(),
           width: 20,
           height: 20,
-          verticalOrigin: Cesium.VerticalOrigin.CENTER,
-          horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+          verticalOrigin: VerticalOrigin.CENTER,
+          horizontalOrigin: HorizontalOrigin.CENTER,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
         label: {
           text: "DRONE",
           font: "10px monospace",
-          fillColor: Cesium.Color.fromCssColorString("#3A82FF"),
-          outlineColor: Cesium.Color.BLACK,
+          fillColor: Color.fromCssColorString("#3A82FF"),
+          outlineColor: Color.BLACK,
           outlineWidth: 2,
-          style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-          verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-          pixelOffset: new Cesium.Cartesian2(0, -14),
+          style: LabelStyle.FILL_AND_OUTLINE,
+          verticalOrigin: VerticalOrigin.BOTTOM,
+          pixelOffset: new Cartesian2(0, -14),
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
           showBackground: true,
-          backgroundColor: Cesium.Color.fromCssColorString("#0a0a0f").withAlpha(0.7),
-          backgroundPadding: new Cesium.Cartesian2(4, 2),
+          backgroundColor: Color.fromCssColorString("#0a0a0f").withAlpha(0.7),
+          backgroundPadding: new Cartesian2(4, 2),
         },
       });
     }

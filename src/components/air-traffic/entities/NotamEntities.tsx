@@ -8,7 +8,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { Viewer as CesiumViewer } from "cesium";
+import { Cartesian3, Cartesian2, Color, LabelStyle, VerticalOrigin, DistanceDisplayCondition, type Viewer as CesiumViewer } from "cesium";
 import { useAirspaceStore } from "@/stores/airspace-store";
 
 interface NotamEntitiesProps {
@@ -35,7 +35,6 @@ export function NotamEntities({ viewer }: NotamEntitiesProps) {
       return;
     }
 
-    const Cesium = require("cesium");
     const newIds: string[] = [];
 
     // Filter NOTAMs by timeline time (only show active at selected time)
@@ -56,31 +55,31 @@ export function NotamEntities({ viewer }: NotamEntitiesProps) {
       viewer.entities.add({
         id: entityId,
         name: notam.title,
-        position: Cesium.Cartesian3.fromDegrees(notam.lon, notam.lat),
+        position: Cartesian3.fromDegrees(notam.lon, notam.lat),
         ellipse: {
           semiMajorAxis: radiusM,
           semiMinorAxis: radiusM,
           height: notam.floorAltitude ?? 0,
           extrudedHeight: notam.ceilingAltitude ?? 1000,
-          material: Cesium.Color.fromCssColorString("#FF8C00").withAlpha(0.15),
+          material: Color.fromCssColorString("#FF8C00").withAlpha(0.15),
           outline: true,
-          outlineColor: Cesium.Color.fromCssColorString("#FF8C00").withAlpha(0.6),
+          outlineColor: Color.fromCssColorString("#FF8C00").withAlpha(0.6),
           outlineWidth: 1,
         },
         label: {
           text: `NOTAM: ${notam.title}`,
           font: "9px monospace",
-          fillColor: Cesium.Color.fromCssColorString("#FF8C00"),
-          outlineColor: Cesium.Color.BLACK,
+          fillColor: Color.fromCssColorString("#FF8C00"),
+          outlineColor: Color.BLACK,
           outlineWidth: 2,
-          style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-          verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-          pixelOffset: new Cesium.Cartesian2(0, -10),
+          style: LabelStyle.FILL_AND_OUTLINE,
+          verticalOrigin: VerticalOrigin.BOTTOM,
+          pixelOffset: new Cartesian2(0, -10),
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
           showBackground: true,
-          backgroundColor: Cesium.Color.fromCssColorString("#0a0a0f").withAlpha(0.7),
-          backgroundPadding: new Cesium.Cartesian2(4, 2),
-          distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 200000),
+          backgroundColor: Color.fromCssColorString("#0a0a0f").withAlpha(0.7),
+          backgroundPadding: new Cartesian2(4, 2),
+          distanceDisplayCondition: new DistanceDisplayCondition(0, 200000),
         },
         description: `<p><b>${notam.title}</b></p><p>${notam.text}</p><p>Issuer: ${notam.issuer}</p><p>From: ${notam.effectiveFrom}</p><p>To: ${notam.effectiveTo}</p>`,
       });

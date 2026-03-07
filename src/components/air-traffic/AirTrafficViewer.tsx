@@ -11,7 +11,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useQuery } from "convex/react";
-import type { Viewer as CesiumViewer } from "cesium";
+import { Cartesian3, Cartographic, ScreenSpaceEventHandler, ScreenSpaceEventType, Math as CesiumMath, defined, type Viewer as CesiumViewer } from "cesium";
 import dynamic from "next/dynamic";
 import { useAirspaceStore } from "@/stores/airspace-store";
 import { useTrafficStore } from "@/stores/traffic-store";
@@ -169,12 +169,10 @@ export function AirTrafficViewer() {
         aircraftResult = generateMockAircraft(tickRef.current);
       } else {
         // Real mode: fetch from ADS-B providers
-        // Runtime Cesium import for SSR-safe usage in Next.js
-        const Cesium = require("cesium");
         const camera = viewer!.camera;
-        const cartographic = Cesium.Cartographic.fromCartesian(camera.positionWC);
-        const lat = Cesium.Math.toDegrees(cartographic.latitude);
-        const lon = Cesium.Math.toDegrees(cartographic.longitude);
+        const cartographic = Cartographic.fromCartesian(camera.positionWC);
+        const lat = CesiumMath.toDegrees(cartographic.latitude);
+        const lon = CesiumMath.toDegrees(cartographic.longitude);
 
         try {
           const result = await fetchAircraft(lat, lon, 50);
@@ -187,10 +185,9 @@ export function AirTrafficViewer() {
       updateAircraft(aircraftResult);
 
       // Compute threats relative to drone position (if connected) or camera center
-      const Cesium = require("cesium");
-      const cartographic = Cesium.Cartographic.fromCartesian(viewer!.camera.positionWC);
-      const camLat = Cesium.Math.toDegrees(cartographic.latitude);
-      const camLon = Cesium.Math.toDegrees(cartographic.longitude);
+      const camCartographic = Cartographic.fromCartesian(viewer!.camera.positionWC);
+      const camLat = CesiumMath.toDegrees(camCartographic.latitude);
+      const camLon = CesiumMath.toDegrees(camCartographic.longitude);
 
       const telPos = useTelemetryStore.getState().position.latest();
       const refLat = telPos?.lat ?? camLat;
@@ -240,22 +237,20 @@ export function AirTrafficViewer() {
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
 
-    // Runtime Cesium import for SSR-safe usage in Next.js
-    const Cesium = require("cesium");
-    const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+    const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     handler.setInputAction((click: any) => {
       const picked = viewer.scene.pick(click.position);
 
       // Aircraft click: show info via Cesium's built-in info box
-      if (Cesium.defined(picked) && picked.id?.id?.startsWith?.("aircraft-")) {
+      if (defined(picked) && picked.id?.id?.startsWith?.("aircraft-")) {
         // Cesium's default selectedEntity behavior handles the info box
         return;
       }
 
       // Entity click (zone, notam, etc): let Cesium handle it
-      if (Cesium.defined(picked) && picked.id) return;
+      if (defined(picked) && picked.id) return;
 
       // Globe click: flyability assessment
       const ray = viewer.camera.getPickRay(click.position);
@@ -263,9 +258,9 @@ export function AirTrafficViewer() {
       const cartesian = viewer.scene.globe.pick(ray, viewer.scene);
       if (!cartesian) return;
 
-      const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
-      const lat = Cesium.Math.toDegrees(cartographic.latitude);
-      const lon = Cesium.Math.toDegrees(cartographic.longitude);
+      const cartographic = Cartographic.fromCartesian(cartesian);
+      const lat = CesiumMath.toDegrees(cartographic.latitude);
+      const lon = CesiumMath.toDegrees(cartographic.longitude);
 
       setSelectedPoint({ lat, lon });
 
@@ -281,7 +276,7 @@ export function AirTrafficViewer() {
         jurisdiction
       );
       setFlyability(result);
-    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+    }, ScreenSpaceEventType.LEFT_CLICK);
 
     return () => {
       if (!handler.isDestroyed()) handler.destroy();
