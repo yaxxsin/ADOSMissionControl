@@ -29,7 +29,7 @@ export function ViewportStatsOverlay() {
   const freshness = lastUpdate ? `${Math.round((Date.now() - lastUpdate) / 1000)}s` : "-";
 
   return (
-    <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2 px-2.5 py-1.5 bg-bg-primary/70 backdrop-blur-md border border-border-default rounded-lg text-[9px] font-mono text-text-secondary">
+    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-2.5 py-1.5 bg-bg-primary/70 backdrop-blur-md border border-border-default rounded-lg text-[9px] font-mono text-text-secondary">
       {/* Aircraft count */}
       <div className="flex items-center gap-1" title="Total aircraft tracked">
         <Plane size={9} className="text-text-tertiary" />
