@@ -301,6 +301,9 @@ export function AircraftEntities({ viewer }: AircraftEntitiesProps) {
       }
     }
 
+    // Trigger Cesium render (requestRenderMode requires explicit render)
+    viewer.scene.requestRender();
+
   }, [viewer, aircraft, threatLevels, selectedAircraft, trafficVisible]);
 
   return null;

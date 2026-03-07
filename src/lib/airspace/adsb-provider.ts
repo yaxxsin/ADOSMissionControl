@@ -19,7 +19,7 @@ export async function fetchFromAdsbLol(
 ): Promise<AdsbFetchResult> {
   try {
     const url = `https://api.adsb.lol/v2/lat/${lat}/lon/${lon}/dist/${radiusNm}`;
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(8_000) });
     if (!res.ok) {
       return { aircraft: [], timestamp: Date.now(), source: "adsb.lol" };
     }
@@ -69,7 +69,7 @@ export async function fetchFromOpenSky(
     const url =
       `https://opensky-network.org/api/states/all` +
       `?lamin=${bbox.south}&lomin=${bbox.west}&lamax=${bbox.north}&lomax=${bbox.east}`;
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(8_000) });
     if (!res.ok) {
       return { aircraft: [], timestamp: Date.now(), source: "opensky" };
     }
@@ -91,7 +91,7 @@ export async function fetchFromOpenSky(
         verticalRate: s[11] != null ? Number(s[11]) : null, // already m/s
         squawk: s[14] != null ? String(s[14]) : null,
         category: Number(s[16]) || 0,
-        lastSeen: data.time ? Number(data.time) * 1000 : Date.now(),
+        lastSeen: Date.now(),
       }))
       .filter((a) => !(a.lat === 0 && a.lon === 0));
 
