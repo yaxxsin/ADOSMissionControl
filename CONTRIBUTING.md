@@ -36,10 +36,11 @@ Open [http://localhost:4000](http://localhost:4000) in Chrome.
 ## Project Structure
 
 ```
-command/
+ADOSMissionControl/
 ├── src/
 │   ├── app/                  # Next.js App Router pages
 │   ├── components/
+│   │   ├── air-traffic/      # Air traffic 3D viewer, panels, entities, overlays
 │   │   ├── fc/               # Flight controller panels (CalibrationPanel, PidTuningPanel, etc.)
 │   │   ├── indicators/       # Telemetry indicator widgets
 │   │   ├── planner/          # Mission planner components
@@ -47,8 +48,9 @@ command/
 │   │   └── library/          # Shared UI primitives
 │   ├── hooks/                # Custom React hooks
 │   ├── lib/
+│   │   ├── airspace/         # ADS-B providers, zone data, threat calculator
 │   │   └── protocol/         # MAVLink parser, encoder, adapter, messages
-│   └── stores/               # Zustand stores (22 domains)
+│   └── stores/               # Zustand stores (33 domains)
 ├── public/
 └── ...
 ```
@@ -68,7 +70,7 @@ command/
 - Dark-first — all components must look correct on the dark theme.
 
 ### State Management
-- **Zustand** for all application state — 22 stores, one per domain.
+- **Zustand** for all application state — 33 stores, one per domain.
 - **Ring buffers** for telemetry data (telemetry-store) — fixed-size circular arrays to cap memory usage.
 - Never use `useState` for data that needs to be shared across components. Put it in a store.
 - Store files live in `src/stores/`. One file per store.

@@ -8,9 +8,9 @@
 
 - **Stack:** Next.js 16 (App Router) + React 19 + Zustand 5 + Tailwind v4 + TypeScript strict
 - **Protocol:** Custom MAVLink v2 binary parser/encoder, `DroneProtocol` abstraction interface
-- **Stores:** 31 Zustand stores with ring-buffered telemetry
-- **FC panels:** 28 configuration panels + 15 shared infra components
-- **MAVLink:** 62 message decoders, 25 MAV_CMD handlers
+- **Stores:** 33 Zustand stores with ring-buffered telemetry
+- **FC panels:** 38 configuration panels + 15 shared infra components
+- **MAVLink:** 83 message decoders, 33 MAV_CMD handlers
 - **Firmware:** ArduPilot (full), PX4 (full), Betaflight/iNav (stubs)
 - **Port:** 4000 (dev, demo, and production)
 - **License:** GPL-3.0-only
@@ -172,6 +172,9 @@ When you need to understand a system, read these files:
 | Mission validation | `src/lib/validation/mission-validator.ts` — pre-upload checks |
 | File formats | `src/lib/formats/kml-parser.ts`, `csv-handler.ts` — KML/KMZ/CSV I/O |
 | Mission transforms | `src/lib/transforms/mission-transforms.ts` — move/rotate/scale |
+| Air traffic stores | `src/stores/airspace-store.ts`, `src/stores/traffic-store.ts` — zones, NOTAMs, aircraft, alerts |
+| ADS-B providers | `src/lib/airspace/adsb-provider.ts` — adsb.lol + OpenSky fetch |
+| Airspace types | `src/lib/airspace/types.ts` — AircraftState, AirspaceZone, ThreatLevel, Flyability |
 
 ---
 

@@ -25,7 +25,7 @@ Altnautica Command is a web GCS that runs in any browser and also ships as a nat
 
 It replaces desktop-only tools like QGroundControl and Mission Planner with a modern web stack: React 19, TypeScript strict, real-time Zustand stores with ring-buffered telemetry, and a custom binary MAVLink v2 parser.
 
-~110K lines of TypeScript. 36 FC configuration panels. 7 pattern generators. 77 MAVLink + 34 MSP message decoders. 31 Zustand stores. Full demo mode with zero setup.
+~98K lines of TypeScript. 38 FC configuration panels. 7 pattern generators. 83 MAVLink + 34 MSP message decoders. 33 Zustand stores. Full demo mode with zero setup.
 
 **[Live App](https://command.altnautica.com)** · **[Website](https://altnautica.com/command)** · **[Community](https://command.altnautica.com/community)**
 
@@ -57,7 +57,7 @@ Open [http://localhost:4000](http://localhost:4000) for 5 simulated drones with 
   </tr>
   <tr>
     <td><img src="public/screenshots/3d-simulation.png" alt="3D Simulation" width="100%"><br><sub>Cesium 3D globe with flight path replay</sub></td>
-    <td><img src="public/screenshots/configure.png" alt="FC Configuration" width="100%"><br><sub>28 panels for full flight controller setup</sub></td>
+    <td><img src="public/screenshots/configure.png" alt="FC Configuration" width="100%"><br><sub>38 panels for full flight controller setup</sub></td>
   </tr>
   <tr>
     <td><img src="public/screenshots/parameters.png" alt="FC Parameters" width="100%"><br><sub>Search, edit, and write all FC parameters</sub></td>
@@ -71,7 +71,7 @@ Open [http://localhost:4000](http://localhost:4000) for 5 simulated drones with 
 
 ### Flight Controller Configuration
 
-- **36 configuration panels** covering calibration, receiver, outputs, PID tuning, failsafe, power, ports, OSD, firmware, PX4 airframe/actuator, Betaflight modes/motors/VTX/GPS/blackbox/rates/adjustments, and more
+- **38 configuration panels** covering calibration, receiver, outputs, PID tuning, failsafe, power, ports, OSD, firmware, PX4 airframe/actuator, Betaflight modes/motors/VTX/GPS/blackbox/rates/adjustments, and more
 - **AI PID tuning** with FFT noise analysis, step response, tracking quality, and motor health. AI suggestions are rate-limited on the hosted version (3/week). Self-host with your own `GROQ_API_KEY` for unlimited use
 - **Board auto-detection** with 9 profiles (SpeedyBee F405 Wing/V3/V4, Matek H743, Pixhawk 4/6C/6X) and STM32 timer group maps
 - **Full parameter system** for searching, editing, and writing all FC parameters with real-time validation
@@ -107,6 +107,18 @@ Open [http://localhost:4000](http://localhost:4000) for 5 simulated drones with 
 - **Camera presets** for chase, orbit, top-down, and free-look perspectives
 - **Simulation history** for replaying past missions from the plan library
 
+### Air Traffic
+
+- **3D airspace visualization** on CesiumJS globe with semi-transparent extruded volumes for Class B/C/D/E airspace
+- **Live ADS-B tracking** via adsb.lol and OpenSky Network with 10-second polling
+- **TCAS-style threat classification** with CPA computation (Resolution Advisory, Traffic Advisory, Proximate, Other)
+- **"Can I Fly Here?" assessment** for instant green/yellow/red flyability verdict at any point on the globe
+- **Multi-jurisdiction support** for India (DGCA green/yellow/red zones), USA (FAA Class B/C/D, LAANC ceilings), and Australia (CASA aerodrome buffers)
+- **Altitude slider** filtering which zones are active at your operational altitude
+- **Timeline scrubber** for viewing time-dependent TFRs and NOTAMs
+- **Country-specific CTAs** linking to Digital Sky, B4UFLY, CASA rules
+- **Real-time alerts** for aircraft entering proximity radius
+
 ### Live Telemetry
 
 - Real-time dashboard with attitude, position, velocity, and battery indicators
@@ -137,7 +149,7 @@ Open [http://localhost:4000](http://localhost:4000) for 5 simulated drones with 
 
 ### Protocol Support
 
-- **MAVLink v2** binary parser with CRC validation and 77 message types
+- **MAVLink v2** binary parser with CRC validation and 83 message types
 - **MSP v1/v2** binary codec with CRC8 DVB-S2, 19-state streaming parser, 34 decoders, 21 encoders
 - **ArduPilot** with full support (all panels, calibration, missions, dataflash logs)
 - **PX4** with full support including airframe selection, actuator configuration, MAVLink shell, and 90+ parameter mappings
@@ -148,7 +160,7 @@ Open [http://localhost:4000](http://localhost:4000) for 5 simulated drones with 
 ### Demo Mode
 
 - 5 simulated drones with realistic telemetry (GPS tracks, battery drain, altitude profiles)
-- Full mock MAVLink. All 28 FC panels work against simulated FC responses
+- Full mock MAVLink. All 38 FC panels work against simulated FC responses
 - Zero setup: `npm run demo` or pass `?demo=true` in the URL
 
 ---
@@ -285,7 +297,7 @@ These run inside Convex functions, not in Next.js. Only needed if you use cloud 
 
 | Firmware | Protocol | Status | Notes |
 |----------|----------|--------|-------|
-| ArduPilot (Copter/Plane/Rover/Sub) | MAVLink v2 | **Full** | 77 message types, 20 commands, all panels, calibration, missions, logs |
+| ArduPilot (Copter/Plane/Rover/Sub) | MAVLink v2 | **Full** | 83 message types, 33 commands, all panels, calibration, missions, logs |
 | PX4 | MAVLink v2 | **Full** | 90+ param mappings, airframe selection, actuator config, MAVLink shell, calibration, missions |
 | Betaflight | MSP v1/v2 | **Full** | 34 decoders, 21 encoders, ~105 virtual params, 15 panels, OSD config |
 | iNav | MSP v1/v2 | **Partial** | Architecture prepared, iNav-specific features planned |
@@ -296,13 +308,13 @@ These run inside Convex functions, not in Next.js. Only needed if you use cloud 
 
 | Metric | Count |
 |--------|-------|
-| Lines of TypeScript | ~110,000 |
-| FC configuration panels | 36 |
-| Zustand stores | 31 |
-| MAVLink message decoders | 77 |
+| Lines of TypeScript | ~98,000 |
+| FC configuration panels | 38 |
+| Zustand stores | 33 |
+| MAVLink message decoders | 83 |
 | MSP message decoders | 34 |
 | MSP message encoders | 21 |
-| MAV_CMD handlers | 20 |
+| MAV_CMD handlers | 33 |
 | Pattern generators | 7 |
 | Board profiles | 9 |
 | File format handlers | 5 (KML, KMZ, CSV, .waypoints, .plan) |
