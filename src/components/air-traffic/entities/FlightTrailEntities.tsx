@@ -98,7 +98,6 @@ export function FlightTrailEntities({ viewer }: FlightTrailEntitiesProps) {
       }
     }
 
-    viewer.scene.requestRender();
   }, [viewer, aircraftTrails, threatLevels, trailsVisible]);
 
   return null;

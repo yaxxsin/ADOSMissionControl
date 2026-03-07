@@ -109,7 +109,7 @@ const NM_TO_DEG = 1 / 60; // 1 nautical mile ~ 1/60 degree latitude
 export async function fetchAircraft(
   lat: number,
   lon: number,
-  radiusNm: number = 25,
+  radiusNm: number = 100,
 ): Promise<AdsbFetchResult> {
   const result = await fetchFromAdsbLol(lat, lon, radiusNm);
   if (result.aircraft.length > 0) {

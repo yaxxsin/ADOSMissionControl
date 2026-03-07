@@ -6,7 +6,7 @@
  */
 
 import { create } from "zustand";
-import type { Jurisdiction } from "@/lib/jurisdiction";
+import { JURISDICTIONS, type Jurisdiction } from "@/lib/jurisdiction";
 import type { Airport } from "@/lib/airspace/airport-database";
 import type {
   AirspaceZone,
@@ -65,7 +65,7 @@ const INITIAL_STATE = {
   selectedPoint: null as { lat: number; lon: number } | null,
   flyability: null as Flyability | null,
   layerVisibility: { ...DEFAULT_LAYERS },
-  activeJurisdictions: new Set<Jurisdiction>(["dgca", "faa", "casa"]),
+  activeJurisdictions: new Set<Jurisdiction>(Object.keys(JURISDICTIONS) as Jurisdiction[]),
   viewportState: { cameraAlt: 0, visibleAirports: [], aircraftInView: 0 } as ViewportState,
   operationalAltitude: 120,
   showIcaoZones: false,

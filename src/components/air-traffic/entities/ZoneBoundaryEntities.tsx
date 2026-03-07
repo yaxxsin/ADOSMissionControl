@@ -21,6 +21,11 @@ const JURISDICTION_ZONE_TYPES: Record<string, AirspaceZoneType[]> = {
   dgca: ["dgcaGreen", "dgcaYellow", "dgcaRed"],
   faa: ["classB", "classC", "classD", "classE"],
   casa: ["casaRestricted", "casaCaution"],
+  easa: [],
+  caa_uk: [],
+  caac: [],
+  jcab: [],
+  tcca: [],
 };
 
 export function ZoneBoundaryEntities({ viewer }: ZoneBoundaryEntitiesProps) {

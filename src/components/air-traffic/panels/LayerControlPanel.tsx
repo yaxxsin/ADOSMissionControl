@@ -92,7 +92,7 @@ export function LayerControlPanel() {
       <div className="px-2 pt-1 pb-2 border-t border-border-default mt-1">
         <span className="text-[9px] font-mono text-text-tertiary uppercase px-2">Jurisdictions</span>
         <div className="flex flex-col gap-1 mt-1">
-          {(["dgca", "faa", "casa"] as const).map((j) => (
+          {(Object.keys(JURISDICTIONS) as Jurisdiction[]).map((j) => (
             <label
               key={j}
               className="flex items-center gap-2 px-2 py-1 rounded hover:bg-bg-secondary/50 transition-colors cursor-pointer"

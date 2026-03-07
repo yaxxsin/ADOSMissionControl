@@ -48,6 +48,9 @@ export function StatsOverlay() {
       >
         <BarChart3 size={10} className="text-text-tertiary" />
         <span className="font-bold">{total}</span>
+        {total === 0 && connectionQuality === "good" && (
+          <span className="text-text-tertiary text-[8px] hidden sm:inline">no aircraft in range</span>
+        )}
         <span className={cn(
           "w-1.5 h-1.5 rounded-full",
           connectionQuality === "good" && "bg-green-400",
@@ -60,6 +63,11 @@ export function StatsOverlay() {
       {!collapsed && (
         <div className="mt-1 p-2 rounded-lg bg-bg-primary/80 backdrop-blur-md border border-border-default min-w-[140px]">
           <div className="space-y-1.5 text-[9px] font-mono">
+            {total === 0 && connectionQuality === "good" && (
+              <div className="text-text-tertiary text-center py-1">
+                No aircraft in range. Try panning to a different area.
+              </div>
+            )}
             {/* Altitude bands */}
             <div className="text-text-tertiary uppercase tracking-wider">Altitude</div>
             <div className="flex justify-between text-text-secondary">

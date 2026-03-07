@@ -119,7 +119,6 @@ export function AircraftEntities({ viewer }: AircraftEntitiesProps) {
         entry.label.show = showLabels;
       }
 
-      viewer.scene.requestRender();
     }
   }, [viewer, setDisplayMode]);
 
@@ -143,7 +142,6 @@ export function AircraftEntities({ viewer }: AircraftEntitiesProps) {
     handler.setInputAction((click: { position: Cartesian2 }) => {
       const picked = viewer.scene.pick(click.position);
       if (!picked || !picked.primitive) {
-        setSelectedAircraft(null);
         return;
       }
 
@@ -155,8 +153,6 @@ export function AircraftEntities({ viewer }: AircraftEntitiesProps) {
           return;
         }
       }
-
-      setSelectedAircraft(null);
     }, ScreenSpaceEventType.LEFT_CLICK);
 
     return () => {
@@ -264,7 +260,6 @@ export function AircraftEntities({ viewer }: AircraftEntitiesProps) {
       }
     }
 
-    viewer.scene.requestRender();
   }, [viewer, aircraft, threatLevels, selectedAircraft, trafficVisible]);
 
   return null;

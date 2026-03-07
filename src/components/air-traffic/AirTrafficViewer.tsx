@@ -141,8 +141,9 @@ export function AirTrafficViewer() {
       const lon = CesiumMath.toDegrees(cartographic.longitude);
 
       try {
-        const result = await fetchAircraft(lat, lon, 250);
+        const result = await fetchAircraft(lat, lon, 100);
         aircraftResult = result.aircraft;
+        console.log(`[air-traffic] Fetched ${result.aircraft.length} aircraft from ${result.source} (${lat.toFixed(2)}, ${lon.toFixed(2)}, r=100nm)`);
         useTrafficStore.getState().recordSuccess(result.source);
       } catch (err) {
         useTrafficStore.getState().recordFailure(err instanceof Error ? err.message : "Fetch failed");
@@ -212,6 +213,9 @@ export function AirTrafficViewer() {
 
       // Entity or billboard click (aircraft, zone, notam, etc): let Cesium handle it
       if (defined(picked) && (picked.id || picked.primitive?.constructor?.name === "Billboard")) return;
+
+      // Globe click: deselect any selected aircraft
+      useTrafficStore.getState().setSelectedAircraft(null);
 
       // Globe click: flyability assessment
       const ray = viewer.camera.getPickRay(click.position);
