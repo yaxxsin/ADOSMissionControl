@@ -220,3 +220,4 @@ When you need to understand a system, read these files:
 - **Terrain provider caching** — `terrain-provider.ts` uses an LRU cache keyed by rounded lat,lon (4 decimal places). Cache hit rate is high for survey patterns where many waypoints are close together. Falls back to elevation 0 when offline.
 - **Pattern generators are pure functions** — They take config objects and return waypoint arrays. No store access, no side effects. This makes them testable and composable.
 - **Drawing manager is not a React component** — `drawing-manager.ts` interfaces directly with the Leaflet map instance. It's instantiated in a `useEffect` in `PlannerMap.tsx` and cleaned up on unmount.
+- **Air Traffic always uses real ADS-B data** — The Air Traffic tab fetches live aircraft positions from adsb.lol (primary) and OpenSky (fallback), even in demo mode. Never use mock/fake aircraft data. Real positions are freely available from these APIs and more useful than simulated traffic.

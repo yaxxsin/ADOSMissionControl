@@ -27,6 +27,7 @@ import {
   type Label,
 } from "cesium";
 import { useTrafficStore, type DisplayMode } from "@/stores/traffic-store";
+import { useAirspaceStore } from "@/stores/airspace-store";
 import { THREAT_COLORS, type ThreatLevel } from "@/lib/airspace/types";
 import { getAircraftIcon, getAircraftColorForThreat } from "@/lib/airspace/aircraft-icons";
 
@@ -66,6 +67,7 @@ export function AircraftEntities({ viewer }: AircraftEntitiesProps) {
   const selectedAircraft = useTrafficStore((s) => s.selectedAircraft);
   const setSelectedAircraft = useTrafficStore((s) => s.setSelectedAircraft);
   const setDisplayMode = useTrafficStore((s) => s.setDisplayMode);
+  const trafficVisible = useAirspaceStore((s) => s.layerVisibility.traffic);
 
   const billboardCollRef = useRef<BillboardCollection | null>(null);
   const labelCollRef = useRef<LabelCollection | null>(null);
@@ -169,6 +171,17 @@ export function AircraftEntities({ viewer }: AircraftEntitiesProps) {
     const lblColl = labelCollRef.current;
     if (!bbColl || !lblColl || !viewer || viewer.isDestroyed()) return;
 
+    // When traffic layer is toggled OFF, remove all billboards/labels
+    if (!trafficVisible) {
+      for (const entry of indexRef.current.values()) {
+        bbColl.remove(entry.billboard);
+        lblColl.remove(entry.label);
+      }
+      indexRef.current.clear();
+      viewer.scene.requestRender();
+      return;
+    }
+
     const mode = modeRef.current;
     const showLabels = mode === "local" || mode === "close";
     const iconSize = getIconSize(mode);
@@ -255,7 +268,7 @@ export function AircraftEntities({ viewer }: AircraftEntitiesProps) {
     }
 
     viewer.scene.requestRender();
-  }, [viewer, aircraft, threatLevels, altitudeFilter, selectedAircraft]);
+  }, [viewer, aircraft, threatLevels, altitudeFilter, selectedAircraft, trafficVisible]);
 
   return null;
 }

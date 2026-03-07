@@ -17,6 +17,8 @@ import {
   type Polyline,
 } from "cesium";
 import { useTrafficStore } from "@/stores/traffic-store";
+import { useAirspaceStore } from "@/stores/airspace-store";
+
 import { THREAT_COLORS, type ThreatLevel } from "@/lib/airspace/types";
 
 interface FlightTrailEntitiesProps {
@@ -26,6 +28,7 @@ interface FlightTrailEntitiesProps {
 export function FlightTrailEntities({ viewer }: FlightTrailEntitiesProps) {
   const aircraftTrails = useTrafficStore((s) => s.aircraftTrails);
   const threatLevels = useTrafficStore((s) => s.threatLevels);
+  const trailsVisible = useAirspaceStore((s) => s.layerVisibility.trails);
 
   const polyCollRef = useRef<PolylineCollection | null>(null);
   const polyIndexRef = useRef<Map<string, Polyline>>(new Map());
@@ -51,6 +54,16 @@ export function FlightTrailEntities({ viewer }: FlightTrailEntitiesProps) {
   useEffect(() => {
     const polyColl = polyCollRef.current;
     if (!polyColl || !viewer || viewer.isDestroyed() || !aircraftTrails) return;
+
+    // When trails layer is hidden, remove all polylines
+    if (!trailsVisible) {
+      for (const [, polyline] of polyIndexRef.current) {
+        polyColl.remove(polyline);
+      }
+      polyIndexRef.current.clear();
+      viewer.scene.requestRender();
+      return;
+    }
 
     const currentIcaos = new Set<string>();
 
@@ -86,7 +99,7 @@ export function FlightTrailEntities({ viewer }: FlightTrailEntitiesProps) {
     }
 
     viewer.scene.requestRender();
-  }, [viewer, aircraftTrails, threatLevels]);
+  }, [viewer, aircraftTrails, threatLevels, trailsVisible]);
 
   return null;
 }
