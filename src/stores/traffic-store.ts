@@ -50,7 +50,7 @@ interface TrafficStoreState {
   clear: () => void;
 }
 
-const STALE_THRESHOLD_MS = 60_000;
+const STALE_THRESHOLD_MS = 120_000;
 
 export const useTrafficStore = create<TrafficStoreState>()((set, get) => ({
   aircraft: new Map<string, AircraftState>(),

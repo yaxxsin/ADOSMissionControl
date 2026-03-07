@@ -67,7 +67,6 @@ export function AircraftEntities({ viewer }: AircraftEntitiesProps) {
   const setSelectedAircraft = useTrafficStore((s) => s.setSelectedAircraft);
   const setDisplayMode = useTrafficStore((s) => s.setDisplayMode);
   const trafficVisible = useAirspaceStore((s) => s.layerVisibility.traffic);
-  const altitudeFilter = useAirspaceStore((s) => s.altitudeFilter);
 
   const billboardCollRef = useRef<BillboardCollection | null>(null);
   const labelCollRef = useRef<LabelCollection | null>(null);
@@ -192,8 +191,6 @@ export function AircraftEntities({ viewer }: AircraftEntitiesProps) {
 
       const threat: ThreatLevel = threatLevels.get(icao24) ?? "other";
       const isSelected = selectedAircraft === icao24;
-      const altMsl = ac.altitudeMsl ?? 0;
-      const inAltRange = altMsl >= altitudeFilter.min && altMsl <= altitudeFilter.max;
       const color = getAircraftColorForThreat(threat, isSelected);
       const altM = ac.altitudeMsl ?? 0;
       const heading = ac.heading ?? 0;
@@ -210,12 +207,12 @@ export function AircraftEntities({ viewer }: AircraftEntitiesProps) {
         existing.billboard.rotation = rotation;
         existing.billboard.image = imageUri;
         existing.billboard.scale = bbScale;
-        existing.billboard.show = inAltRange;
+        existing.billboard.show = true;
 
         // Update label
         existing.label.position = position;
         existing.label.text = callsign;
-        existing.label.show = showLabels && inAltRange;
+        existing.label.show = showLabels;
         existing.label.fillColor = Color.fromCssColorString(
           THREAT_COLORS[threat] ?? THREAT_COLORS.other
         );
@@ -264,7 +261,7 @@ export function AircraftEntities({ viewer }: AircraftEntitiesProps) {
       }
     }
 
-  }, [viewer, aircraft, threatLevels, selectedAircraft, trafficVisible, altitudeFilter]);
+  }, [viewer, aircraft, threatLevels, selectedAircraft, trafficVisible]);
 
   return null;
 }
