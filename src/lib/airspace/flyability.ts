@@ -27,7 +27,8 @@ export function assessFlyability(
   notams: Notam[],
   tfrs: TemporaryRestriction[],
   aircraft: AircraftState[],
-  jurisdiction: Jurisdiction | null
+  jurisdiction: Jurisdiction | null,
+  timelineTime?: Date,
 ): Flyability {
   // Find zones that contain this point
   const activeZones = zones.filter((z) => isPointInZone(lat, lon, z));
@@ -46,11 +47,11 @@ export function assessFlyability(
   );
 
   // Filter active TFRs (by time and location)
-  const now = new Date();
+  const refTime = timelineTime ?? new Date();
   const activeTfrs = tfrs.filter((t) => {
     const from = new Date(t.validFrom);
     const to = new Date(t.validTo);
-    return now >= from && now <= to;
+    return refTime >= from && refTime <= to;
   });
 
   // Determine verdict
@@ -76,6 +77,14 @@ export function assessFlyability(
     if (zone.type === "dgcaYellow" || zone.type === "casaCaution") {
       if (verdict !== "restricted") verdict = "advisory";
       maxAltitudeAgl = Math.min(maxAltitudeAgl, zone.ceilingAltitude);
+    }
+    // General fallback: any advisory zone with a ceiling altitude applies it
+    if (zone.type === "classE" || zone.type === "tma" || zone.type === "ctr" ||
+        zone.type === "alert" || zone.type === "warning" || zone.type === "danger") {
+      if (verdict !== "restricted") verdict = "advisory";
+      if (zone.ceilingAltitude > 0 && zone.ceilingAltitude < maxAltitudeAgl) {
+        maxAltitudeAgl = zone.ceilingAltitude;
+      }
     }
   }
 

@@ -23,6 +23,11 @@ export interface ViewportState {
   aircraftInView: number;
 }
 
+export interface AltitudeFilter {
+  min: number;
+  max: number;
+}
+
 interface AirspaceStoreState {
   jurisdiction: Jurisdiction | null;
   zones: AirspaceZone[];
@@ -36,6 +41,7 @@ interface AirspaceStoreState {
   operationalAltitude: number;
   timelineTime: Date;
   showIcaoZones: boolean;
+  altitudeFilter: AltitudeFilter;
   loading: boolean;
   error: string | null;
 
@@ -52,6 +58,7 @@ interface AirspaceStoreState {
   setViewportState: (vs: ViewportState) => void;
   setOperationalAltitude: (alt: number) => void;
   setTimelineTime: (time: Date) => void;
+  setAltitudeFilter: (filter: AltitudeFilter) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   clear: () => void;
@@ -69,6 +76,7 @@ const INITIAL_STATE = {
   viewportState: { cameraAlt: 0, visibleAirports: [], aircraftInView: 0 } as ViewportState,
   operationalAltitude: 120,
   showIcaoZones: true,
+  altitudeFilter: { min: 0, max: 15000 } as AltitudeFilter,
   timelineTime: new Date(),
   loading: false,
   error: null as string | null,
@@ -99,6 +107,7 @@ export const useAirspaceStore = create<AirspaceStoreState>()((set) => ({
   setViewportState: (viewportState) => set({ viewportState }),
   setOperationalAltitude: (operationalAltitude) => set({ operationalAltitude }),
   setTimelineTime: (timelineTime) => set({ timelineTime }),
+  setAltitudeFilter: (altitudeFilter) => set({ altitudeFilter }),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
   clear: () => set({ ...INITIAL_STATE, timelineTime: new Date() }),

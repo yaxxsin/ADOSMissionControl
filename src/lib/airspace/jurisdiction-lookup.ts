@@ -23,7 +23,7 @@ const MAPPINGS: JurisdictionMapping[] = [
   // India (DGCA)
   {
     jurisdiction: "dgca",
-    boxes: [{ south: 6, north: 36, west: 68, east: 98 }],
+    boxes: [{ south: 6, north: 36, west: 72, east: 90 }],
   },
   // United States (FAA) — mainland + Alaska + Hawaii
   {

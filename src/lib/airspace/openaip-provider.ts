@@ -64,6 +64,7 @@ export async function fetchOpenAIPAirspaces(
 
     try {
       const zones = await fetchCountryAirspaces(country, apiKey);
+      if (cache.size > 20) cache.clear();
       cache.set(country, zones);
       results.push(...zones);
     } catch (err) {
@@ -92,16 +93,14 @@ async function fetchCountryAirspaces(
       country,
       page: String(page),
       limit: String(limit),
-      apiKey,
+      types: types.join(","),
     });
-    for (const t of types) {
-      params.append("type", String(t));
+    if (apiKey) {
+      params.set("apiKey", apiKey);
     }
 
-    const url = `https://api.core.openaip.net/api/airspaces?${params.toString()}`;
-    const resp = await fetch(url, {
-      headers: { "x-openaip-api-key": apiKey },
-    });
+    const url = `/api/airspace/openaip?${params.toString()}`;
+    const resp = await fetch(url);
 
     if (!resp.ok) {
       throw new Error(`OpenAIP ${country} page ${page}: ${resp.status} ${resp.statusText}`);

@@ -44,6 +44,7 @@ import { AirTrafficMapControls } from "./controls/AirTrafficMapControls";
 import { AirTrafficToolbar } from "./controls/AirTrafficToolbar";
 import { StatsOverlay } from "./overlays/StatsOverlay";
 import { ViewportStatsOverlay } from "./overlays/ViewportStatsOverlay";
+import { AltitudeSlider } from "./overlays/AltitudeSlider";
 import { AirportDetailPanel } from "./panels/AirportDetailPanel";
 import { FlightSearchPanel } from "./panels/FlightSearchPanel";
 import { AircraftDetailPanel } from "./panels/AircraftDetailPanel";
@@ -310,7 +311,8 @@ export function AirTrafficViewer() {
         state.notams,
         state.tfrs,
         Array.from(trafficState.aircraft.values()),
-        effectiveJurisdiction
+        effectiveJurisdiction,
+        state.timelineTime,
       );
       setFlyability(result);
     }, ScreenSpaceEventType.LEFT_CLICK);
@@ -319,6 +321,29 @@ export function AirTrafficViewer() {
       if (!handler.isDestroyed()) handler.destroy();
     };
   }, [viewer, jurisdiction, setSelectedPoint, setFlyability]);
+
+  // ── Re-assess flyability when timeline time changes ──
+  const timelineTime = useAirspaceStore((s) => s.timelineTime);
+  useEffect(() => {
+    const state = useAirspaceStore.getState();
+    if (!state.selectedPoint) return;
+
+    const { lat, lon } = state.selectedPoint;
+    const trafficState = useTrafficStore.getState();
+    const autoJurisdiction = lookupJurisdiction(lat, lon);
+    const effectiveJurisdiction = autoJurisdiction ?? jurisdiction;
+    const result = assessFlyability(
+      lat,
+      lon,
+      state.zones,
+      state.notams,
+      state.tfrs,
+      Array.from(trafficState.aircraft.values()),
+      effectiveJurisdiction,
+      state.timelineTime,
+    );
+    setFlyability(result);
+  }, [timelineTime, jurisdiction, setFlyability]);
 
   // ── Cleanup on unmount ──
   useEffect(() => {
@@ -359,6 +384,7 @@ export function AirTrafficViewer() {
       <ConnectionBanner />
       <FlyabilityOverlay />
       <TimelineScrubber />
+      <AltitudeSlider />
       <StatsOverlay />
       <ViewportStatsOverlay />
 
