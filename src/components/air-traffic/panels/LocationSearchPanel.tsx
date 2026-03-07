@@ -9,7 +9,7 @@
 
 import { useState, useCallback } from "react";
 import { Search, MapPin, X } from "lucide-react";
-import type { Viewer as CesiumViewer } from "cesium";
+import { Cartesian3, type Viewer as CesiumViewer } from "cesium";
 
 interface LocationSearchPanelProps {
   viewer: CesiumViewer | null;
@@ -69,9 +69,8 @@ export function LocationSearchPanel({ viewer }: LocationSearchPanelProps) {
   const flyTo = useCallback(
     (lat: number, lon: number) => {
       if (!viewer || viewer.isDestroyed()) return;
-      const Cesium = require("cesium");
       viewer.camera.flyTo({
-        destination: Cesium.Cartesian3.fromDegrees(lon, lat, 50000),
+        destination: Cartesian3.fromDegrees(lon, lat, 50000),
         duration: 1.5,
       });
       viewer.scene.requestRender();

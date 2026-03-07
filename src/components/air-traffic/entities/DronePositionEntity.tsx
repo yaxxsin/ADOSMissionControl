@@ -60,7 +60,7 @@ export function DronePositionEntity({ viewer }: DronePositionEntityProps) {
 
     const existing = viewer.entities.getById(ENTITY_ID);
     if (existing) {
-      existing.position = pos;
+      existing.position = pos as any;
     } else {
       entityRef.current = viewer.entities.add({
         id: ENTITY_ID,

@@ -28,7 +28,6 @@ export function AirTrafficToolbar({ viewer }: AirTrafficToolbarProps) {
 
   const handleCompassReset = useCallback(() => {
     if (!viewer || viewer.isDestroyed()) return;
-    const Cesium = require("cesium");
     viewer.camera.flyTo({
       destination: viewer.camera.positionWC,
       orientation: {
