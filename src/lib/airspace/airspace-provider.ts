@@ -22,6 +22,12 @@ export async function loadAirspaceZones(
       return getIndiaAirspaceZones(bbox);
     case "casa":
       return getAustraliaAirspaceZones(bbox);
+    case "easa":
+    case "caa_uk":
+    case "caac":
+    case "jcab":
+    case "tcca":
+      return []; // Zone data can be populated as available
     default:
       return [];
   }

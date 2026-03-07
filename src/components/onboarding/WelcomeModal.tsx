@@ -15,11 +15,12 @@ import { JURISDICTIONS, type Jurisdiction } from "@/lib/jurisdiction";
 import { Select } from "@/components/ui/select";
 import type { UnitSystem } from "@/stores/settings-store";
 
-const JURISDICTION_OPTIONS: { value: Jurisdiction; label: string }[] = [
-  { value: "dgca", label: `${JURISDICTIONS.dgca.flag}  DGCA — India` },
-  { value: "faa", label: `${JURISDICTIONS.faa.flag}  FAA — United States` },
-  { value: "casa", label: `${JURISDICTIONS.casa.flag}  CASA — Australia` },
-];
+const JURISDICTION_OPTIONS: { value: Jurisdiction; label: string }[] = (
+  Object.entries(JURISDICTIONS) as [Jurisdiction, (typeof JURISDICTIONS)[Jurisdiction]][]
+).map(([key, cfg]) => ({
+  value: key,
+  label: `${cfg.flag}  ${cfg.name}`,
+}));
 
 export function WelcomeModal() {
   const onboarded = useSettingsStore((s) => s.onboarded);

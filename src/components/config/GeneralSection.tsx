@@ -59,11 +59,10 @@ export function GeneralSection() {
             value={jurisdiction ?? ""}
             onChange={handleJurisdictionChange}
             placeholder="— Not set"
-            options={[
-              { value: "dgca", label: `${JURISDICTIONS.dgca.flag}  DGCA — India` },
-              { value: "faa", label: `${JURISDICTIONS.faa.flag}  FAA — United States` },
-              { value: "casa", label: `${JURISDICTIONS.casa.flag}  CASA — Australia` },
-            ]}
+            options={(Object.entries(JURISDICTIONS) as [Jurisdiction, (typeof JURISDICTIONS)[Jurisdiction]][]).map(([key, cfg]) => ({
+              value: key,
+              label: `${cfg.flag}  ${cfg.name}`,
+            }))}
           />
 
           <Select

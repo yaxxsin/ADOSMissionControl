@@ -19,7 +19,6 @@ interface TrafficStoreState {
   aircraft: Map<string, AircraftState>;
   alerts: TrafficAlert[];
   threatLevels: Map<string, ThreatLevel>;
-  altitudeFilter: number;
   pollInterval: number;
   boundingBox: BoundingBox | null;
   lastUpdate: number;
@@ -38,7 +37,6 @@ interface TrafficStoreState {
   setThreatLevels: (threats: Map<string, ThreatLevel>) => void;
   addAlert: (alert: TrafficAlert) => void;
   dismissAlert: (id: string) => void;
-  setAltitudeFilter: (alt: number) => void;
   setBoundingBox: (bbox: BoundingBox | null) => void;
   setPolling: (polling: boolean) => void;
   setDataSource: (source: string) => void;
@@ -58,7 +56,6 @@ export const useTrafficStore = create<TrafficStoreState>()((set, get) => ({
   aircraft: new Map<string, AircraftState>(),
   alerts: [],
   threatLevels: new Map<string, ThreatLevel>(),
-  altitudeFilter: 18288,
   pollInterval: 10_000,
   boundingBox: null,
   lastUpdate: 0,
@@ -128,7 +125,6 @@ export const useTrafficStore = create<TrafficStoreState>()((set, get) => ({
       ),
     })),
 
-  setAltitudeFilter: (altitudeFilter) => set({ altitudeFilter }),
   setBoundingBox: (boundingBox) => set({ boundingBox }),
   setPolling: (polling) => set({ polling }),
   setDataSource: (dataSource) => set({ dataSource }),
@@ -165,7 +161,6 @@ export const useTrafficStore = create<TrafficStoreState>()((set, get) => ({
       aircraft: new Map<string, AircraftState>(),
       alerts: [],
       threatLevels: new Map<string, ThreatLevel>(),
-      altitudeFilter: 18288,
       pollInterval: 10_000,
       boundingBox: null,
       lastUpdate: 0,

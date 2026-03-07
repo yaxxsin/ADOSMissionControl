@@ -5,7 +5,7 @@
  * @license GPL-3.0-only
  */
 
-export type Jurisdiction = "dgca" | "faa" | "casa";
+export type Jurisdiction = "dgca" | "faa" | "casa" | "easa" | "caa_uk" | "caac" | "jcab" | "tcca";
 
 export interface JurisdictionConfig {
   name: string;
@@ -56,6 +56,66 @@ export const JURISDICTIONS: Record<Jurisdiction, JurisdictionConfig> = {
     maxAltitude: "120m",
     airspaceSystem: "OpenSky",
     registrationLabel: "CASA ID",
+  },
+  easa: {
+    name: "EASA",
+    flag: "🇪🇺",
+    defaultUnits: "metric",
+    altitudeUnit: "m",
+    speedUnit: "km/h",
+    distanceUnit: "km",
+    tempUnit: "°C",
+    maxAltitude: "120m",
+    airspaceSystem: "U-Space",
+    registrationLabel: "EASA Operator ID",
+  },
+  caa_uk: {
+    name: "CAA UK",
+    flag: "🇬🇧",
+    defaultUnits: "metric",
+    altitudeUnit: "m",
+    speedUnit: "km/h",
+    distanceUnit: "km",
+    tempUnit: "°C",
+    maxAltitude: "120m",
+    airspaceSystem: "Altitude Angel",
+    registrationLabel: "Operator ID",
+  },
+  caac: {
+    name: "CAAC",
+    flag: "🇨🇳",
+    defaultUnits: "metric",
+    altitudeUnit: "m",
+    speedUnit: "km/h",
+    distanceUnit: "km",
+    tempUnit: "°C",
+    maxAltitude: "120m",
+    airspaceSystem: "UOM",
+    registrationLabel: "UAS Registration",
+  },
+  jcab: {
+    name: "JCAB",
+    flag: "🇯🇵",
+    defaultUnits: "metric",
+    altitudeUnit: "m",
+    speedUnit: "km/h",
+    distanceUnit: "km",
+    tempUnit: "°C",
+    maxAltitude: "150m",
+    airspaceSystem: "DIPS 2.0",
+    registrationLabel: "DIPS ID",
+  },
+  tcca: {
+    name: "TCCA",
+    flag: "🇨🇦",
+    defaultUnits: "metric",
+    altitudeUnit: "m",
+    speedUnit: "km/h",
+    distanceUnit: "km",
+    tempUnit: "°C",
+    maxAltitude: "122m",
+    airspaceSystem: "NAV CANADA",
+    registrationLabel: "RPAS Registration",
   },
 };
 

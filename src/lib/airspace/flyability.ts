@@ -109,6 +109,11 @@ function getDefaultMaxAlt(jurisdiction: Jurisdiction | null): number {
     case "dgca": return 120;
     case "faa": return 122; // 400ft
     case "casa": return 120;
+    case "easa": return 120;
+    case "caa_uk": return 120;
+    case "caac": return 120;
+    case "jcab": return 150;
+    case "tcca": return 122; // 400ft
     default: return 120;
   }
 }
@@ -216,6 +221,66 @@ function getJurisdictionGuidance(
       ctaLinks.push(
         { label: "Wing OpenSky", url: "https://opensky.wing.com" },
         { label: "CASA Drone Rules", url: "https://www.casa.gov.au/knowyourdrone" }
+      );
+      break;
+    }
+    case "easa": {
+      if (verdict === "restricted") {
+        guidance = "EASA restricted zone. No drone operations without specific authorization from the national aviation authority.";
+      } else if (verdict === "advisory") {
+        guidance = "EASA controlled airspace. Check U-Space authorization requirements for your drone category (Open, Specific, or Certified).";
+      } else {
+        guidance = "EASA Open category rules apply: fly below 120m AGL, maintain VLOS, keep away from people. Check local national rules as EU member states may add restrictions.";
+      }
+      ctaLinks.push(
+        { label: "EASA Drone Rules", url: "https://www.easa.europa.eu/en/domains/civil-drones" },
+        { label: "Drone Rules (EU)", url: "https://dronerules.eu" }
+      );
+      break;
+    }
+    case "caa_uk": {
+      if (verdict === "restricted") {
+        guidance = "UK Flight Restriction Zone (FRZ). No drone operations without CAA authorization.";
+      } else {
+        guidance = "UK CAA rules: fly below 120m, maintain VLOS, stay 150m from crowds. Registration required for drones 250g+. Get a Flyer ID and Operator ID.";
+      }
+      ctaLinks.push(
+        { label: "Register Your Drone", url: "https://register-drones.caa.co.uk" },
+        { label: "Altitude Angel Airspace", url: "https://www.altitude-angel.com" }
+      );
+      break;
+    }
+    case "caac": {
+      if (verdict === "restricted") {
+        guidance = "CAAC restricted airspace. No unauthorized drone flights permitted in this area.";
+      } else {
+        guidance = "CAAC rules: register on the UOM platform, fly below 120m AGL in uncontrolled airspace, maintain VLOS. Real-name registration required for all drones 250g+.";
+      }
+      ctaLinks.push(
+        { label: "UOM Platform", url: "https://uom.caac.gov.cn" }
+      );
+      break;
+    }
+    case "jcab": {
+      if (verdict === "restricted") {
+        guidance = "JCAB restricted airspace. Flight prohibited without permission from the Ministry of Land, Infrastructure, Transport and Tourism.";
+      } else {
+        guidance = "JCAB rules: fly below 150m AGL, maintain VLOS, no flights over crowds or near airports. Register on DIPS 2.0 for flight plans and permissions.";
+      }
+      ctaLinks.push(
+        { label: "DIPS 2.0 Portal", url: "https://www.dips-reg.mlit.go.jp" }
+      );
+      break;
+    }
+    case "tcca": {
+      if (verdict === "restricted") {
+        guidance = "Transport Canada restricted airspace. No drone flights without a Special Flight Operations Certificate (SFOC) or NAV CANADA authorization.";
+      } else {
+        guidance = "Transport Canada rules: fly below 122m (400ft) AGL, maintain VLOS, stay 30m from bystanders. Advanced operations need a pilot certificate and NAV CANADA authorization.";
+      }
+      ctaLinks.push(
+        { label: "NAV CANADA Drone Planning", url: "https://www.navcanada.ca/en/flight-planning/drone-flight-planning.aspx" },
+        { label: "Transport Canada Drones", url: "https://tc.canada.ca/en/aviation/drone-safety" }
       );
       break;
     }

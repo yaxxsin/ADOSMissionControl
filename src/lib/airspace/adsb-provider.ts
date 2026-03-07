@@ -27,32 +27,35 @@ export async function fetchFromAdsbLol(
     const data = await res.json();
     const ac: unknown[] = data.ac ?? [];
 
-    const aircraft: AircraftState[] = ac.map((a: any) => ({
-      icao24: String(a.hex ?? "").toLowerCase(),
-      callsign: typeof a.flight === "string" ? a.flight.trim() || null : null,
-      originCountry: "",
-      lat: Number(a.lat) || 0,
-      lon: Number(a.lon) || 0,
-      altitudeMsl:
-        a.alt_baro != null && a.alt_baro !== "ground"
-          ? Number(a.alt_baro) * FEET_TO_METERS
-          : null,
-      altitudeAgl: null,
-      velocity: a.gs != null ? Number(a.gs) * 0.514444 : null, // knots to m/s
-      heading: a.track != null ? Number(a.track) : null,
-      verticalRate:
-        a.baro_rate != null
-          ? Number(a.baro_rate) * FEET_TO_METERS / 60 // ft/min to m/s
-          : null,
-      squawk: a.squawk != null ? String(a.squawk) : null,
-      category: Number(a.category) || 0,
-      lastSeen: a.seen != null ? Date.now() - Number(a.seen) * 1000 : Date.now(),
-      registration: typeof a.r === "string" ? a.r.trim() || undefined : undefined,
-      aircraftType: typeof a.t === "string" ? a.t.trim() || undefined : undefined,
-    }));
+    const aircraft: AircraftState[] = ac
+      .map((a: any) => ({
+        icao24: String(a.hex ?? "").toLowerCase(),
+        callsign: typeof a.flight === "string" ? a.flight.trim() || null : null,
+        originCountry: "",
+        lat: Number(a.lat) || 0,
+        lon: Number(a.lon) || 0,
+        altitudeMsl:
+          a.alt_baro != null && a.alt_baro !== "ground"
+            ? Number(a.alt_baro) * FEET_TO_METERS
+            : null,
+        altitudeAgl: null,
+        velocity: a.gs != null ? Number(a.gs) * 0.514444 : null, // knots to m/s
+        heading: a.track != null ? Number(a.track) : null,
+        verticalRate:
+          a.baro_rate != null
+            ? Number(a.baro_rate) * FEET_TO_METERS / 60 // ft/min to m/s
+            : null,
+        squawk: a.squawk != null ? String(a.squawk) : null,
+        category: Number(a.category) || 0,
+        lastSeen: a.seen != null ? Date.now() - Number(a.seen) * 1000 : Date.now(),
+        registration: typeof a.r === "string" ? a.r.trim() || undefined : undefined,
+        aircraftType: typeof a.t === "string" ? a.t.trim() || undefined : undefined,
+      }))
+      .filter((a) => !(a.lat === 0 && a.lon === 0));
 
     return { aircraft, timestamp: Date.now(), source: "adsb.lol" };
-  } catch {
+  } catch (err) {
+    console.warn("[adsb.lol] fetch failed:", err);
     return { aircraft: [], timestamp: Date.now(), source: "adsb.lol" };
   }
 }
@@ -74,24 +77,27 @@ export async function fetchFromOpenSky(
     const data = await res.json();
     const states: unknown[][] = data.states ?? [];
 
-    const aircraft: AircraftState[] = states.map((s: any[]) => ({
-      icao24: String(s[0] ?? "").toLowerCase(),
-      callsign: typeof s[1] === "string" ? s[1].trim() || null : null,
-      originCountry: String(s[2] ?? ""),
-      lat: Number(s[6]) || 0,
-      lon: Number(s[5]) || 0,
-      altitudeMsl: s[7] != null ? Number(s[7]) : null, // already meters
-      altitudeAgl: null,
-      velocity: s[9] != null ? Number(s[9]) : null, // already m/s
-      heading: s[10] != null ? Number(s[10]) : null,
-      verticalRate: s[11] != null ? Number(s[11]) : null, // already m/s
-      squawk: s[14] != null ? String(s[14]) : null,
-      category: Number(s[16]) || 0,
-      lastSeen: data.time ? Number(data.time) * 1000 : Date.now(),
-    }));
+    const aircraft: AircraftState[] = states
+      .map((s: any[]) => ({
+        icao24: String(s[0] ?? "").toLowerCase(),
+        callsign: typeof s[1] === "string" ? s[1].trim() || null : null,
+        originCountry: String(s[2] ?? ""),
+        lat: Number(s[6]) || 0,
+        lon: Number(s[5]) || 0,
+        altitudeMsl: s[7] != null ? Number(s[7]) : null, // already meters
+        altitudeAgl: null,
+        velocity: s[9] != null ? Number(s[9]) : null, // already m/s
+        heading: s[10] != null ? Number(s[10]) : null,
+        verticalRate: s[11] != null ? Number(s[11]) : null, // already m/s
+        squawk: s[14] != null ? String(s[14]) : null,
+        category: Number(s[16]) || 0,
+        lastSeen: data.time ? Number(data.time) * 1000 : Date.now(),
+      }))
+      .filter((a) => !(a.lat === 0 && a.lon === 0));
 
     return { aircraft, timestamp: Date.now(), source: "opensky" };
-  } catch {
+  } catch (err) {
+    console.warn("[opensky] fetch failed:", err);
     return { aircraft: [], timestamp: Date.now(), source: "opensky" };
   }
 }

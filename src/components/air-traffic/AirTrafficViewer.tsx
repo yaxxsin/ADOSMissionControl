@@ -23,6 +23,7 @@ import { fetchAircraft } from "@/lib/airspace/adsb-provider";
 import { loadAllAirspaceZones } from "@/lib/airspace/airspace-provider";
 import { computeAllThreats } from "@/lib/airspace/threat-calculator";
 import { assessFlyability } from "@/lib/airspace/flyability";
+import { lookupJurisdiction } from "@/lib/airspace/jurisdiction-lookup";
 import { randomId } from "@/lib/utils";
 import type { AircraftState, ThreatLevel, TrafficAlert } from "@/lib/airspace/types";
 
@@ -37,7 +38,6 @@ import { AirspaceInfoPanel } from "./panels/AirspaceInfoPanel";
 import { AlertsPanel } from "./panels/AlertsPanel";
 import { LocationSearchPanel } from "./panels/LocationSearchPanel";
 import { FlyabilityOverlay } from "./overlays/FlyabilityOverlay";
-import { AltitudeSlider } from "./overlays/AltitudeSlider";
 import { TimelineScrubber } from "./overlays/TimelineScrubber";
 import { AirTrafficMapControls } from "./controls/AirTrafficMapControls";
 import { AirTrafficToolbar } from "./controls/AirTrafficToolbar";
@@ -141,7 +141,7 @@ export function AirTrafficViewer() {
       const lon = CesiumMath.toDegrees(cartographic.longitude);
 
       try {
-        const result = await fetchAircraft(lat, lon, 50);
+        const result = await fetchAircraft(lat, lon, 250);
         aircraftResult = result.aircraft;
         useTrafficStore.getState().recordSuccess(result.source);
       } catch (err) {
@@ -227,6 +227,8 @@ export function AirTrafficViewer() {
 
       const state = useAirspaceStore.getState();
       const trafficState = useTrafficStore.getState();
+      const autoJurisdiction = lookupJurisdiction(lat, lon);
+      const effectiveJurisdiction = autoJurisdiction ?? jurisdiction;
       const result = assessFlyability(
         lat,
         lon,
@@ -234,7 +236,7 @@ export function AirTrafficViewer() {
         state.notams,
         state.tfrs,
         Array.from(trafficState.aircraft.values()),
-        jurisdiction
+        effectiveJurisdiction
       );
       setFlyability(result);
     }, ScreenSpaceEventType.LEFT_CLICK);
@@ -276,7 +278,6 @@ export function AirTrafficViewer() {
       {/* Overlays */}
       <ConnectionBanner />
       <FlyabilityOverlay />
-      <AltitudeSlider />
       <TimelineScrubber />
       <StatsOverlay />
       <ViewportStatsOverlay />

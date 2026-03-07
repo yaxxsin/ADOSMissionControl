@@ -127,7 +127,7 @@ export default function CesiumScene({
       );
 
       // Terrain rendering settings
-      viewer.scene.globe.depthTestAgainstTerrain = false;
+      viewer.scene.globe.depthTestAgainstTerrain = true;
       viewer.scene.globe.enableLighting = false;
 
       // Prevent camera from clipping through terrain at deep zoom

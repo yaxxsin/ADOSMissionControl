@@ -63,7 +63,6 @@ function getIconSize(mode: DisplayMode): number {
 export function AircraftEntities({ viewer }: AircraftEntitiesProps) {
   const aircraft = useTrafficStore((s) => s.aircraft);
   const threatLevels = useTrafficStore((s) => s.threatLevels);
-  const altitudeFilter = useTrafficStore((s) => s.altitudeFilter);
   const selectedAircraft = useTrafficStore((s) => s.selectedAircraft);
   const setSelectedAircraft = useTrafficStore((s) => s.setSelectedAircraft);
   const setDisplayMode = useTrafficStore((s) => s.setDisplayMode);
@@ -189,8 +188,6 @@ export function AircraftEntities({ viewer }: AircraftEntitiesProps) {
     const currentIcaos = new Set<string>();
 
     for (const [icao24, ac] of aircraft) {
-      // Filter by altitude
-      if (ac.altitudeMsl !== null && ac.altitudeMsl > altitudeFilter) continue;
       // Skip zero-position aircraft
       if (ac.lat === 0 && ac.lon === 0) continue;
 
@@ -232,7 +229,7 @@ export function AircraftEntities({ viewer }: AircraftEntitiesProps) {
           alignedAxis: Cartesian3.UNIT_Z,
           verticalOrigin: VerticalOrigin.CENTER,
           horizontalOrigin: HorizontalOrigin.CENTER,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          disableDepthTestDistance: 5000,
         });
 
         const label = lblColl.add({
@@ -248,7 +245,7 @@ export function AircraftEntities({ viewer }: AircraftEntitiesProps) {
           style: LabelStyle.FILL_AND_OUTLINE,
           verticalOrigin: VerticalOrigin.BOTTOM,
           pixelOffset: new Cartesian2(0, -16),
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          disableDepthTestDistance: 5000,
           showBackground: true,
           backgroundColor: Color.fromCssColorString("#0a0a0f").withAlpha(0.7),
           backgroundPadding: new Cartesian2(4, 2),
@@ -268,7 +265,7 @@ export function AircraftEntities({ viewer }: AircraftEntitiesProps) {
     }
 
     viewer.scene.requestRender();
-  }, [viewer, aircraft, threatLevels, altitudeFilter, selectedAircraft, trafficVisible]);
+  }, [viewer, aircraft, threatLevels, selectedAircraft, trafficVisible]);
 
   return null;
 }

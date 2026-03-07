@@ -75,7 +75,7 @@ export function NotamEntities({ viewer }: NotamEntitiesProps) {
           style: LabelStyle.FILL_AND_OUTLINE,
           verticalOrigin: VerticalOrigin.BOTTOM,
           pixelOffset: new Cartesian2(0, -10),
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          disableDepthTestDistance: 5000,
           showBackground: true,
           backgroundColor: Color.fromCssColorString("#0a0a0f").withAlpha(0.7),
           backgroundPadding: new Cartesian2(4, 2),

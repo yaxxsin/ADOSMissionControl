@@ -156,7 +156,7 @@ export function AirportEntities({ viewer }: AirportEntitiesProps) {
         position,
         pixelSize: isGlobal ? 3 : isRegional ? 4 : 5,
         color: isClosest ? DOT_COLOR_BRIGHT : DOT_COLOR,
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        disableDepthTestDistance: 5000,
       });
 
       // Labels
@@ -183,7 +183,7 @@ export function AirportEntities({ viewer }: AirportEntitiesProps) {
           verticalOrigin: VerticalOrigin.BOTTOM,
           horizontalOrigin: HorizontalOrigin.LEFT,
           pixelOffset: new Cartesian3(6, -4, 0),
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          disableDepthTestDistance: 5000,
           scaleByDistance: new NearFarScalar(5_000, 1.0, 500_000, 0.4),
         });
       }
