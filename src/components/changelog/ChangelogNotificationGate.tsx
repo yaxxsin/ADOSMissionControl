@@ -8,33 +8,9 @@
 
 "use client";
 
-import { Component, type ReactNode } from "react";
 import { useConvexAvailable } from "@/app/ConvexClientProvider";
+import { SilentErrorBoundary } from "@/components/ui/SilentErrorBoundary";
 import { ChangelogNotificationModal } from "./ChangelogNotificationModal";
-
-/** Silent error boundary — logs and renders nothing on failure. */
-class ChangelogErrorBoundary extends Component<
-  { children: ReactNode },
-  { hasError: boolean }
-> {
-  constructor(props: { children: ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError(): { hasError: boolean } {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: Error) {
-    console.warn("[changelog-notification] Silently caught error:", error.message);
-  }
-
-  render() {
-    if (this.state.hasError) return null;
-    return this.props.children;
-  }
-}
 
 function ChangelogNotificationInner() {
   const convexAvailable = useConvexAvailable();
@@ -46,8 +22,8 @@ function ChangelogNotificationInner() {
 
 export function ChangelogNotificationGate() {
   return (
-    <ChangelogErrorBoundary>
+    <SilentErrorBoundary label="changelog-notification">
       <ChangelogNotificationInner />
-    </ChangelogErrorBoundary>
+    </SilentErrorBoundary>
   );
 }

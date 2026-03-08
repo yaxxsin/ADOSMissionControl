@@ -379,10 +379,10 @@ export function AirTrafficViewer() {
 
   return (
     <div className="flex-1 relative min-w-0 h-full">
-      {convexAvailable && <ConvexCesiumToken onToken={handleCesiumToken} />}
-      {convexAvailable && <ConvexOpenAIPKey onKey={handleOpenAIPKey} />}
       {convexAvailable && !convexFailed && (
         <ConvexErrorBoundary onError={handleConvexError}>
+          <ConvexCesiumToken onToken={handleCesiumToken} />
+          <ConvexOpenAIPKey onKey={handleOpenAIPKey} />
           <ConvexAdsbCache onData={handleConvexAdsbData} />
         </ConvexErrorBoundary>
       )}
