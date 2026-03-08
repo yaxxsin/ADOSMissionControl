@@ -1,25 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "convex/react";
 import { Pencil, Trash2, MessageSquare } from "lucide-react";
-import { communityApi } from "@/lib/community-api";
 import { formatDate } from "@/lib/utils";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import type { ChangelogEntry as ChangelogEntryType } from "@/lib/community-types";
 
 interface ChangelogEntryProps {
   entry: ChangelogEntryType;
+  commentCount?: number;
   onEdit?: (entry: ChangelogEntryType) => void;
   onDelete?: (id: string) => void;
 }
 
-export function ChangelogEntry({ entry, onEdit, onDelete }: ChangelogEntryProps) {
+export function ChangelogEntry({ entry, commentCount = 0, onEdit, onDelete }: ChangelogEntryProps) {
   const isAdmin = useIsAdmin();
-  const commentCount = useQuery(communityApi.comments.count, {
-    targetType: "changelog",
-    targetId: entry._id,
-  });
 
   return (
     <div className="relative pl-6 pb-6 border-l border-border-default last:border-l-0">
@@ -103,7 +98,7 @@ export function ChangelogEntry({ entry, onEdit, onDelete }: ChangelogEntryProps)
           </div>
         )}
 
-        {typeof commentCount === "number" && commentCount > 0 && (
+        {commentCount > 0 && (
           <Link
             href={`/community/changelog/${entry._id}`}
             className="inline-flex items-center gap-1 text-xs text-text-tertiary hover:text-text-secondary transition-colors"

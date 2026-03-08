@@ -2,8 +2,6 @@
 
 import Link from "next/link";
 import { MessageSquare } from "lucide-react";
-import { useQuery } from "convex/react";
-import { communityApi } from "@/lib/community-api";
 import { formatDate } from "@/lib/utils";
 import { UpvoteButton } from "./UpvoteButton";
 import { StatusBadge } from "./StatusBadge";
@@ -12,13 +10,10 @@ import type { CommunityItem } from "@/lib/community-types";
 
 interface ItemCardProps {
   item: CommunityItem;
+  commentCount?: number;
 }
 
-export function ItemCard({ item }: ItemCardProps) {
-  const commentCount = useQuery(communityApi.comments.count, {
-    targetType: "community_item",
-    targetId: item._id,
-  });
+export function ItemCard({ item, commentCount = 0 }: ItemCardProps) {
 
   return (
     <div className="flex items-start gap-3 p-3 bg-bg-secondary border border-border-default rounded hover:border-border-hover transition-colors">
@@ -33,7 +28,7 @@ export function ItemCard({ item }: ItemCardProps) {
         <div className="flex items-center gap-2 flex-wrap">
           <StatusBadge status={item.status} />
           <CategoryBadge category={item.category} />
-          {commentCount !== undefined && commentCount > 0 && (
+          {commentCount > 0 && (
             <span className="flex items-center gap-0.5 text-xs text-text-tertiary">
               <MessageSquare size={10} />
               {commentCount}

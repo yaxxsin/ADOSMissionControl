@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { Plus } from "lucide-react";
 import { communityApi } from "@/lib/community-api";
@@ -15,6 +15,20 @@ export function ChangelogTimeline() {
   const isAdmin = useIsAdmin();
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<ChangelogEntryType | undefined>();
+
+  // Batch comment counts for all entries (eliminates N+1 queries)
+  const commentTargets = useMemo(
+    () =>
+      entries?.map((e: ChangelogEntryType) => ({
+        targetType: "changelog" as const,
+        targetId: e._id,
+      })) ?? [],
+    [entries]
+  );
+  const commentCounts = useQuery(
+    communityApi.comments.countBatch,
+    commentTargets.length > 0 ? { targets: commentTargets } : "skip"
+  );
 
   const handleEdit = (entry: ChangelogEntryType) => {
     setEditingEntry(entry);
@@ -66,6 +80,7 @@ export function ChangelogTimeline() {
             <ChangelogEntry
               key={entry._id}
               entry={entry}
+              commentCount={commentCounts?.[`changelog:${entry._id}`] ?? 0}
               onEdit={handleEdit}
               onDelete={handleDelete}
             />

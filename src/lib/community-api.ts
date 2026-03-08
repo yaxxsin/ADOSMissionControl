@@ -36,6 +36,7 @@ export const communityApi = {
     create: makeFunctionReference<"mutation">("comments:create"),
     remove: makeFunctionReference<"mutation">("comments:remove"),
     count: makeFunctionReference<"query">("comments:countByTarget"),
+    countBatch: makeFunctionReference<"query">("comments:countByTargets"),
   },
   contact: {
     submit: makeFunctionReference<"mutation">("contactSubmissions:submit"),

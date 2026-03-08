@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { Plus } from "lucide-react";
 import { communityApi } from "@/lib/community-api";
@@ -19,6 +19,20 @@ export function ItemList() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   const items = useQuery(communityApi.items.list, { type, sort });
+
+  // Batch comment counts for all items (eliminates N+1 queries)
+  const commentTargets = useMemo(
+    () =>
+      items?.map((item: CommunityItem) => ({
+        targetType: "community_item" as const,
+        targetId: item._id,
+      })) ?? [],
+    [items]
+  );
+  const commentCounts = useQuery(
+    communityApi.comments.countBatch,
+    commentTargets.length > 0 ? { targets: commentTargets } : "skip"
+  );
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
@@ -107,7 +121,11 @@ export function ItemList() {
       ) : (
         <div className="space-y-2">
           {items.map((item: CommunityItem) => (
-            <ItemCard key={item._id} item={item} />
+            <ItemCard
+              key={item._id}
+              item={item}
+              commentCount={commentCounts?.[`community_item:${item._id}`] ?? 0}
+            />
           ))}
         </div>
       )}
