@@ -1,11 +1,13 @@
 "use client";
 
+import { useMemo } from "react";
 import type {
   BetaflightTarget, BetaflightRelease,
   BetaflightBuildOptions, BetaflightBuildStatus,
 } from "@/lib/protocol/firmware/types";
 import { HardDrive, Zap, RefreshCw, Wrench, Loader2 } from "lucide-react";
 import { Select } from "@/components/ui/select";
+import { buildBetaflightSelectGroups } from "@/lib/boards";
 
 interface Props {
   bfTargets: BetaflightTarget[];
@@ -61,6 +63,8 @@ export function FirmwareBetaflightSection({
   bfBuildOptions, bfSelectedOptions, bfBuildStatus, bfBuildPolling,
   onCloudBuild, onToggleOption, onRetry,
 }: Props) {
+  const targetGroups = useMemo(() => buildBetaflightSelectGroups(bfTargets), [bfTargets])
+
   return (
     <>
       <div className="bg-bg-secondary border border-border-default p-4 space-y-3">
@@ -89,7 +93,7 @@ export function FirmwareBetaflightSection({
           disabled={bfLoading || bfTargets.length === 0}
           placeholder="Loading targets..."
           searchable
-          options={bfTargets.map((t) => ({
+          options={targetGroups.length > 0 ? targetGroups : bfTargets.map((t) => ({
             value: t.target, label: t.target,
             description: `${t.manufacturer} / ${t.mcu}`,
           }))}

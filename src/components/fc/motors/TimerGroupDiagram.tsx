@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { BoardProfile, TimerGroupConflict } from "@/lib/board-profiles";
-import { getOutputProtocol, UNKNOWN_BOARD, getBoardProfileList, getBoardProfileByName } from "@/lib/board-profiles";
+import { getOutputProtocol, UNKNOWN_BOARD, getBoardProfileListGrouped, getBoardProfileByName } from "@/lib/board-profiles";
 import { getServoFunctionLabel } from "@/lib/servo-functions";
 import { ChevronDown, ChevronRight, Cpu } from "lucide-react";
 import { Select } from "@/components/ui/select";
@@ -76,7 +76,7 @@ export function TimerGroupDiagram({
   const [expanded, setExpanded] = useState(true);
   const [selectedBoardName, setSelectedBoardName] = useState("");
 
-  const boardList = useMemo(() => getBoardProfileList(), []);
+  const boardGroups = useMemo(() => getBoardProfileListGrouped(), []);
 
   // Build set of conflicting outputs for quick lookup
   const conflictOutputs = useMemo(() => {
@@ -108,7 +108,7 @@ export function TimerGroupDiagram({
             }}
             placeholder="Select board..."
             searchable
-            options={boardList.map((b) => ({ value: b.name, label: `${b.vendor} — ${b.name}` }))}
+            options={boardGroups}
             className="text-[10px]"
           />
         </div>

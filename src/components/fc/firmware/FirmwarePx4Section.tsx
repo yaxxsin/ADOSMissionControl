@@ -1,8 +1,10 @@
 "use client";
 
+import { useMemo } from "react";
 import type { PX4Release, PX4Board } from "@/lib/protocol/firmware/types";
 import { HardDrive, Zap, RefreshCw } from "lucide-react";
 import { Select } from "@/components/ui/select";
+import { buildPX4SelectGroups } from "@/lib/boards";
 
 interface Props {
   px4Releases: PX4Release[];

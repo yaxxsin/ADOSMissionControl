@@ -1,9 +1,12 @@
 "use client";
 
+import { useMemo } from "react";
 import type { ManifestBoard } from "@/lib/protocol/firmware/types";
+import type { SelectOptionGroup } from "@/components/ui/select-types";
 import { HardDrive, Zap, RefreshCw } from "lucide-react";
 import { Select } from "@/components/ui/select";
 import { VEHICLE_TYPES, versionLabel } from "./firmware-constants";
+import { inferBoardMetadata } from "@/lib/boards";
 
 interface Props {
   apBoards: ManifestBoard[];
@@ -26,6 +29,41 @@ export function FirmwareArduPilotSection({
   selectedApVersion, setSelectedApVersion,
   onRetry,
 }: Props) {
+  const boardGroups = useMemo((): SelectOptionGroup[] => {
+    if (apBoards.length === 0) return []
+
+    const grouped = new Map<string, { name: string; mcu: string }[]>()
+
+    for (const board of apBoards) {
+      const meta = inferBoardMetadata(board.name)
+      const vendor = meta.vendor
+      const mcu = meta.mcu
+
+      const list = grouped.get(vendor) ?? []
+      list.push({ name: board.name, mcu })
+      grouped.set(vendor, list)
+    }
+
+    const groups: SelectOptionGroup[] = []
+    const sortedVendors = Array.from(grouped.keys()).sort()
+
+    for (const vendor of sortedVendors) {
+      const boards = grouped.get(vendor) ?? []
+      groups.push({
+        label: vendor,
+        options: boards
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((b) => ({
+            value: b.name,
+            label: b.name,
+            description: b.mcu !== 'Unknown' ? b.mcu : undefined,
+          })),
+      })
+    }
+
+    return groups
+  }, [apBoards])
+
   return (
     <>
       <div className="bg-bg-secondary border border-border-default p-4 space-y-3">
@@ -54,7 +92,7 @@ export function FirmwareArduPilotSection({
           disabled={apLoading || apBoards.length === 0}
           placeholder="Loading boards..."
           searchable
-          options={apBoards.map((b) => ({ value: b.name, label: b.name }))}
+          options={boardGroups.length > 0 ? boardGroups : apBoards.map((b) => ({ value: b.name, label: b.name }))}
         />
         <p className="text-[10px] text-text-tertiary">{apBoards.length} boards available from ArduPilot manifest</p>
       </div>
