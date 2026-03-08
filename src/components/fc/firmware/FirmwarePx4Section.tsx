@@ -24,6 +24,8 @@ export function FirmwarePx4Section({
   selectedPx4Board, setSelectedPx4Board,
   px4Boards, onRetry,
 }: Props) {
+  const boardGroups = useMemo(() => buildPX4SelectGroups(px4Boards), [px4Boards])
+
   return (
     <>
       <div className="bg-bg-secondary border border-border-default p-4 space-y-3">
@@ -70,7 +72,7 @@ export function FirmwarePx4Section({
           disabled={px4Boards.length === 0}
           placeholder={selectedPx4Release ? (px4Boards.length === 0 ? "No boards in this release" : "Select board...") : "Select release first"}
           searchable
-          options={px4Boards.map((b) => ({
+          options={boardGroups.length > 0 ? boardGroups : px4Boards.map((b) => ({
             value: b.name,
             label: b.displayName,
             description: `${(b.size / 1024 / 1024).toFixed(1)} MB`,
