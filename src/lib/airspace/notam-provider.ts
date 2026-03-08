@@ -7,7 +7,8 @@
 
 import type { BoundingBox, Notam } from "./types";
 
-const FAA_NOTAM_URL = "https://notams.aim.faa.gov/notamSearch/search";
+// Server-side proxy bypasses FAA's missing CORS headers
+const NOTAM_PROXY_URL = "/api/airspace/notams";
 
 // Major US airports for NOTAM queries (ICAO codes)
 const US_AIRPORTS = [
@@ -45,25 +46,7 @@ export async function fetchNotams(bbox: BoundingBox): Promise<Notam[]> {
 }
 
 async function fetchAirportNotams(icao: string): Promise<Notam[]> {
-  const body = {
-    searchType: 0,
-    designatorsForLocation: icao,
-    notamType: "D",
-    radius: 10,
-  };
-
-  const resp = await fetch(FAA_NOTAM_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({
-      searchType: "0",
-      designatorsForLocation: icao,
-      notamType: "D",
-      radius: "10",
-    }),
-  });
+  const resp = await fetch(`${NOTAM_PROXY_URL}?icao=${encodeURIComponent(icao)}`);
 
   if (!resp.ok) return [];
 
