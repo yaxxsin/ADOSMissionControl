@@ -95,8 +95,20 @@ export const useTrafficStore = create<TrafficStoreState>()((set, get) => ({
     }
 
     // Append positions to trails for tracked aircraft
-    const trails = new Map(get().aircraftTrails);
     const tracked = get().trackedAircraft;
+    if (tracked.size === 0) {
+      // No tracked aircraft — skip trail cloning entirely
+      const existingTrails = get().aircraftTrails;
+      if (existingTrails.size > 0) {
+        // Prune any orphaned trails
+        set({ aircraft: merged, threatLevels: threats, aircraftTrails: new Map(), lastUpdate: now });
+      } else {
+        set({ aircraft: merged, threatLevels: threats, lastUpdate: now });
+      }
+      return;
+    }
+
+    const trails = new Map(get().aircraftTrails);
     for (const ac of incoming) {
       if (tracked.has(ac.icao24) && ac.lat && ac.lon) {
         const trail = trails.get(ac.icao24) ?? [];

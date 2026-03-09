@@ -234,10 +234,15 @@ export const useDiagnosticsStore = create<DiagnosticsStoreState>((set, get) => (
     const now = Date.now();
     const cutoff = now - RATE_WINDOW_MS;
     const rates = get().messageRates;
-    for (const entry of rates.values()) {
+    for (const [msgId, entry] of rates) {
       // Trim old timestamps
       entry.timestamps = entry.timestamps.filter((t) => t > cutoff);
-      entry.hz = entry.timestamps.length / (RATE_WINDOW_MS / 1000);
+      if (entry.timestamps.length === 0) {
+        // Prune stale entries to prevent unbounded Map growth
+        rates.delete(msgId);
+      } else {
+        entry.hz = entry.timestamps.length / (RATE_WINDOW_MS / 1000);
+      }
     }
     set({ messageRates: new Map(rates) });
   },
@@ -251,39 +256,31 @@ export const useDiagnosticsStore = create<DiagnosticsStoreState>((set, get) => (
   },
 
   recordParseEvent: () => {
-    const ts = get()._parseTimestamps;
-    ts.push(performance.now());
-    if (ts.length > MAX_PERF_SAMPLES) ts.splice(0, ts.length - MAX_PERF_SAMPLES);
+    get()._parseTimestamps.push(performance.now());
   },
 
   recordCallbackLatency: (latencyMs) => {
-    const arr = get()._callbackLatencies;
-    arr.push(latencyMs);
-    if (arr.length > MAX_PERF_SAMPLES) arr.splice(0, arr.length - MAX_PERF_SAMPLES);
+    get()._callbackLatencies.push(latencyMs);
   },
 
   recordFrameProcessingTime: (timeMs) => {
-    const arr = get()._frameProcessingTimes;
-    arr.push(timeMs);
-    if (arr.length > MAX_PERF_SAMPLES) arr.splice(0, arr.length - MAX_PERF_SAMPLES);
+    get()._frameProcessingTimes.push(timeMs);
   },
 
   updatePerformanceMetrics: () => {
     const now = performance.now();
     const cutoff = now - PERF_WINDOW_MS;
 
-    const ts = get()._parseTimestamps;
-    const recentParses = ts.filter((t) => t > cutoff);
+    const tsArr = get()._parseTimestamps.toArray();
+    const recentParses = tsArr.filter((t) => t > cutoff);
     const parseRateHz = recentParses.length / (PERF_WINDOW_MS / 1000);
 
-    const latencies = get()._callbackLatencies;
-    const recentLatencies = latencies.slice(-100);
+    const recentLatencies = get()._callbackLatencies.last(100);
     const avgCallbackLatencyMs = recentLatencies.length > 0
       ? recentLatencies.reduce((a, b) => a + b, 0) / recentLatencies.length
       : 0;
 
-    const frameTimes = get()._frameProcessingTimes;
-    const recentFrameTimes = frameTimes.slice(-100);
+    const recentFrameTimes = get()._frameProcessingTimes.last(100);
     const frameProcessingTimeMs = recentFrameTimes.length > 0
       ? recentFrameTimes.reduce((a, b) => a + b, 0) / recentFrameTimes.length
       : 0;
@@ -309,8 +306,8 @@ export const useDiagnosticsStore = create<DiagnosticsStoreState>((set, get) => (
       commandQueueSnapshot: { pendingCount: 0, entries: [], totalSent: 0, totalSuccess: 0, totalFailed: 0 },
       ringBufferInfo: [],
       performanceMetrics: { parseRateHz: 0, avgCallbackLatencyMs: 0, frameProcessingTimeMs: 0, lastUpdated: 0 },
-      _parseTimestamps: [],
-      _callbackLatencies: [],
-      _frameProcessingTimes: [],
+      _parseTimestamps: new RingBuffer<number>(MAX_PERF_SAMPLES),
+      _callbackLatencies: new RingBuffer<number>(MAX_PERF_SAMPLES),
+      _frameProcessingTimes: new RingBuffer<number>(MAX_PERF_SAMPLES),
     }),
 }));
