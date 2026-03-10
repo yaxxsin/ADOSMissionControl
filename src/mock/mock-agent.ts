@@ -16,6 +16,8 @@ import type {
   SuiteInfo,
   DroneNetEnrollment,
   NetworkPeer,
+  PairingInfo,
+  ClaimResponse,
 } from "@/lib/agent/types";
 
 const jitter = (base: number, range: number) =>
@@ -541,6 +543,37 @@ export class MockAgentClient {
       battery_percent: Math.max(0, Math.min(100, Math.round(jitter(p.battery_percent, 2)))),
       distance_m: Math.max(0, Math.round(jitter(p.distance_m, 15))),
     }));
+  }
+
+  // ── Pairing ──────────────────────────────────────────────
+
+  async getPairingInfo(): Promise<PairingInfo> {
+    await delay(60);
+    return {
+      device_id: "ados-alpha-1-cm4",
+      name: "ADOS Agent (Alpha-1)",
+      version: "0.1.0",
+      board: "Raspberry Pi CM4",
+      paired: true,
+      owner_id: "demo-user",
+      paired_at: startTime,
+      mdns_host: "ados-alpha-1.local",
+    };
+  }
+
+  async claimLocally(_userId: string): Promise<ClaimResponse> {
+    await delay(200);
+    return {
+      api_key: "demo-api-key-" + Math.random().toString(36).slice(2, 10),
+      device_id: "ados-alpha-1-cm4",
+      name: "ADOS Agent (Alpha-1)",
+      mdns_host: "ados-alpha-1.local",
+    };
+  }
+
+  async unpairAgent(): Promise<CommandResult> {
+    await delay(150);
+    return { success: true, message: "Agent unpaired" };
   }
 }
 

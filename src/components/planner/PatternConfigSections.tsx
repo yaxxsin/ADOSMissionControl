@@ -21,6 +21,8 @@ export function SurveyConfig() {
   const surveyConfig = usePatternStore((s) => s.surveyConfig);
   const updateSurveyConfig = usePatternStore((s) => s.updateSurveyConfig);
   const drawnPolygons = useDrawingStore((s) => s.polygons);
+  const selectedPolygonIds = useDrawingStore((s) => s.selectedPolygonIds);
+  const togglePolygonSelection = useDrawingStore((s) => s.togglePolygonSelection);
 
   const selectedCamera = useMemo(
     () => CAMERA_PROFILES.find((c) => c.name === (surveyConfig as { _cameraName?: string })._cameraName),
@@ -56,15 +58,32 @@ export function SurveyConfig() {
 
   return (
     <>
-      <div className="flex items-center gap-1.5 text-[10px] font-mono text-text-tertiary">
-        <Grid3X3 size={12} />
-        <span>
-          {surveyConfig.polygon
-            ? `${surveyConfig.polygon.length} vertices`
-            : drawnPolygons.length > 0
-              ? `Using last drawn polygon (${drawnPolygons[drawnPolygons.length - 1].vertices.length} pts)`
-              : "Draw a polygon on map first"}
-        </span>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-1.5 text-[10px] font-mono text-text-tertiary">
+          <Grid3X3 size={12} />
+          <span>
+            {surveyConfig.polygon
+              ? `${surveyConfig.polygon.length} vertices`
+              : drawnPolygons.length > 0
+                ? `${selectedPolygonIds.length} of ${drawnPolygons.length} polygon${drawnPolygons.length > 1 ? "s" : ""} selected`
+                : "Draw a polygon on map first"}
+          </span>
+        </div>
+        {!surveyConfig.polygon && drawnPolygons.length > 1 && (
+          <div className="flex flex-col gap-0.5 pl-4">
+            {drawnPolygons.map((poly, i) => (
+              <label key={poly.id} className="flex items-center gap-1.5 text-[10px] font-mono text-text-secondary cursor-pointer hover:text-text-primary">
+                <input
+                  type="checkbox"
+                  checked={selectedPolygonIds.includes(poly.id)}
+                  onChange={() => togglePolygonSelection(poly.id)}
+                  className="accent-accent-primary w-3 h-3"
+                />
+                Polygon {i + 1} ({poly.vertices.length} pts)
+              </label>
+            ))}
+          </div>
+        )}
       </div>
       <Select label="Camera Profile" options={CAMERA_OPTIONS}
         value={(surveyConfig as { _cameraName?: string })._cameraName ?? ""} onChange={handleCameraChange} />
@@ -84,6 +103,16 @@ export function SurveyConfig() {
         onChange={(v) => updateSurveyConfig({ entryLocation: v as "topLeft" | "topRight" | "bottomLeft" | "bottomRight" })} />
       <Toggle label="Alternate Transects" checked={surveyConfig.flyAlternateTransects ?? false}
         onChange={(v) => updateSurveyConfig({ flyAlternateTransects: v })} />
+      <Toggle label="Tie Lines" checked={surveyConfig.tieLines ?? false}
+        onChange={(v) => updateSurveyConfig({ tieLines: v })} />
+      {surveyConfig.tieLines && (
+        <div className="grid grid-cols-2 gap-2">
+          <Input label="Tie Angle" type="number" unit="deg" value={String(surveyConfig.tieLineAngle ?? 90)}
+            onChange={(e) => updateSurveyConfig({ tieLineAngle: parseFloat(e.target.value) || 90 })} />
+          <Input label="Tie Spacing" type="number" unit="m" value={String(surveyConfig.tieLineSpacing ?? 25)}
+            onChange={(e) => updateSurveyConfig({ tieLineSpacing: parseFloat(e.target.value) || 25 })} />
+        </div>
+      )}
       <Input label="Camera Trigger Dist" type="number" unit="m" placeholder="0 = off"
         value={String(surveyConfig.cameraTriggerDistance ?? 0)}
         onChange={(e) => updateSurveyConfig({ cameraTriggerDistance: parseFloat(e.target.value) || 0 })} />

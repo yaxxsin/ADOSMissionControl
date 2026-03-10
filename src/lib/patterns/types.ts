@@ -24,6 +24,12 @@ export interface SurveyConfig {
   cameraTriggerDistance: number;
   /** Enable crosshatch: run survey twice at gridAngle and gridAngle+90. */
   crosshatch?: boolean;
+  /** Enable tie lines (second pass at configurable angle/spacing for mag surveys). */
+  tieLines?: boolean;
+  /** Tie line angle offset from main grid in degrees (default 90). */
+  tieLineAngle?: number;
+  /** Tie line spacing in meters (independent of main lineSpacing). */
+  tieLineSpacing?: number;
   /** Altitude AGL for generated waypoints, in meters. */
   altitude: number;
   /** Cruise speed for generated waypoints, in m/s. */

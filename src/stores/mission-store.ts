@@ -15,6 +15,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import type { Mission, Waypoint, WaypointCommand, MissionState, SuiteType } from "@/lib/types";
 import type { MissionItem } from "@/lib/protocol/types";
 import { useDroneManager } from "./drone-manager";
+import { usePlannerStore } from "./planner-store";
 import { indexedDBStorage } from "@/lib/storage";
 
 /** Maximum undo/redo history depth. */
@@ -202,9 +203,12 @@ export const useMissionStore = create<MissionStoreState>()(
       DO_SET_ROI_NONE: 197,
     } satisfies Record<WaypointCommand, number>;
 
+    const frameMap: Record<string, number> = { relative: 3, absolute: 0, terrain: 10 };
+    const altFrame = frameMap[usePlannerStore.getState().defaultFrame] ?? 3;
+
     const items: MissionItem[] = waypoints.map((wp, i) => ({
       seq: i,
-      frame: 3,     // MAV_FRAME_GLOBAL_RELATIVE_ALT
+      frame: altFrame,
       command: cmdMap[wp.command ?? "WAYPOINT"] ?? 16,
       current: i === 0 ? 1 : 0,
       autocontinue: 1,

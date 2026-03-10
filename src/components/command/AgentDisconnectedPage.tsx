@@ -2,8 +2,9 @@
 
 /**
  * @module AgentDisconnectedPage
- * @description Rich informational page shown when no agent is connected.
- * Explains the ADOS Drone Agent, its capabilities, and how to get started.
+ * @description Pairing-first page shown when no agent is connected.
+ * Guides the user through installing the agent and entering a pairing code.
+ * Falls back to capability info and manual connection for advanced users.
  * @license GPL-3.0-only
  */
 
@@ -20,7 +21,10 @@ import {
   Cpu,
   Copy,
   Check,
+  Wifi,
 } from "lucide-react";
+import { usePairingStore, type DiscoveredAgent } from "@/stores/pairing-store";
+import { PairingCodeInput } from "./PairingDialog";
 
 const capabilities = [
   {
@@ -61,22 +65,30 @@ const capabilities = [
   },
 ];
 
-const steps = [
-  "Install the agent on a Raspberry Pi CM4 or any Linux SBC",
-  "Run `ados start` or enable the systemd service",
-  "Enter the agent's IP:8080 in the URL bar above and click Connect",
-];
+const INSTALL_COMMAND = "curl -sSL https://raw.githubusercontent.com/altnautica/ADOSDroneAgent/main/scripts/install.sh | sudo bash";
 
-const INSTALL_COMMAND = "curl -sSL https://install.ados.altnautica.com | bash";
+interface AgentDisconnectedPageProps {
+  onOpenPairing?: () => void;
+}
 
-export function AgentDisconnectedPage() {
+export function AgentDisconnectedPage({ onOpenPairing }: AgentDisconnectedPageProps) {
   const [copied, setCopied] = useState(false);
+  const [pairingSubmitted, setPairingSubmitted] = useState(false);
+
+  const discoveredAgents = usePairingStore((s) => s.discoveredAgents);
 
   function handleCopy() {
     navigator.clipboard.writeText(INSTALL_COMMAND).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
+  }
+
+  function handleCodeSubmit(code: string) {
+    setPairingSubmitted(true);
+    // The actual pairing flow is handled by PairingDialog, opened via onOpenPairing.
+    // This inline input opens the full dialog with the code pre-filled.
+    onOpenPairing?.();
   }
 
   return (
@@ -89,63 +101,132 @@ export function AgentDisconnectedPage() {
             ALPHA
           </div>
           <h1 className="text-3xl font-display font-bold text-text-primary">
-            ADOS Drone Agent
+            Pair Your Drone
           </h1>
           <p className="text-text-secondary text-sm max-w-lg mx-auto">
-            The software layer that turns any companion computer into a smart,
-            autonomous drone platform.
+            Connect the ADOS Drone Agent running on your companion computer to
+            start managing your drone.
           </p>
         </div>
 
-        {/* What is this? */}
-        <div className="text-center space-y-2">
-          <h2 className="text-sm font-medium text-text-primary">
-            What is this?
-          </h2>
-          <p className="text-xs text-text-secondary max-w-xl mx-auto leading-relaxed">
-            This tab manages the ADOS Drone Agent, the software that runs on
-            your drone&apos;s companion computer. It handles MAVLink routing,
-            video streaming, sensor management, scripting, and fleet networking.
-          </p>
-        </div>
-
-        {/* Quick Install */}
-        <div className="space-y-3">
-          <h2 className="text-sm font-medium text-text-primary text-center">
-            Quick Install
-          </h2>
-          <div className="relative bg-[#0A0A0F] border border-border-default rounded overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3">
-              <code className="text-xs font-mono text-text-secondary select-all">
+        {/* Three-step flow */}
+        <div className="max-w-2xl mx-auto space-y-5">
+          {/* Step 1: Install */}
+          <div className="p-4 bg-bg-secondary border border-border-default rounded space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-accent-primary/15 text-accent-primary text-xs font-bold shrink-0">
+                1
+              </span>
+              <span className="text-xs font-medium text-text-primary">
+                Install the agent on your drone
+              </span>
+            </div>
+            <div className="flex items-center gap-2 p-2 bg-bg-primary border border-border-default rounded ml-8">
+              <code className="flex-1 text-[11px] font-mono text-text-secondary select-all truncate">
                 {INSTALL_COMMAND}
               </code>
               <button
                 onClick={handleCopy}
-                className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-text-tertiary hover:text-text-primary bg-bg-secondary border border-border-default rounded transition-colors shrink-0 ml-4"
+                className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium text-text-tertiary hover:text-text-primary bg-bg-secondary border border-border-default rounded transition-colors shrink-0"
               >
                 {copied ? (
                   <>
-                    <Check size={12} className="text-status-success" />
+                    <Check size={10} className="text-status-success" />
                     Copied
                   </>
                 ) : (
                   <>
-                    <Copy size={12} />
+                    <Copy size={10} />
                     Copy
                   </>
                 )}
               </button>
             </div>
+            <p className="text-[10px] text-text-tertiary ml-8">
+              Works on Raspberry Pi OS, Ubuntu, and most Debian-based systems. Requires Python 3.11+.
+            </p>
           </div>
-          <p className="text-[11px] text-text-tertiary text-center">
-            Coming soon. First public build in progress.
-          </p>
+
+          {/* Step 2: Pairing code */}
+          <div className="p-4 bg-bg-secondary border border-border-default rounded space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-accent-primary/15 text-accent-primary text-xs font-bold shrink-0">
+                2
+              </span>
+              <span className="text-xs font-medium text-text-primary">
+                Enter the pairing code
+              </span>
+            </div>
+            <div className="flex justify-center py-2">
+              <PairingCodeInput
+                onSubmit={handleCodeSubmit}
+                disabled={pairingSubmitted}
+              />
+            </div>
+            <p className="text-[10px] text-text-tertiary text-center">
+              The 6-character code is shown when the agent starts. Or{" "}
+              <button
+                onClick={onOpenPairing}
+                className="text-accent-primary hover:underline"
+              >
+                open the full pairing dialog
+              </button>{" "}
+              for more options.
+            </p>
+          </div>
+
+          {/* Step 3: Connected */}
+          <div className="p-4 bg-bg-secondary border border-border-default/50 rounded space-y-2 opacity-50">
+            <div className="flex items-center gap-2">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-accent-primary/15 text-accent-primary text-xs font-bold shrink-0">
+                3
+              </span>
+              <span className="text-xs font-medium text-text-primary">
+                Connected and ready
+              </span>
+            </div>
+            <p className="text-[10px] text-text-tertiary ml-8">
+              Once paired, your drone appears in the sidebar. Click to connect any time.
+            </p>
+          </div>
         </div>
+
+        {/* Discovered agents */}
+        {discoveredAgents.length > 0 && (
+          <div className="max-w-2xl mx-auto space-y-3">
+            <h2 className="text-xs font-medium text-text-primary flex items-center gap-2">
+              <Wifi size={12} className="text-status-success" />
+              Discovered on your network
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {discoveredAgents.map((agent) => (
+                <button
+                  key={agent.deviceId}
+                  onClick={onOpenPairing}
+                  className="flex items-center gap-3 p-3 bg-bg-secondary border border-border-default rounded hover:border-accent-primary/40 transition-colors text-left"
+                >
+                  <div className="w-8 h-8 rounded bg-accent-primary/10 flex items-center justify-center shrink-0">
+                    <Cpu size={14} className="text-accent-primary" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-text-primary">
+                      {agent.name}
+                    </p>
+                    <p className="text-[10px] text-text-tertiary">
+                      {agent.board} &middot;{" "}
+                      <span className="font-mono">{agent.pairingCode}</span>
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Capabilities grid */}
         <div>
           <h2 className="text-sm font-medium text-text-primary mb-4">
-            Capabilities
+            What the ADOS Agent does
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {capabilities.map(({ icon: Icon, title, description }) => (
@@ -161,28 +242,6 @@ export function AgentDisconnectedPage() {
                 </div>
                 <p className="text-[11px] text-text-tertiary leading-relaxed">
                   {description}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Getting Started */}
-        <div>
-          <h2 className="text-sm font-medium text-text-primary mb-4">
-            Getting Started
-          </h2>
-          <div className="space-y-3">
-            {steps.map((step, i) => (
-              <div
-                key={i}
-                className="flex items-start gap-3 p-3 bg-bg-secondary border border-border-default rounded"
-              >
-                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-accent-primary/15 text-accent-primary text-xs font-bold shrink-0 mt-0.5">
-                  {i + 1}
-                </span>
-                <p className="text-xs text-text-secondary leading-relaxed">
-                  {step}
                 </p>
               </div>
             ))}

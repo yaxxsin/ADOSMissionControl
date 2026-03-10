@@ -20,6 +20,7 @@ import { generateOrbit } from "@/lib/patterns/orbit-generator";
 import { generateCorridor } from "@/lib/patterns/corridor-generator";
 import { generateExpandingSquare, generateSectorSearch, generateParallelTrack } from "@/lib/patterns/sar-generators";
 import { generateStructureScan } from "@/lib/patterns/structure-scan-generator";
+import { useDrawingStore } from "./drawing-store";
 
 type PatternType = "survey" | "orbit" | "corridor" | "expandingSquare" | "sectorSearch" | "parallelTrack" | "structureScan" | null;
 
@@ -55,6 +56,9 @@ const defaultSurvey: Partial<SurveyConfig> = {
   entryLocation: "topLeft",
   flyAlternateTransects: false,
   cameraTriggerDistance: 0,
+  tieLines: false,
+  tieLineAngle: 90,
+  tieLineSpacing: 25,
   altitude: 50,
   speed: 5,
 };
@@ -167,6 +171,34 @@ export const usePatternStore = create<PatternStoreState>()((set, get) => ({
           const cfg = surveyConfig as SurveyConfig;
           if (cfg.polygon && cfg.polygon.length >= 3) {
             result = generateSurvey(cfg);
+          } else {
+            // Multi-polygon: generate per selected polygon and merge
+            const drawState = useDrawingStore.getState();
+            const selectedIds = drawState.selectedPolygonIds;
+            const polygons = selectedIds.length > 0
+              ? drawState.polygons.filter((p) => selectedIds.includes(p.id))
+              : drawState.polygons.slice(-1); // fallback: last polygon
+
+            if (polygons.length === 1 && polygons[0].vertices.length >= 3) {
+              result = generateSurvey({ ...cfg, polygon: polygons[0].vertices });
+            } else if (polygons.length > 1) {
+              const results = polygons
+                .filter((p) => p.vertices.length >= 3)
+                .map((p) => generateSurvey({ ...cfg, polygon: p.vertices }));
+              if (results.length > 0) {
+                result = {
+                  waypoints: results.flatMap((r) => r.waypoints),
+                  previewLines: results.flatMap((r) => r.previewLines ?? []),
+                  stats: {
+                    totalDistance: results.reduce((s, r) => s + r.stats.totalDistance, 0),
+                    estimatedTime: results.reduce((s, r) => s + r.stats.estimatedTime, 0),
+                    photoCount: results.reduce((s, r) => s + r.stats.photoCount, 0),
+                    coveredArea: results.reduce((s, r) => s + r.stats.coveredArea, 0),
+                    transectCount: results.reduce((s, r) => s + r.stats.transectCount, 0),
+                  },
+                };
+              }
+            }
           }
           break;
         }

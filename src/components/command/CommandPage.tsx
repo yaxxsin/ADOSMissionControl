@@ -16,17 +16,25 @@ import {
   Plug,
   Unplug,
   Loader2,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
+import { useQuery } from "convex/react";
 import { cn, isDemoMode } from "@/lib/utils";
+import { useConvexAvailable } from "@/app/ConvexClientProvider";
+import { cmdDronesApi } from "@/lib/community-api-drones";
 import { useAgentStore } from "@/stores/agent-store";
+import { usePairingStore } from "@/stores/pairing-store";
 import { useHasCommandAccess } from "@/hooks/use-has-command-access";
 import { CommandLockedPage } from "./CommandLockedPage";
-import { CommandFleetPanel } from "./CommandFleetPanel";
+import { FleetSidebar } from "./FleetSidebar";
+import { PairingDialog } from "./PairingDialog";
 import { AgentOverviewTab } from "./AgentOverviewTab";
 import { ScriptsTab } from "./ScriptsTab";
 import { PeripheralsTab } from "./PeripheralsTab";
 import { FleetNetworkTab } from "./FleetNetworkTab";
 import { ModuleStoreTab } from "./ModuleStoreTab";
+import { AgentDisconnectedPage } from "./AgentDisconnectedPage";
 import { DroneContextRail } from "./shared/DroneContextRail";
 
 type SubTab = "overview" | "scripts" | "peripherals" | "fleet" | "modules";
@@ -43,7 +51,9 @@ export function CommandPage() {
   const { hasAccess, isLoading, profile } = useHasCommandAccess();
   const [activeTab, setActiveTab] = useState<SubTab>("overview");
   const [urlInput, setUrlInput] = useState("http://localhost:8080");
-  const [fleetCollapsed, setFleetCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [pairingOpen, setPairingOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const connected = useAgentStore((s) => s.connected);
   const connectionError = useAgentStore((s) => s.connectionError);
@@ -51,7 +61,38 @@ export function CommandPage() {
   const connect = useAgentStore((s) => s.connect);
   const disconnect = useAgentStore((s) => s.disconnect);
 
+  const pairedDrones = usePairingStore((s) => s.pairedDrones);
+
   const demo = isDemoMode();
+  const convexAvailable = useConvexAvailable();
+  const myDrones = useQuery(
+    cmdDronesApi.listMyDrones,
+    !demo && convexAvailable ? {} : "skip"
+  );
+
+  // Sync Convex fleet data into Zustand store
+  useEffect(() => {
+    if (myDrones && Array.isArray(myDrones)) {
+      usePairingStore.getState().setPairedDrones(
+        myDrones.map((d) => ({
+          _id: d._id,
+          userId: d.userId,
+          deviceId: d.deviceId,
+          name: d.name,
+          apiKey: d.apiKey,
+          agentVersion: d.agentVersion,
+          board: d.board,
+          tier: d.tier,
+          os: d.os,
+          mdnsHost: d.mdnsHost,
+          lastIp: d.lastIp,
+          lastSeen: d.lastSeen,
+          fcConnected: d.fcConnected,
+          pairedAt: d.pairedAt,
+        }))
+      );
+    }
+  }, [myDrones]);
 
   useEffect(() => {
     return () => {
@@ -69,6 +110,11 @@ export function CommandPage() {
     if (e.key === "Enter") handleConnect();
   }
 
+  function handlePaired(deviceId: string, apiKey: string, url: string) {
+    setPairingOpen(false);
+    connect(url, apiKey);
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -83,10 +129,12 @@ export function CommandPage() {
 
   return (
     <div className="flex h-full">
-      <CommandFleetPanel
-        collapsed={fleetCollapsed}
-        onToggleCollapse={() => setFleetCollapsed((v) => !v)}
+      <FleetSidebar
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
+        onOpenPairing={() => setPairingOpen(true)}
       />
+
       <div className="flex flex-col flex-1 min-w-0">
         {/* Connection bar */}
         <div className="flex items-center gap-3 px-4 py-2 border-b border-border-default bg-bg-secondary">
@@ -131,58 +179,98 @@ export function CommandPage() {
             </>
           ) : (
             <>
-              <label className="text-xs text-text-secondary">Agent URL</label>
-              <input
-                type="text"
-                value={urlInput}
-                onChange={(e) => setUrlInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="http://localhost:8080"
-                className="flex-1 max-w-sm px-2.5 py-1 text-xs bg-bg-tertiary border border-border-default rounded text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent-primary"
-              />
-              <button
-                onClick={handleConnect}
-                className="flex items-center gap-1.5 px-3 py-1 text-xs bg-accent-primary text-white rounded hover:opacity-90 transition-opacity"
-              >
-                <Plug size={12} />
-                Connect
-              </button>
-              {connectionError && (
-                <span className="text-xs text-status-error">{connectionError}</span>
+              {pairedDrones.length > 0 ? (
+                <span className="text-xs text-text-secondary">
+                  Select a drone from the sidebar to connect
+                </span>
+              ) : (
+                <span className="text-xs text-text-secondary">
+                  Pair a drone to get started
+                </span>
               )}
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  onClick={() => setAdvancedOpen((v) => !v)}
+                  className="flex items-center gap-1 text-[11px] text-text-tertiary hover:text-text-secondary transition-colors"
+                >
+                  Advanced
+                  {advancedOpen ? (
+                    <ChevronDown size={10} />
+                  ) : (
+                    <ChevronRight size={10} />
+                  )}
+                </button>
+                {advancedOpen && (
+                  <>
+                    <input
+                      type="text"
+                      value={urlInput}
+                      onChange={(e) => setUrlInput(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder="http://localhost:8080"
+                      className="w-56 px-2.5 py-1 text-xs bg-bg-tertiary border border-border-default rounded text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent-primary"
+                    />
+                    <button
+                      onClick={handleConnect}
+                      className="flex items-center gap-1.5 px-3 py-1 text-xs bg-accent-primary text-white rounded hover:opacity-90 transition-opacity"
+                    >
+                      <Plug size={12} />
+                      Connect
+                    </button>
+                  </>
+                )}
+                {connectionError && (
+                  <span className="text-xs text-status-error">
+                    {connectionError}
+                  </span>
+                )}
+              </div>
             </>
           )}
         </div>
 
-        {/* Sub-tab navigation */}
-        <div className="flex items-center gap-1 px-4 border-b border-border-default bg-bg-secondary">
-          {subTabs.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => setActiveTab(id)}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors",
-                activeTab === id
-                  ? "text-accent-primary border-b-2 border-accent-primary"
-                  : "text-text-secondary hover:text-text-primary"
-              )}
-            >
-              <Icon size={13} />
-              {label}
-            </button>
-          ))}
-        </div>
+        {connected ? (
+          <>
+            {/* Sub-tab navigation */}
+            <div className="flex items-center gap-1 px-4 border-b border-border-default bg-bg-secondary">
+              {subTabs.map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  onClick={() => setActiveTab(id)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors",
+                    activeTab === id
+                      ? "text-accent-primary border-b-2 border-accent-primary"
+                      : "text-text-secondary hover:text-text-primary"
+                  )}
+                >
+                  <Icon size={13} />
+                  {label}
+                </button>
+              ))}
+            </div>
 
-        {/* Tab content */}
-        <div className="flex-1 overflow-y-auto">
-          {activeTab === "overview" && <AgentOverviewTab />}
-          {activeTab === "scripts" && <ScriptsTab />}
-          {activeTab === "peripherals" && <PeripheralsTab />}
-          {activeTab === "fleet" && <FleetNetworkTab />}
-          {activeTab === "modules" && <ModuleStoreTab />}
-        </div>
+            {/* Tab content */}
+            <div className="flex-1 overflow-y-auto">
+              {activeTab === "overview" && <AgentOverviewTab />}
+              {activeTab === "scripts" && <ScriptsTab />}
+              {activeTab === "peripherals" && <PeripheralsTab />}
+              {activeTab === "fleet" && <FleetNetworkTab />}
+              {activeTab === "modules" && <ModuleStoreTab />}
+            </div>
+          </>
+        ) : (
+          <AgentDisconnectedPage onOpenPairing={() => setPairingOpen(true)} />
+        )}
       </div>
+
       {connected && <DroneContextRail />}
+
+      <PairingDialog
+        open={pairingOpen}
+        onClose={() => setPairingOpen(false)}
+        onPaired={handlePaired}
+      />
     </div>
   );
 }

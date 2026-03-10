@@ -13,8 +13,11 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { Waypoint, WaypointCommand } from "@/lib/types";
+import { usePlannerStore } from "@/stores/planner-store";
 import { COMMAND_OPTIONS, CMD_LETTER } from "./waypoint-constants";
 import { CommandSpecificEditors } from "./WaypointCommandEditors";
+
+const FRAME_LABELS: Record<string, string> = { relative: "AGL", absolute: "MSL", terrain: "Terrain" };
 
 interface WaypointListItemProps {
   waypoint: Waypoint;
@@ -40,6 +43,8 @@ export function WaypointListItem({
 }: WaypointListItemProps) {
   const cmd = waypoint.command ?? "WAYPOINT";
   const letter = CMD_LETTER[cmd] ?? "W";
+  const defaultFrame = usePlannerStore((s) => s.defaultFrame);
+  const frameLabel = FRAME_LABELS[defaultFrame] ?? "AGL";
 
   const [localLat, setLocalLat] = useState(waypoint.lat.toFixed(6));
   const [localLon, setLocalLon] = useState(waypoint.lon.toFixed(6));
@@ -88,8 +93,9 @@ export function WaypointListItem({
         <div className="flex-1 min-w-0 flex items-center gap-2">
           <span className="text-[11px] font-mono text-text-primary truncate">{cmd}</span>
           <span className="text-[10px] font-mono text-text-tertiary">{waypoint.alt}m</span>
+          <span className="text-[9px] font-mono text-accent-primary/70 bg-accent-primary/10 px-1 py-px">{frameLabel}</span>
           {waypoint.groundElevation !== undefined && (
-            <span className="text-[9px] font-mono text-status-success bg-status-success/10 px-1 py-px">AGL {Math.round(waypoint.alt - waypoint.groundElevation)}m</span>
+            <span className="text-[9px] font-mono text-status-success bg-status-success/10 px-1 py-px">{Math.round(waypoint.alt)}m above ground ({Math.round(waypoint.groundElevation)}m MSL)</span>
           )}
         </div>
         <button onClick={(e) => { e.stopPropagation(); onToggleExpand(); }} className="text-text-tertiary hover:text-text-primary shrink-0 cursor-pointer">

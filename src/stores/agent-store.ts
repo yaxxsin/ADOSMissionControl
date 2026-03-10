@@ -22,6 +22,7 @@ import type {
 
 interface AgentStore {
   agentUrl: string | null;
+  apiKey: string | null;
   connected: boolean;
   client: AgentClient | null;
   connectionError: string | null;
@@ -42,8 +43,9 @@ interface AgentStore {
 
   pollInterval: ReturnType<typeof setInterval> | null;
 
-  connect: (url: string) => Promise<void>;
+  connect: (url: string, apiKey?: string | null) => Promise<void>;
   disconnect: () => void;
+  setApiKey: (key: string | null) => void;
   fetchStatus: () => Promise<void>;
   fetchServices: () => Promise<void>;
   fetchResources: () => Promise<void>;
@@ -72,6 +74,7 @@ const MAX_CPU_HISTORY = 60;
 
 export const useAgentStore = create<AgentStore>((set, get) => ({
   agentUrl: null,
+  apiKey: null,
   connected: false,
   client: null,
   connectionError: null,
@@ -92,15 +95,20 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
   pollInterval: null,
 
-  async connect(url: string) {
+  setApiKey(key: string | null) {
+    set({ apiKey: key });
+  },
+
+  async connect(url: string, apiKey?: string | null) {
     let client: AgentClient;
+    const resolvedKey = apiKey ?? get().apiKey;
     if (url === "mock://demo") {
       const { MockAgentClient } = await import("@/mock/mock-agent");
       client = new MockAgentClient() as unknown as AgentClient;
     } else {
-      client = new AgentClient(url);
+      client = new AgentClient(url, resolvedKey);
     }
-    set({ agentUrl: url, client, connectionError: null });
+    set({ agentUrl: url, apiKey: resolvedKey, client, connectionError: null });
     try {
       const status = await client.getStatus();
       set({ connected: true, status });
@@ -121,6 +129,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       connected: false,
       client: null,
       agentUrl: null,
+      apiKey: null,
       connectionError: null,
       status: null,
       services: [],

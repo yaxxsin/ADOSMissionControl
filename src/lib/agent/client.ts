@@ -17,22 +17,30 @@ import type {
   SuiteInfo,
   DroneNetEnrollment,
   NetworkPeer,
+  PairingInfo,
+  ClaimResponse,
 } from "./types";
 
 export class AgentClient {
   private baseUrl: string;
+  private apiKey: string | null;
 
-  constructor(baseUrl: string) {
+  constructor(baseUrl: string, apiKey?: string | null) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
+    this.apiKey = apiKey ?? null;
   }
 
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...(init?.headers as Record<string, string>),
+    };
+    if (this.apiKey) {
+      headers["X-ADOS-Key"] = this.apiKey;
+    }
     const res = await fetch(`${this.baseUrl}${path}`, {
       ...init,
-      headers: {
-        "Content-Type": "application/json",
-        ...init?.headers,
-      },
+      headers,
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "Unknown error");
@@ -153,5 +161,24 @@ export class AgentClient {
 
   async getPeers(): Promise<NetworkPeer[]> {
     return this.request<NetworkPeer[]>("/api/v1/fleet/peers");
+  }
+
+  // ── Pairing ──────────────────────────────────────────────
+
+  async getPairingInfo(): Promise<PairingInfo> {
+    return this.request<PairingInfo>("/api/v1/pairing/info");
+  }
+
+  async claimLocally(userId: string): Promise<ClaimResponse> {
+    return this.request<ClaimResponse>("/api/v1/pairing/claim", {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId }),
+    });
+  }
+
+  async unpairAgent(): Promise<CommandResult> {
+    return this.request<CommandResult>("/api/v1/pairing/unpair", {
+      method: "POST",
+    });
   }
 }

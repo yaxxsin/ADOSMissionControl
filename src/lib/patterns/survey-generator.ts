@@ -286,14 +286,19 @@ function generateSinglePass(config: SurveyConfig): PatternResult {
 export function generateSurvey(config: SurveyConfig): PatternResult {
   const firstPass = generateSinglePass(config);
 
-  if (!config.crosshatch) {
+  const hasTieLines = config.tieLines && !config.crosshatch;
+  if (!config.crosshatch && !hasTieLines) {
     return firstPass;
   }
 
-  // Second pass at 90 degrees offset
+  // Tie lines: configurable angle and spacing; crosshatch: fixed 90 deg, same spacing
+  const tieAngle = hasTieLines ? (config.tieLineAngle ?? 90) : 90;
+  const tieSpacing = hasTieLines ? (config.tieLineSpacing ?? config.lineSpacing) : config.lineSpacing;
+
   const secondPass = generateSinglePass({
     ...config,
-    gridAngle: (config.gridAngle + 90) % 360,
+    gridAngle: (config.gridAngle + tieAngle) % 360,
+    lineSpacing: tieSpacing,
   });
 
   // Merge results

@@ -133,3 +133,24 @@ export interface NetworkPeer {
   tier: number;
   link_type: string;
 }
+
+// ── Pairing ─────────────────────────────────────────────
+
+export interface PairingInfo {
+  device_id: string;
+  name: string;
+  version: string;
+  board: string;
+  paired: boolean;
+  pairing_code?: string;
+  owner_id?: string;
+  paired_at?: number;
+  mdns_host: string;
+}
+
+export interface ClaimResponse {
+  api_key: string;
+  device_id: string;
+  name: string;
+  mdns_host: string;
+}

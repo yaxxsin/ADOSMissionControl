@@ -7,6 +7,7 @@
 import { useCallback } from "react";
 import { usePlanLibraryStore } from "@/stores/plan-library-store";
 import { useDroneManager } from "@/stores/drone-manager";
+import { useMissionStore } from "@/stores/mission-store";
 import { usePatternStore } from "@/stores/pattern-store";
 import { useGeofenceStore } from "@/stores/geofence-store";
 import { randomId } from "@/lib/utils";
@@ -16,6 +17,7 @@ import { clampLat, clampLon, clampAlt } from "./use-planner-state";
 import type { ContextMenuState } from "./use-planner-state";
 import type { SuiteType, Waypoint } from "@/lib/types";
 import type { DrawnPolygon, DrawnCircle } from "@/lib/drawing/types";
+import { getElevation } from "@/lib/terrain/terrain-provider";
 
 interface ActionsDeps {
   waypoints: Waypoint[];
@@ -59,6 +61,15 @@ const TOOL_COMMAND_MAP: Record<string, Waypoint["command"]> = {
   roi: "ROI",
 };
 
+/** Fire-and-forget terrain elevation lookup for a waypoint. */
+function fetchGroundElevation(wpId: string, lat: number, lon: number): void {
+  getElevation(lat, lon).then((elev) => {
+    if (elev !== 0) {
+      useMissionStore.getState().updateWaypoint(wpId, { groundElevation: elev });
+    }
+  }).catch(() => { /* offline / API error — leave groundElevation unset */ });
+}
+
 export function usePlannerActions(deps: ActionsDeps) {
   const {
     waypoints, activePlanId, isDirty, activeTool, defaultAlt, defaultSpeed,
@@ -90,6 +101,7 @@ export function usePlannerActions(deps: ActionsDeps) {
         alt: command === "LAND" ? 0 : clampAlt(defaultAlt), speed: defaultSpeed, command,
       };
       addWaypoint(wp);
+      fetchGroundElevation(wp.id, wp.lat, wp.lon);
     },
     [activePlanId, activeTool, addWaypoint, addRallyPoint, addingRallyPoint, defaultAlt, defaultSpeed, toast, setAddingRallyPoint]
   );
@@ -144,10 +156,10 @@ export function usePlannerActions(deps: ActionsDeps) {
         alt: cmd === "LAND" ? 0 : clampAlt(defaultAlt), command: cmd,
       });
       switch (actionId) {
-        case "add-wp": addWaypoint(makeWp("WAYPOINT")); break;
-        case "add-takeoff": addWaypoint(makeWp("TAKEOFF")); break;
-        case "add-land": addWaypoint(makeWp("LAND")); break;
-        case "add-roi": addWaypoint(makeWp("ROI")); break;
+        case "add-wp": { const w = makeWp("WAYPOINT"); addWaypoint(w); fetchGroundElevation(w.id, w.lat, w.lon); break; }
+        case "add-takeoff": { const w = makeWp("TAKEOFF"); addWaypoint(w); fetchGroundElevation(w.id, w.lat, w.lon); break; }
+        case "add-land": { const w = makeWp("LAND"); addWaypoint(w); fetchGroundElevation(w.id, w.lat, w.lon); break; }
+        case "add-roi": { const w = makeWp("ROI"); addWaypoint(w); fetchGroundElevation(w.id, w.lat, w.lon); break; }
         case "add-rally":
           addRallyPoint({ id: randomId(), lat: clampLat(lat ?? 0), lon: clampLon(lon ?? 0), alt: clampAlt(defaultAlt) });
           break;
@@ -166,6 +178,7 @@ export function usePlannerActions(deps: ActionsDeps) {
             alt: clampAlt(defaultAlt), command: "WAYPOINT",
           };
           insertWaypoint(newWp, actionId === "insert-before" ? idx : idx + 1);
+          fetchGroundElevation(newWp.id, newWp.lat, newWp.lon);
           break;
         }
         case "delete-wp": if (waypointId) removeWaypoint(waypointId); break;
@@ -180,6 +193,7 @@ export function usePlannerActions(deps: ActionsDeps) {
   const handleWaypointDragEnd = useCallback(
     (id: string, lat: number, lon: number) => {
       setWaypoints(waypoints.map((wp) => wp.id === id ? { ...wp, lat: clampLat(lat), lon: clampLon(lon) } : wp));
+      fetchGroundElevation(id, clampLat(lat), clampLon(lon));
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [waypoints, setWaypoints]
@@ -270,6 +284,7 @@ export function usePlannerActions(deps: ActionsDeps) {
       lon: clampLon(lastWp ? lastWp.lon + 0.001 : DEFAULT_CENTER[1]), alt: clampAlt(defaultAlt), command: "WAYPOINT",
     };
     addWaypoint(wp);
+    fetchGroundElevation(wp.id, wp.lat, wp.lon);
   }, [activePlanId, waypoints, addWaypoint, defaultAlt, toast]);
 
   return {

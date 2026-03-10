@@ -135,10 +135,11 @@ export class DrawingManager {
     if (this.polygonVertices.length < 3) return;
     const vertices = [...this.polygonVertices];
     this.removeDrawingListeners();
-    this.clearDrawingLayers();
     this.mode = null;
     this.map.doubleClickZoom.enable();
     this.callbacks.onPolygonComplete?.(vertices);
+    // Delay clearing so React renders the store-driven polygon first
+    requestAnimationFrame(() => this.clearDrawingLayers());
   }
 
   // ── Circle Drawing ──────────────────────────────────────────

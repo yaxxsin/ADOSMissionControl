@@ -60,6 +60,7 @@ export function PatternOverlay() {
   // Drawn shapes for boundary display
   const drawnPolygons = useDrawingStore((s) => s.polygons);
   const drawnCircles = useDrawingStore((s) => s.circles);
+  const selectedPolygonIds = useDrawingStore((s) => s.selectedPolygonIds);
 
   // Geofence overlay
   const fenceEnabled = useGeofenceStore((s) => s.enabled);
@@ -98,19 +99,22 @@ export function PatternOverlay() {
   return (
     <>
       {/* ── Drawn Polygon boundaries ──────────────────────────── */}
-      {drawnPolygons.map((poly) => (
-        <Polygon
-          key={poly.id}
-          positions={poly.vertices.map((v) => [v[0], v[1]] as [number, number])}
-          pathOptions={{
-            color: PATTERN_COLOR,
-            weight: 2,
-            fillColor: withAlpha(MAP_COLORS.accentPrimary, 0.1),
-            fillOpacity: 1,
-            dashArray: "4 4",
-          }}
-        />
-      ))}
+      {drawnPolygons.map((poly) => {
+        const isSelected = selectedPolygonIds.includes(poly.id);
+        return (
+          <Polygon
+            key={poly.id}
+            positions={poly.vertices.map((v) => [v[0], v[1]] as [number, number])}
+            pathOptions={{
+              color: PATTERN_COLOR,
+              weight: 2,
+              fillColor: withAlpha(MAP_COLORS.accentPrimary, isSelected ? 0.15 : 0.05),
+              fillOpacity: 1,
+              ...(isSelected ? {} : { dashArray: "4 4" }),
+            }}
+          />
+        );
+      })}
 
       {/* ── Drawn Circle boundaries ──────────────────────────── */}
       {drawnCircles.map((circ) => (
@@ -121,9 +125,8 @@ export function PatternOverlay() {
           pathOptions={{
             color: PATTERN_COLOR,
             weight: 2,
-            fillColor: withAlpha(MAP_COLORS.accentPrimary, 0.1),
+            fillColor: withAlpha(MAP_COLORS.accentPrimary, 0.15),
             fillOpacity: 1,
-            dashArray: "4 4",
           }}
         />
       ))}
