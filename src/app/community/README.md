@@ -1,6 +1,6 @@
 # Community
 
-Optional community board built into Command GCS. Provides changelog, feature requests, a kanban board, roadmap, and a contact form.
+Optional community board built into Command GCS. Provides changelog, a kanban board, roadmap, and a contact form.
 
 All community data lives on the Altnautica Convex backend. The hosted version at [command.altnautica.com/community](https://command.altnautica.com/community) runs it by default. Local builds have it disabled unless you configure your own backend.
 
@@ -17,8 +17,7 @@ Without `NEXT_PUBLIC_CONVEX_URL`, the community section shows a fallback message
 | Route | What it does |
 |-------|-------------|
 | `/community/changelog` | Version history and release notes |
-| `/community/requests` | Feature requests and bug reports from users |
-| `/community/kanban` | Admin-only board for triaging requests |
+| `/community/kanban` | Admin-only board for triaging items |
 | `/community/roadmap` | Public roadmap view |
 | `/community/contact` | Contact form (no auth required) |
 
@@ -28,22 +27,27 @@ Without `NEXT_PUBLIC_CONVEX_URL`, the community section shows a fallback message
 app/community/
 ├── layout.tsx              # Tab navigation + Convex availability gate
 ├── changelog/page.tsx      # Changelog list
-├── requests/page.tsx       # Request list + submit form
 ├── kanban/page.tsx         # Admin kanban board
 ├── roadmap/page.tsx        # Roadmap view
+├── testers/page.tsx        # Alpha testers tab
 ├── contact/page.tsx        # Contact form route
 └── README.md               # This file
 
 components/community/
+├── AlphaTestersTab.tsx      # Alpha testers management
+├── AuthGate.tsx             # Auth gate for protected actions
+├── CategoryBadge.tsx        # Category badge display
+├── ChangelogDetail.tsx      # Single changelog detail view
+├── ChangelogEditor.tsx      # Changelog entry editor
 ├── ChangelogEntry.tsx       # Single changelog entry
-├── ChangelogList.tsx        # Changelog list with admin controls
-├── CommentSection.tsx       # Comments on items
+├── ChangelogTimeline.tsx    # Changelog list with admin controls
+├── CommunityComments.tsx    # Comments on items
 ├── ContactForm.tsx          # Contact form (name, email, subject, message)
-├── ItemCard.tsx             # Feature request / bug report card
-├── ItemSubmitForm.tsx       # Modal form for submitting requests
 ├── KanbanBoard.tsx          # Drag-and-drop kanban
-├── RequestList.tsx          # Filterable request list
-└── RoadmapView.tsx          # Grouped roadmap display
+├── KanbanCard.tsx           # Kanban card component
+├── KanbanColumn.tsx         # Kanban column component
+├── RoadmapView.tsx          # Grouped roadmap display
+└── StatusBadge.tsx          # Status badge display
 
 lib/
 ├── community-api.ts         # Typed Convex function references
@@ -52,8 +56,7 @@ lib/
 
 ## Auth
 
-- **Viewing** changelog, requests, roadmap: public, no auth needed
-- **Submitting** feature requests and bug reports: requires auth
+- **Viewing** changelog, roadmap: public, no auth needed
 - **Contact form**: public, no auth needed
 - **Kanban board**: admin only
 - **Comments**: requires auth

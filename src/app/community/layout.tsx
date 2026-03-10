@@ -8,7 +8,6 @@ import { useConvexAvailable } from "@/app/ConvexClientProvider";
 
 const tabs = [
   { label: "Changelog", href: "/community/changelog" },
-  { label: "Requests", href: "/community/requests" },
   { label: "Kanban", href: "/community/kanban", adminOnly: true },
   { label: "Testers", href: "/community/testers", adminOnly: true },
   { label: "Roadmap", href: "/community/roadmap" },
@@ -62,7 +61,7 @@ export default function CommunityLayout({
       <div className="flex items-center justify-center h-full">
         <div className="text-center space-y-3 p-8 max-w-md">
           <p className="text-text-secondary text-sm">
-            Community data (changelog, roadmap, feature requests, contact) is
+            Community data (changelog, roadmap, contact) is
             live on the hosted version at{" "}
             <a
               href="https://command.altnautica.com/community"
