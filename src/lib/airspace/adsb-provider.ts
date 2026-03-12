@@ -91,7 +91,7 @@ export async function fetchFromOpenSky(
         verticalRate: s[11] != null ? Number(s[11]) : null, // already m/s
         squawk: s[14] != null ? String(s[14]) : null,
         category: Number(s[16]) || 0,
-        lastSeen: Date.now(),
+        lastSeen: s[3] != null ? Number(s[3]) * 1000 : Date.now(),
       }))
       .filter((a) => !(a.lat === 0 && a.lon === 0));
 
