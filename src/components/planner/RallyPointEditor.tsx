@@ -31,11 +31,18 @@ export function RallyPointEditor({
 
   const [uploading, setUploading] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<"success" | "error" | null>(null);
 
   const handleUpload = useCallback(async () => {
     setUploading(true);
+    setUploadStatus(null);
     try {
       await uploadRallyPoints();
+      setUploadStatus("success");
+      setTimeout(() => setUploadStatus(null), 3000);
+    } catch {
+      setUploadStatus("error");
+      setTimeout(() => setUploadStatus(null), 3000);
     } finally {
       setUploading(false);
     }
@@ -100,6 +107,17 @@ export function RallyPointEditor({
             />
           ))}
         </div>
+      )}
+
+      {uploadStatus === "success" && (
+        <p className="text-[10px] text-status-success font-mono">
+          Rally points uploaded to FC
+        </p>
+      )}
+      {uploadStatus === "error" && (
+        <p className="text-[10px] text-status-error font-mono">
+          Failed to upload rally points
+        </p>
       )}
 
       {addingRallyPoint && (

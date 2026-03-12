@@ -251,6 +251,51 @@ export function isConvex(vertices: [number, number][]): boolean {
 }
 
 /**
+ * Check if two line segments (p1-p2 and p3-p4) intersect.
+ * Does not count shared endpoints as intersections.
+ */
+function segmentsIntersect(
+  p1: [number, number],
+  p2: [number, number],
+  p3: [number, number],
+  p4: [number, number]
+): boolean {
+  const d1x = p2[0] - p1[0], d1y = p2[1] - p1[1];
+  const d2x = p4[0] - p3[0], d2y = p4[1] - p3[1];
+  const denom = d1x * d2y - d1y * d2x;
+  if (Math.abs(denom) < 1e-12) return false; // parallel
+
+  const dx = p3[0] - p1[0], dy = p3[1] - p1[1];
+  const t = (dx * d2y - dy * d2x) / denom;
+  const u = (dx * d1y - dy * d1x) / denom;
+
+  // Use strict inequality to exclude shared endpoints
+  return t > 1e-9 && t < 1 - 1e-9 && u > 1e-9 && u < 1 - 1e-9;
+}
+
+/**
+ * Check if a polygon's edges self-intersect (bowtie, figure-8, etc.).
+ * Returns true if any non-adjacent edges cross each other.
+ */
+export function isSelfIntersecting(vertices: [number, number][]): boolean {
+  const n = vertices.length;
+  if (n < 4) return false;
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 2; j < n; j++) {
+      // Skip adjacent edges (they share a vertex)
+      if (i === 0 && j === n - 1) continue;
+      if (segmentsIntersect(
+        vertices[i], vertices[(i + 1) % n],
+        vertices[j], vertices[(j + 1) % n]
+      )) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
  * Format distance for display. Uses meters for <1000m, km otherwise.
  */
 export function formatDistance(meters: number): string {

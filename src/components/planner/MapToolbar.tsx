@@ -7,9 +7,10 @@
  */
 "use client";
 
+import { useState } from "react";
 import {
   MousePointer2, MapPin, Pentagon, Circle, Ruler,
-  Undo2, Redo2, Trash2,
+  Undo2, Redo2, Trash2, HelpCircle, X,
   ArrowUpFromLine, ArrowDownToLine, CircleDot, Crosshair, Flag,
 } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -130,6 +131,52 @@ export function MapToolbar({
       <ToolButton onClick={onClearAll} tooltip="Clear All">
         <Trash2 size={16} />
       </ToolButton>
+
+      <div className="h-px bg-border-default" />
+
+      <ShortcutsHelpButton />
     </div>
+  );
+}
+
+function ShortcutsHelpButton() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <ToolButton onClick={() => setOpen(true)} tooltip="Keyboard Shortcuts">
+        <HelpCircle size={16} />
+      </ToolButton>
+
+      {open && (
+        <div className="absolute left-12 top-0 z-[1001] w-52 bg-bg-secondary/95 backdrop-blur-sm border border-border-default rounded-lg p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] font-mono font-semibold text-text-primary">Keyboard Shortcuts</span>
+            <button onClick={() => setOpen(false)} className="text-text-tertiary hover:text-text-primary cursor-pointer">
+              <X size={12} />
+            </button>
+          </div>
+          <div className="flex flex-col gap-1">
+            {[
+              ["V", "Select tool"],
+              ["W", "Waypoint tool"],
+              ["P", "Polygon tool"],
+              ["C", "Circle tool"],
+              ["M", "Measure tool"],
+              ["Cmd+Z", "Undo"],
+              ["Cmd+Shift+Z", "Redo"],
+              ["Del", "Delete selected"],
+              ["Ctrl+Click", "Multi-select"],
+              ["Shift+Click", "Range select"],
+            ].map(([key, desc]) => (
+              <div key={key} className="flex items-center justify-between">
+                <span className="text-[10px] font-mono text-text-secondary">{desc}</span>
+                <kbd className="text-[9px] font-mono px-1 py-0.5 bg-bg-tertiary border border-border-default text-text-tertiary rounded">{key}</kbd>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

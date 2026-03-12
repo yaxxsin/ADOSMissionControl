@@ -13,6 +13,7 @@ import { usePatternStore } from "@/stores/pattern-store";
 import { useDrawingStore } from "@/stores/drawing-store";
 import { CAMERA_PROFILES, computeGSD, computeLineSpacing, computeTriggerDistance } from "@/lib/patterns/gsd-calculator";
 import { Grid3X3, Circle, Route, Search, Building, Camera } from "lucide-react";
+import { Tooltip } from "@/components/ui/tooltip";
 import {
   ENTRY_LOCATION_OPTIONS, DIRECTION_OPTIONS, SCAN_DIRECTION_OPTIONS, CAMERA_OPTIONS,
 } from "./pattern-editor-constants";
@@ -88,10 +89,12 @@ export function SurveyConfig() {
       <Select label="Camera Profile" options={CAMERA_OPTIONS}
         value={(surveyConfig as { _cameraName?: string })._cameraName ?? ""} onChange={handleCameraChange} />
       {gsdInfo && (
-        <div className="flex items-center gap-1.5 px-2 py-1 bg-accent-primary/10 border border-accent-primary/20">
-          <Camera size={10} className="text-accent-primary shrink-0" />
-          <span className="text-[10px] font-mono text-accent-primary">GSD: {(gsdInfo.gsd * 100).toFixed(2)} cm/px</span>
-        </div>
+        <Tooltip content="Ground Sample Distance. Lower = higher detail. 2 cm/px = excellent, 5 cm/px = typical survey, 10 cm/px = coarse overview." position="right">
+          <div className="flex items-center gap-1.5 px-2 py-1 bg-accent-primary/10 border border-accent-primary/20 cursor-help">
+            <Camera size={10} className="text-accent-primary shrink-0" />
+            <span className="text-[10px] font-mono text-accent-primary">GSD: {(gsdInfo.gsd * 100).toFixed(2)} cm/px</span>
+          </div>
+        </Tooltip>
       )}
       <Input label="Grid Angle" type="number" unit="deg" value={String(surveyConfig.gridAngle ?? 0)}
         onChange={(e) => updateSurveyConfig({ gridAngle: parseFloat(e.target.value) || 0 })} />

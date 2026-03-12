@@ -156,6 +156,20 @@ export function TerrainProfileChart({ waypoints }: TerrainProfileChartProps) {
         </div>
       )}
 
+      {/* Legend */}
+      {!loading && data.length > 0 && (
+        <div className="flex items-center gap-3 mb-0.5">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-1.5 rounded-sm" style={{ background: TERRAIN_FILL, opacity: 0.5 }} />
+            <span className="text-[9px] font-mono text-text-tertiary">Terrain</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-0.5 rounded-sm" style={{ background: MAP_COLORS.accentPrimary }} />
+            <span className="text-[9px] font-mono text-text-tertiary">Flight path</span>
+          </div>
+        </div>
+      )}
+
       {/* Chart */}
       {!loading && data.length > 0 && (
         <div className="h-[100px]">

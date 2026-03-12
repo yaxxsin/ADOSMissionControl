@@ -7,13 +7,13 @@
 import { CAMERA_PROFILES } from "@/lib/patterns/gsd-calculator";
 
 export const PATTERN_TYPE_OPTIONS = [
-  { value: "survey", label: "Survey Grid" },
-  { value: "orbit", label: "Orbit" },
-  { value: "corridor", label: "Corridor" },
-  { value: "expandingSquare", label: "SAR: Expanding Square" },
-  { value: "sectorSearch", label: "SAR: Sector Search" },
-  { value: "parallelTrack", label: "SAR: Parallel Track" },
-  { value: "structureScan", label: "Structure Scan" },
+  { value: "survey", label: "Survey Grid", description: "Grid/lawnmower pattern for area coverage and mapping" },
+  { value: "orbit", label: "Orbit", description: "Circular flight around a point of interest" },
+  { value: "corridor", label: "Corridor", description: "Linear corridor sweep along a path" },
+  { value: "expandingSquare", label: "SAR: Expanding Square", description: "Search pattern expanding outward from a datum point" },
+  { value: "sectorSearch", label: "SAR: Sector Search", description: "Pie-slice search radiating from a datum point" },
+  { value: "parallelTrack", label: "SAR: Parallel Track", description: "Systematic parallel sweeps across a search area" },
+  { value: "structureScan", label: "Structure Scan", description: "Multi-layer orbit for 3D structure inspection" },
 ];
 
 export const ENTRY_LOCATION_OPTIONS = [

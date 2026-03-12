@@ -7,7 +7,7 @@
 
 import type { Waypoint } from "@/lib/types";
 import { haversineDistance } from "@/lib/telemetry-utils";
-import { pointInPolygon } from "@/lib/drawing/geo-utils";
+import { pointInPolygon, isSelfIntersecting } from "@/lib/drawing/geo-utils";
 
 /** A single validation issue (error or warning). */
 export interface ValidationIssue {
@@ -25,6 +25,12 @@ export interface ValidationResult {
   errors: ValidationIssue[];
 }
 
+/** Terrain elevation data for a waypoint. */
+interface TerrainElevation {
+  waypointIndex: number;
+  groundElevation: number; // meters MSL
+}
+
 /** Options for mission validation. */
 interface ValidationOptions {
   geofence?: {
@@ -35,6 +41,10 @@ interface ValidationOptions {
   };
   maxAltitude?: number;
   maxDistanceBetweenWps?: number;
+  /** Terrain elevation data per waypoint for clearance checking. */
+  terrainElevations?: TerrainElevation[];
+  /** Minimum AGL clearance in meters. Defaults to 5m if terrainElevations provided. */
+  minTerrainClearance?: number;
 }
 
 /**
@@ -196,6 +206,35 @@ export function validateMission(
           waypointId: wp.id,
         });
       }
+    }
+
+    // 12. Terrain clearance check
+    if (options?.terrainElevations) {
+      const te = options.terrainElevations.find((t) => t.waypointIndex === i);
+      if (te) {
+        const clearance = wp.alt - te.groundElevation;
+        const minClearance = options.minTerrainClearance ?? 5;
+        if (clearance < minClearance) {
+          errors.push({
+            type: "error",
+            code: "TERRAIN_CLEARANCE",
+            message: `WP${i + 1}: Only ${Math.round(clearance)}m above terrain (min: ${minClearance}m). Ground: ${Math.round(te.groundElevation)}m MSL`,
+            waypointIndex: i,
+            waypointId: wp.id,
+          });
+        }
+      }
+    }
+  }
+
+  // 13. Self-intersecting geofence polygon check
+  if (options?.geofence?.polygonPoints && options.geofence.polygonPoints.length >= 4) {
+    if (isSelfIntersecting(options.geofence.polygonPoints)) {
+      warnings.push({
+        type: "warning",
+        code: "SELF_INTERSECTING_FENCE",
+        message: "Geofence polygon is self-intersecting. Containment checks may be inaccurate.",
+      });
     }
   }
 
