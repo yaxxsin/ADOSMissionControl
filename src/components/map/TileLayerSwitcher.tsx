@@ -103,18 +103,18 @@ export function TileLayerSwitcher() {
         <div className="leaflet-control" style={{ marginTop: 10, marginRight: 10 }}>
           <button
             onClick={() => setShowPicker((v) => !v)}
-            className="bg-surface-primary border border-border-default px-2 py-1 text-[9px] font-mono text-text-secondary hover:text-text-primary transition-colors"
+            className="bg-bg-primary/90 backdrop-blur-md border border-border-strong rounded px-2 py-1 text-[10px] font-mono text-text-secondary hover:text-text-primary transition-colors shadow-lg"
             title="Switch map tiles"
           >
             {TILE_LABELS[source] ?? "MAP"}
           </button>
           {showPicker && (
-            <div className="mt-1 bg-surface-primary border border-border-default shadow-lg">
+            <div className="mt-1 bg-bg-primary/90 backdrop-blur-md border border-border-strong rounded shadow-lg">
               {TILE_ORDER.map((s) => (
                 <button
                   key={s}
                   onClick={() => handleSelect(s)}
-                  className={`block w-full text-left px-3 py-1.5 text-[9px] font-mono transition-colors ${
+                  className={`block w-full text-left px-3 py-1.5 text-[10px] font-mono transition-colors rounded-sm ${
                     s === source
                       ? "text-accent-primary bg-surface-secondary"
                       : "text-text-secondary hover:text-text-primary hover:bg-surface-secondary"
@@ -124,10 +124,10 @@ export function TileLayerSwitcher() {
                 </button>
               ))}
               {/* Separator + NFZ toggle */}
-              <div className="border-t border-border-default my-0.5" />
+              <div className="border-t border-border-strong my-0.5" />
               <button
                 onClick={() => setShowNfz(!showNfz)}
-                className={`block w-full text-left px-3 py-1.5 text-[9px] font-mono transition-colors ${
+                className={`block w-full text-left px-3 py-1.5 text-[10px] font-mono transition-colors rounded-sm ${
                   showNfz
                     ? "text-status-error bg-status-error/10"
                     : "text-text-secondary hover:text-text-primary hover:bg-surface-secondary"
