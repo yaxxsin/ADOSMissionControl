@@ -211,24 +211,24 @@ export class MAVLinkAdapter implements DroneProtocol {
   sendAttitudeTarget(r: number, p: number, y: number, t: number) { cmds.cmdSendAttitudeTarget(this.cc, r, p, y, t) }
 
   // ── Delegated Parameters ───────────────────────────────
-  async getAllParameters() { const c = this.pc; const r = await prm.getAllParameters(c); this.parameterDownload = c.parameterDownload; return r }
+  async getAllParameters() { const c = this.pc; const p = prm.getAllParameters(c); this.parameterDownload = c.parameterDownload; const r = await p; this.parameterDownload = c.parameterDownload; return r }
   getCachedParameterNames() { return prm.getCachedParameterNames(this.pc) }
   async getParameter(name: string) { return prm.getParameter(this.pc, name) }
   async setParameter(name: string, value: number, type = 9) { return prm.setParameter(this.pc, name, value, type) }
 
   // ── Delegated Missions ─────────────────────────────────
-  async uploadMission(items: MissionItem[]) { const c = this.mc; const r = await msn.uploadMission(c, items); this.missionUpload = c.missionUpload as msn.MissionUploadState | null; return r }
-  async downloadMission() { const c = this.mc; const r = await msn.downloadMission(c); this.missionDownload = c.missionDownload as msn.MissionDownloadState | null; return r }
+  async uploadMission(items: MissionItem[]) { const c = this.mc; const p = msn.uploadMission(c, items); this.missionUpload = c.missionUpload as msn.MissionUploadState | null; const r = await p; this.missionUpload = c.missionUpload as msn.MissionUploadState | null; return r }
+  async downloadMission() { const c = this.mc; const p = msn.downloadMission(c); this.missionDownload = c.missionDownload as msn.MissionDownloadState | null; const r = await p; this.missionDownload = c.missionDownload as msn.MissionDownloadState | null; return r }
   async setCurrentMissionItem(seq: number) { return msn.setCurrentMissionItem(this.mc, seq) }
   async clearMission() { const c = this.mc; const r = await msn.clearMission(c); this.missionUpload = c.missionUpload as msn.MissionUploadState | null; return r }
   async uploadFence(pts: Array<{ lat: number; lon: number }>) { return msn.uploadFence(this.mc, pts) }
   async downloadFence() { return msn.downloadFence(this.mc) }
-  async uploadRallyPoints(pts: Array<{ lat: number; lon: number; alt: number }>) { const c = this.mc; const r = await msn.uploadRallyPoints(c, pts); this.rallyUpload = c.rallyUpload as msn.RallyUploadState | null; return r }
-  async downloadRallyPoints() { const c = this.mc; const r = await msn.downloadRallyPoints(c); this.rallyDownload = c.rallyDownload as msn.RallyDownloadState | null; return r }
+  async uploadRallyPoints(pts: Array<{ lat: number; lon: number; alt: number }>) { const c = this.mc; const p = msn.uploadRallyPoints(c, pts); this.rallyUpload = c.rallyUpload as msn.RallyUploadState | null; const r = await p; this.rallyUpload = c.rallyUpload as msn.RallyUploadState | null; return r }
+  async downloadRallyPoints() { const c = this.mc; const p = msn.downloadRallyPoints(c); this.rallyDownload = c.rallyDownload as msn.RallyDownloadState | null; const r = await p; this.rallyDownload = c.rallyDownload as msn.RallyDownloadState | null; return r }
 
   // ── Delegated Logs ─────────────────────────────────────
-  async getLogList() { const c = this.lc; const r = await logOps.getLogList(c); this.logListDownload = c.logListDownload; return r }
-  async downloadLog(id: number, onProgress?: LogDownloadProgressCallback) { const c = this.lc; const r = await logOps.downloadLog(c, id, onProgress); this.logDataDownload = c.logDataDownload; return r }
+  async getLogList() { const c = this.lc; const p = logOps.getLogList(c); this.logListDownload = c.logListDownload; const r = await p; this.logListDownload = c.logListDownload; return r }
+  async downloadLog(id: number, onProgress?: LogDownloadProgressCallback) { const c = this.lc; const p = logOps.downloadLog(c, id, onProgress); this.logDataDownload = c.logDataDownload; const r = await p; this.logDataDownload = c.logDataDownload; return r }
   async eraseAllLogs() { return logOps.eraseAllLogs(this.lc) }
   cancelLogDownload() { const c = this.lc; logOps.cancelLogDownload(c); this.logListDownload = c.logListDownload; this.logDataDownload = c.logDataDownload }
 
