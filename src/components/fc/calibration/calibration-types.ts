@@ -24,6 +24,7 @@ export interface CalibrationState {
   compassDirection: Map<number, { x: number; y: number; z: number }>;
   needsReboot: boolean;
   failureFixes: string[];
+  commandAccepted: boolean;
 }
 
 export const INITIAL_STATE: CalibrationState = {
@@ -40,6 +41,7 @@ export const INITIAL_STATE: CalibrationState = {
   compassDirection: new Map(),
   needsReboot: false,
   failureFixes: [],
+  commandAccepted: false,
 };
 
 // ArduPilot ACCELCAL_VEHICLE_POS enum: 1=Level, 2=Left, 3=Right, 4=NoseDown, 5=NoseUp, 6=Back

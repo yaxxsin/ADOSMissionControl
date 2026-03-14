@@ -114,11 +114,34 @@ export function subscribeToCalibrationStatus(
         sawRelevantMsg = true;
       }
     });
+    // Primary timer: 5s if we saw a relevant STATUSTEXT
     const fastTimer = setTimeout(() => {
+      if (sawRelevantMsg) {
+        fastUnsub();
+        setter((prev) => {
+          if (prev.status !== "in_progress") return prev;
+          const rebootTypes = ["accel", "compass", "level", "compassmot", "esc"];
+          cleanupSubs(manager, calType);
+          return {
+            ...INITIAL_STATE,
+            status: "success",
+            currentStep: stepCount,
+            progress: 100,
+            message: prev.message || `${calType} calibration complete`,
+            needsReboot: rebootTypes.includes(calType),
+          };
+        });
+        toast(`${calType.charAt(0).toUpperCase() + calType.slice(1)} calibration complete`, "success");
+        useDiagnosticsStore.getState().logCalibration(calType, "success");
+      }
+    }, 5000);
+    // Secondary timer: 8s fallback when no STATUSTEXT arrives but COMMAND_ACK confirmed success
+    const noMsgFallbackTimer = setTimeout(() => {
       fastUnsub();
-      if (!sawRelevantMsg) return;
+      if (sawRelevantMsg) return; // already handled by primary timer
       setter((prev) => {
         if (prev.status !== "in_progress") return prev;
+        if (!prev.commandAccepted) return prev; // no ACK confirmation, let timeout handle it
         const rebootTypes = ["accel", "compass", "level", "compassmot", "esc"];
         cleanupSubs(manager, calType);
         return {
@@ -126,15 +149,16 @@ export function subscribeToCalibrationStatus(
           status: "success",
           currentStep: stepCount,
           progress: 100,
-          message: prev.message || `${calType} calibration complete`,
+          message: `${calType} calibration complete (no status feedback from FC)`,
           needsReboot: rebootTypes.includes(calType),
         };
       });
       toast(`${calType.charAt(0).toUpperCase() + calType.slice(1)} calibration complete`, "success");
       useDiagnosticsStore.getState().logCalibration(calType, "success");
-    }, 5000);
+    }, 8000);
     addSub(manager, calType, fastUnsub);
     addSub(manager, calType, () => clearTimeout(fastTimer));
+    addSub(manager, calType, () => clearTimeout(noMsgFallbackTimer));
   }
 
   // Accel-specific: subscribe to position requests from FC

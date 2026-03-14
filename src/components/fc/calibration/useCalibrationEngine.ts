@@ -237,7 +237,10 @@ export function useCalibrationEngine() {
         const msg = result.resultCode === 5 ? "Calibration already in progress — cancel first or wait for it to finish" : result.resultCode === 1 ? "FC temporarily busy — wait a moment and retry" : result.message || "Calibration command rejected";
         setter((prev) => ({ ...prev, status: "error", message: msg }));
         toast(`${type.charAt(0).toUpperCase() + type.slice(1)} calibration: ${msg}`, "error");
-      } else { toast(`${type.charAt(0).toUpperCase() + type.slice(1)} calibration started`, "info"); }
+      } else {
+        setter((prev) => ({ ...prev, commandAccepted: true }));
+        toast(`${type.charAt(0).toUpperCase() + type.slice(1)} calibration started`, "info");
+      }
     } catch {
       cleanupSubs(manager, type); if (isPx4) setPx4CalActiveType(null);
       setter((prev) => ({ ...prev, status: "error", message: "Failed to send calibration command" }));

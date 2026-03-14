@@ -79,9 +79,9 @@ export function cmdStartCalibration(
     case 'gyro':     params[0] = 1; break
     case 'accel':    params[4] = 1; break
     case 'level':    params[4] = 2; break
-    case 'airspeed': params[2] = 1; break
+    case 'airspeed': params[5] = 2; break
     case 'baro':     params[2] = 1; break
-    case 'esc':      params[4] = 4; break
+    case 'esc':      params[6] = 1; break
   }
   return ctx.sendCommandLong(241, params, 30000)
 }
@@ -261,10 +261,6 @@ export function cmdRequestMessage(ctx: CommandContext, msgId: number): Promise<C
 
 export function cmdSetMessageInterval(ctx: CommandContext, msgId: number, intervalUs: number): Promise<CommandResult> {
   return ctx.sendCommandLong(511, [msgId, intervalUs, 0, 0, 0, 0, 0])
-}
-
-export function cmdStartEscCalibration(ctx: CommandContext): Promise<CommandResult> {
-  return ctx.sendCommandLong(241, [0, 0, 0, 0, 4, 0, 0])
 }
 
 export function cmdStartCompassMotCal(ctx: CommandContext): Promise<CommandResult> {

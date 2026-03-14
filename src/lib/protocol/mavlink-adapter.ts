@@ -205,7 +205,6 @@ export class MAVLinkAdapter implements DroneProtocol {
   async startRxPair(s: number) { return cmds.cmdStartRxPair(this.cc, s) }
   async requestMessage(id: number) { return cmds.cmdRequestMessage(this.cc, id) }
   async setMessageInterval(id: number, us: number) { return cmds.cmdSetMessageInterval(this.cc, id, us) }
-  async startEscCalibration() { return cmds.cmdStartEscCalibration(this.cc) }
   async startCompassMotCal() { return cmds.cmdStartCompassMotCal(this.cc) }
   sendSerialData(t: string) { cmds.cmdSendSerialData(this.cc, t) }
   sendPositionTarget(lat: number, lon: number, alt: number) { cmds.cmdSendPositionTarget(this.cc, lat, lon, alt) }
